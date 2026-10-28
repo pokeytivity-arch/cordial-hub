@@ -420,6 +420,11 @@ html[data-look] #addbtn::before{content:none}
 #zc[hidden]{display:none}
 #zcroot{flex:1;min-height:0;position:relative;overflow:hidden;width:100%}
 #zcroot>div{max-width:100%}
+#zcroot [class*="footer"],#zcroot [class*="Footer"]{opacity:1!important;visibility:visible!important;transform:none!important}
+#zbar{display:flex;gap:10px;justify-content:center;align-items:center;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:#1b1b1b}
+#zbar button{min-width:64px;height:46px;border-radius:23px;border:0;background:#333;color:#fff;font-size:15px;padding:0 14px}
+#zbar button.off{background:#c0392b}
+#zbar button.end{background:#c0392b}
 @media (orientation:landscape) and (max-height:520px){#zch{padding-top:6px;padding-bottom:6px}#zcst{padding:8px 16px}}
 #zch{display:flex;gap:12px;align-items:center;padding:10px 14px;background:#1b1b1b;padding-top:calc(10px + env(safe-area-inset-top,0px))}
 #zch strong{flex:1}#zch a{color:#9cf}
@@ -1638,6 +1643,26 @@ function loadZoomSdk(){
   ZLOADED=tryV(0).catch(function(e){ZLOADED=null;throw e});
   return ZLOADED;
 }
+var ZST={audio:false,video:false};
+async function zoomToggle(kind,btn){
+  var c=ZCLI;if(!c)return;
+  var turnOff=ZST[kind];
+  try{
+    if(kind==="audio"){
+      if(c.mute)await c.mute(turnOff);
+      else if(c.muteAudio)await c.muteAudio(turnOff);
+      else throw new Error("na");
+    }else{
+      if(turnOff&&c.stopVideo)await c.stopVideo();
+      else if(!turnOff&&c.startVideo)await c.startVideo();
+      else if(c.muteVideo)await c.muteVideo(turnOff);
+      else throw new Error("na");
+    }
+    ZST[kind]=!turnOff;
+    btn.classList.toggle("off",turnOff);
+    btn.textContent=(kind==="audio"?"🎤 ":"📷 ")+(kind==="audio"?"Mic":"Camera")+(turnOff?" off":"");
+  }catch(e){note("Use the buttons in the Zoom view, or the Zoom app, for "+(kind==="audio"?"the microphone":"the camera")+".")}
+}
 var ZRT=0;
 function zoomResize(){
   clearTimeout(ZRT);
@@ -1664,7 +1689,12 @@ async function openZoomInHub(){
     var lv=h("button",null,"Leave");lv.onclick=closeZoom;hd.appendChild(lv);
     var st=h("div","meta","Connecting…");st.id="zcst";
     var rt=h("div");rt.id="zcroot";
-    ZC.appendChild(hd);ZC.appendChild(st);ZC.appendChild(rt);document.body.appendChild(ZC);
+    var bar=h("div");bar.id="zbar";
+    var mic=h("button",null,"🎤 Mic");mic.type="button";mic.onclick=function(){zoomToggle("audio",mic)};
+    var cam=h("button",null,"📷 Camera");cam.type="button";cam.onclick=function(){zoomToggle("video",cam)};
+    var end=h("button","end","Leave");end.type="button";end.onclick=closeZoom;
+    bar.appendChild(mic);bar.appendChild(cam);bar.appendChild(end);
+    ZC.appendChild(hd);ZC.appendChild(st);ZC.appendChild(rt);ZC.appendChild(bar);document.body.appendChild(ZC);
   }
   var st=ZC.querySelector("#zcst");st.hidden=false;st.textContent="Connecting to Zoom…";
   ZC.hidden=false;
