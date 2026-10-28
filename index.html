@@ -1643,7 +1643,12 @@ function loadZoomSdk(){
   ZLOADED=tryV(0).catch(function(e){ZLOADED=null;throw e});
   return ZLOADED;
 }
-var ZST={audio:false,video:false};
+var ZST={audio:false,video:false},ZVIEW=0,ZVIEWS=[["gallery","▦ Gallery"],["speaker","◉ Speaker"],["active","◎ Active"],["ribbon","☰ Strip"]];
+function zoomView(btn){
+  var c=ZCLI;if(!c||!c.setViewType)return note("Changing the view isn’t available here.");
+  ZVIEW=(ZVIEW+1)%ZVIEWS.length;
+  try{c.setViewType(ZVIEWS[ZVIEW][0]);btn.textContent=ZVIEWS[ZVIEW][1]}catch(e){note("That view isn’t available right now.")}
+}
 async function zoomToggle(kind,btn){
   var c=ZCLI;if(!c)return;
   var turnOff=ZST[kind];
@@ -1653,10 +1658,12 @@ async function zoomToggle(kind,btn){
       else if(c.muteAudio)await c.muteAudio(turnOff);
       else throw new Error("na");
     }else{
-      if(turnOff&&c.stopVideo)await c.stopVideo();
-      else if(!turnOff&&c.startVideo)await c.startVideo();
-      else if(c.muteVideo)await c.muteVideo(turnOff);
-      else throw new Error("na");
+      var root=ZC&&ZC.querySelector("#zcroot"),vb=null;
+      if(root)Array.prototype.forEach.call(root.querySelectorAll("button,[role=button]"),function(b){
+        var t=((b.getAttribute("aria-label")||"")+" "+(b.title||"")+" "+(b.textContent||"")).toLowerCase();
+        if(!vb&&/(start|stop|turn (on|off)).{0,12}(my )?video|camera/.test(t))vb=b});
+      if(!vb)throw new Error("na");
+      vb.click();
     }
     ZST[kind]=!turnOff;
     btn.classList.toggle("off",turnOff);
@@ -1692,8 +1699,9 @@ async function openZoomInHub(){
     var bar=h("div");bar.id="zbar";
     var mic=h("button",null,"🎤 Mic");mic.type="button";mic.onclick=function(){zoomToggle("audio",mic)};
     var cam=h("button",null,"📷 Camera");cam.type="button";cam.onclick=function(){zoomToggle("video",cam)};
+    var vw=h("button",null,"▦ Gallery");vw.type="button";vw.onclick=function(){zoomView(vw)};
     var end=h("button","end","Leave");end.type="button";end.onclick=closeZoom;
-    bar.appendChild(mic);bar.appendChild(cam);bar.appendChild(end);
+    bar.appendChild(mic);bar.appendChild(cam);bar.appendChild(vw);bar.appendChild(end);
     ZC.appendChild(hd);ZC.appendChild(st);ZC.appendChild(rt);ZC.appendChild(bar);document.body.appendChild(ZC);
   }
   var st=ZC.querySelector("#zcst");st.hidden=false;st.textContent="Connecting to Zoom…";
