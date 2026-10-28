@@ -111,6 +111,11 @@ a.go{display:inline-block;text-decoration:none;background:var(--btn);color:var(-
 .pfwrite{display:block;width:100%;text-align:left;border:0;border-radius:999px;padding:12px 16px;margin-bottom:10px;font:inherit;background:var(--surface);color:var(--muted);cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.12)}
 #pfs{position:fixed;inset:0;z-index:140;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center}
 #pfsc{background:var(--surface);color:var(--ink);width:min(520px,100%);max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+.pav{background-size:cover;background-position:center}.pav.has{color:transparent}
+.pmore{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:800;font-size:1.1rem;letter-spacing:1px;padding:6px 10px;border-radius:999px;cursor:pointer}
+.pmi{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:0;background:var(--bgrey,#f0f2f5);color:var(--ink);font:inherit;padding:14px 16px;border-radius:12px;margin:0 0 8px;cursor:pointer}
+.pmi.bad{color:#b3261e}.pmic{font-size:1.3rem;width:28px;text-align:center}
+.pmt{display:flex;flex-direction:column}.pmt small{color:var(--muted);font-size:.8rem;margin-top:2px}
 .pfsh{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:1.1rem}
 
 #jc{position:fixed;inset:0;z-index:250;background:#000;display:flex;flex-direction:column}
@@ -1678,6 +1683,35 @@ $("#fpost").onclick=async function(){
   }catch(e){note(attachErr(e))}
   btn.disabled=false;btn.textContent="Post";
 };
+function pname(id,ps){return id&&id===myId?(S.me||"You"):nameOf(id,ps)}
+function postMenu(p){
+  var old=document.getElementById("pfs");if(old)old.remove();
+  var o=h("div");o.id="pfs";var c=h("div");c.id="pfsc";
+  var mine=p.by&&p.by===myId,can=canWrite&&(mine||isOwner);
+  var close=function(){o.remove()};
+  function item(icon,label,sub,fn,danger){
+    var b=h("button","pmi"+(danger?" bad":""));b.appendChild(h("span","pmic",icon));
+    var t=h("span","pmt");t.appendChild(h("b",null,label));if(sub)t.appendChild(h("small",null,sub));b.appendChild(t);
+    b.onclick=function(){close();fn()};c.appendChild(b);
+  }
+  var hd=h("div","pfsh");hd.appendChild(h("strong",null,"Post options"));var x=h("button","quiet","✕");x.onclick=close;hd.appendChild(x);c.appendChild(hd);
+  if(can)item("📌",p.pinned?"Unpin post":"Pin post",p.pinned?"":"Keep it at the top of the Timeline",function(){db.doc("posts/"+p.id).update({pinned:!p.pinned,pinTs:Date.now()}).catch(fail)});
+  if(canWrite&&mine&&p.text!==undefined)item("✏️","Edit post","",function(){
+    pSheet("Edit post",[{id:"text",label:"Text",type:"textarea",value:p.text||"",max:1000}],async function(v){
+      if(!v.text&&!p.mid)throw new Error("empty");
+      await db.doc("posts/"+p.id).update({text:v.text,edited:Date.now()});
+    });
+  });
+  if(p.text)item("📋","Copy text","",function(){
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(p.text).then(function(){note("Copied.");setTimeout(function(){if($("#notice").textContent==="Copied.")note("")},1500)},function(){note("Couldn’t copy.")});
+  });
+  if(p.mid)item("⬇️","Save photo","",function(){
+    getMedia(p.mid).then(function(d){if(d&&d.data)fetch(d.data).then(function(r){return r.blob()}).then(function(b){saveFile("photo.jpg",b,"image/jpeg")})});
+  });
+  item("↗️","Share","",function(){sharePost(p)});
+  if(can)item("🗑️","Delete post","This also removes its comments and reactions.",function(){if(confirm("Delete this post?"))delPost(p)},true);
+  o.appendChild(c);o.onclick=function(e){if(e.target===o)close()};document.body.appendChild(o);
+}
 function delPost(p){
   if(!db)return;
   var ops=[db.doc("posts/"+p.id).delete()];
@@ -1790,10 +1824,10 @@ function sharePost(p,who){
 }
 
 function buildPost(p,ps){
-  var c=h("div","card post"),hd=h("div","phead"),who=nameOf(p.by,ps);
-  hd.appendChild(h("div","pav",who.charAt(0).toUpperCase()));
-  var hw=h("div");hw.style.flex="1";hw.appendChild(h("div","pwho",who));hw.appendChild(h("div","meta",ago(p.ts)));hd.appendChild(hw);
-  if(p.by&&p.by===myId&&canWrite){var del=h("button","quiet","Delete");del.onclick=function(){delPost(p)};hd.appendChild(del)}
+  var c=h("div","card post"),hd=h("div","phead"),who=pname(p.by,ps);
+  var pv=h("div","pav",who.charAt(0).toUpperCase());if(PF(p.by).avatar)setBg(pv,PF(p.by).avatar);hd.appendChild(pv);
+  var hw=h("div");hw.style.flex="1";hw.appendChild(h("div","pwho",who));hw.appendChild(h("div","meta",(p.pinned?"📌 Pinned · ":"")+ago(p.ts)+(p.edited?" · Edited":"")));hd.appendChild(hw);
+  var mb=h("button","pmore","•••");mb.setAttribute("aria-label","Post options");mb.onclick=function(){postMenu(p)};hd.appendChild(mb);
   c.appendChild(hd);
   if(p.text)c.appendChild(h("div","pbody",p.text));
   if(p.mid){
@@ -1832,7 +1866,7 @@ function buildPost(p,ps){
 }
 
 function commentRow(x,ps){
-  var r=h("div","pcm"),b=h("div","pcb");b.appendChild(h("div","pcw",nameOf(x.by,ps)));
+  var r=h("div","pcm"),b=h("div","pcb");b.appendChild(h("div","pcw",pname(x.by,ps)));
   if(x.text)b.appendChild(document.createTextNode(x.text));
   if(x.mid){
     var im=h("img","cimg");im.alt="Photo";if(x.w>0&&x.h>0)im.style.aspectRatio=x.w+" / "+x.h;
@@ -1946,9 +1980,10 @@ function renderFeedInto(L,posts,emptyText,keepFocus){
   };
   if(userCap&&ids.length)Promise.resolve(userCap.profiles(ids)).then(go,function(){go(null)});else go(null);
 }
+function pinFirst(a){return a.slice().sort(function(x,y){if(!!x.pinned!==!!y.pinned)return x.pinned?-1:1;if(x.pinned&&y.pinned)return (y.pinTs||0)-(x.pinTs||0);return 0})}
 function renderFeed(){
-  renderFeedInto($("#fl"),S.posts,"No posts yet. Share an update, a photo, or a reminder with everyone.",true);
-  var prl=$("#prl");if(prl)renderFeedInto(prl,S.posts.filter(function(p){return p.by&&p.by===myId}),"You haven’t posted yet.",false);
+  renderFeedInto($("#fl"),pinFirst(S.posts),"No posts yet. Share an update, a photo, or a reminder with everyone.",true);
+  var prl=$("#prl");if(prl)renderFeedInto(prl,pinFirst(S.posts).filter(function(p){return p.by&&p.by===myId}),"You haven’t posted yet.",false);
   if(CS.post)renderCS(false);
 }
 
