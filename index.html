@@ -611,6 +611,11 @@ html[data-look] #addbtn::before{content:none}
     <p class="meta" style="margin:0 0 10px">This counts messages, posts, photos shared on the Timeline and everything else kept in the database (the free Supabase plan allows about 500 MB). Documents and chat files are stored separately (about 1 GB on the free plan). Photos are shrunk to under 190 KB each.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap"><button id="stref" class="quiet">Refresh</button><button id="stexp">Export backup</button></div>
   </div>
+  <div class="card"><h2>Alerts and the number on the icon</h2>
+    <p class="meta" id="alsts" style="margin:0 0 8px">Checking…</p>
+    <p class="meta" style="margin:0 0 10px">On an iPhone, add the hub to your Home Screen first (Share → Add to Home Screen), open it from there, then tap the button. The red number counts unread messages and notifications. It updates while the app is open or just after you leave it.</p>
+    <button id="alon" class="go">Turn on alerts</button>
+  </div>
 </section>
 
 <section id="p-docs" hidden>
@@ -694,7 +699,7 @@ function showTab(id){
   var tt=(TILES||[]).filter(function(t){return t[0]===id})[0];$("#apptitle").textContent=home?"Home":(tt?tt[1]:"");
   window.scrollTo(0,0);note("");
   if(READY){if(chg)safe(renderAll)();lockForms();if(!cw&&FEAT[id])note("You can view this section but not change it. Ask the owner if you need to.");if(id==="access")safe(renderAccess)()}
-  if(id==="help"&&typeof measure==="function")measure();
+  if(id==="help"&&typeof measure==="function"){measure();alertStatus()}
   if(home&&typeof renderHome==="function"&&S.kids)safe(renderHome)();
 }
 TABS.forEach(function(t){var b=h("button",null,t[1]);b.id="tab-"+t[0];b.setAttribute("role","tab");b.onclick=function(){showTab(t[0])};$("#tabs").appendChild(b)});
@@ -795,7 +800,7 @@ var PTAB="all",PSIG="";
 function PF(id){return (S.prof&&S.prof[id])||{}}
 function setBg(el,mid){
   if(!mid){el.style.backgroundImage="";return}
-  getMedia(mid).then(function(d){if(d&&d.data){el.style.backgroundImage="url("+d.data+")";el.classList.add("has")}});
+  getMedia(mid).then(function(d){if(d&&d.data){el.style.backgroundImage="url("+d.data+")";el.style.backgroundSize="cover";el.style.backgroundPosition="center";el.style.backgroundRepeat="no-repeat";el.classList.add("has")}});
 }
 function pickPhoto(inp,cb){
   inp.onchange=async function(){
@@ -1222,6 +1227,26 @@ $("#stexp").onclick=async function(){
   var b=$("#stexp");b.disabled=true;b.textContent="Preparing…";
   try{var all=await readAll();await saveFile("cordial-backup-"+new Date().toISOString().slice(0,10)+".json",JSON.stringify(all,null,1),"application/json")}
   finally{b.disabled=false;b.textContent="Export backup"}
+};
+
+function setIconBadge(n){
+  try{
+    if(!("setAppBadge" in navigator))return;
+    if(n>0)navigator.setAppBadge(n).catch(function(){});else navigator.clearAppBadge().catch(function(){});
+  }catch(e){}
+}
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js").catch(function(){})})}
+function alertStatus(){
+  var t=$("#alsts"),b=$("#alon");if(!t)return;
+  if(!("Notification" in window)){t.textContent="This browser can’t show alerts. On an iPhone, open the hub from its Home Screen icon.";b.hidden=true;return}
+  var p=Notification.permission;
+  if(p==="granted"){t.textContent="Alerts are on. The icon number is active.";b.hidden=true}
+  else if(p==="denied"){t.textContent="Alerts are blocked. Allow them in your phone’s Settings for this app.";b.hidden=true}
+  else{t.textContent="Alerts are off.";b.hidden=false}
+}
+$("#alon").onclick=function(){
+  if(!("Notification" in window))return;
+  Notification.requestPermission().then(function(){alertStatus();if(typeof window.__badgeNow==="function")window.__badgeNow()});
 };
 function previewText(m){
   switch(m.kind){
@@ -2702,7 +2727,15 @@ async function start(session){
     }
   }
 
+  function badgeNow(){
+    var E=events(),sn=lget(SEEN_N),sc=lget(SEEN_C);
+    var n=(cur==="notif"?0:E.filter(function(e){return e.k!=="msg"&&e.ts>sn}).length)+(cur==="msg"?0:S.msgs.filter(function(m){return m.by!==myId&&m.ts>sc}).length);
+    setIconBadge(n);
+  }
+  window.__badgeNow=badgeNow;
+  document.addEventListener("visibilitychange",function(){badgeNow()});
   function renderExtras(){
+    try{badgeNow()}catch(e){}
     if(look==="classic")return;
     var E=events();
     if(cur==="notif")lset(SEEN_N,Date.now());
