@@ -1,14 +1,14 @@
 // Signs a short-lived Zoom Meeting SDK pass so hub members can join the Zoom call inside the hub.
 // Netlify environment variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 // ZOOM_SDK_KEY (the Client ID of your Meeting SDK app), ZOOM_SDK_SECRET (its Client Secret),
-// ZOOM_MEETING_NUMBER (optional, default 83026513168), ZOOM_MEETING_PASSCODE (optional, only if the meeting has one).
+// ZOOM_MEETING_NUMBER (optional, default 81051139171), ZOOM_MEETING_PASSCODE (optional, only if the meeting has one).
 // The secret never goes in the web page. It lives only here, on the server.
 const crypto = require("crypto");
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SDK_KEY = process.env.ZOOM_SDK_KEY;
 const SDK_SECRET = process.env.ZOOM_SDK_SECRET;
-const MN = String(process.env.ZOOM_MEETING_NUMBER || "83026513168").replace(/\D/g, "");
+const MN = String(process.env.ZOOM_MEETING_NUMBER || "81051139171").replace(/\D/g, "");
 const PWD = process.env.ZOOM_MEETING_PASSCODE || "";
 
 const out = (code, body) => ({
