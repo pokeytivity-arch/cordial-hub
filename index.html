@@ -670,9 +670,9 @@ html[data-look] #addbtn::before{content:none}
   <div class="card" id="zjanet">
     <h2>Janet Onyemachi Chuku</h2>
     <div class="zrow">
-      <a class="zphone" id="zphone" href="https://us02web.zoom.us/j/83026513168" aria-label="Call on Zoom"><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="#fff" d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z"/></svg></a>
+      <a class="zphone" id="zphone" href="https://us06web.zoom.us/j/81051139171?pwd=JXEuVJy2WoefoMiakLSYBJRh7TLeDC.1" aria-label="Call on Zoom"><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="#fff" d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z"/></svg></a>
       <div><div id="znext" style="font-weight:600">Zoom call</div><div class="meta" id="zwhen"></div>
-      <a href="https://us02web.zoom.us/j/83026513168" target="_blank" rel="noopener" class="meta">Open in the Zoom app instead</a></div>
+      <a href="https://us06web.zoom.us/j/81051139171?pwd=JXEuVJy2WoefoMiakLSYBJRh7TLeDC.1" target="_blank" rel="noopener" class="meta">Open in the Zoom app instead</a></div>
     </div>
     <p class="meta" style="margin:10px 0 6px">Zoom records the call. The summary and transcript are saved under Meetings.</p>
     <div class="zdays" id="zdays"></div>
@@ -1669,11 +1669,11 @@ async function openZoomInHub(){
     st.hidden=true;
   }catch(e){
     var m=(e&&(e.reason||e.message))||"";
-    zoomFallback(/host|start/i.test(m)?"The host hasn’t started the call yet.":"Couldn’t connect inside the hub"+(m?" ("+String(m).slice(0,80)+")":"")+".");
+    zoomFallback("Couldn’t join inside the hub"+(m?" ("+String(m).slice(0,120)+(e&&e.errorCode?" · code "+e.errorCode:"")+")":(e&&e.errorCode?" (code "+e.errorCode+")":""))+".");
   }
 }
 
-var ZNUM="83026513168",ZURL="https://us02web.zoom.us/j/"+ZNUM,ZDN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+var ZNUM="81051139171",ZURL="https://us06web.zoom.us/j/81051139171?pwd=JXEuVJy2WoefoMiakLSYBJRh7TLeDC.1",ZDN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 function zplan(){var p=S.callplan||{};return{days:Array.isArray(p.days)?p.days:[2,4,6],t:p.t||"18:30"}}
 function zutc(t,dayOff){var a=t.split(":"),h=(+a[0]||0)-1,m=+a[1]||0;return{h:((h%24)+24)%24,m:m,back:h<0}}
 function zLocalTime(t){var u=zutc(t),d=new Date(Date.UTC(2026,0,5,u.h,u.m));return d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
