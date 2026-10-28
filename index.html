@@ -116,6 +116,24 @@ a.go{display:inline-block;text-decoration:none;background:var(--btn);color:var(-
 .pmi{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:0;background:var(--bgrey,#f0f2f5);color:var(--ink);font:inherit;padding:14px 16px;border-radius:12px;margin:0 0 8px;cursor:pointer}
 .pmi.bad{color:#b3261e}.pmic{font-size:1.3rem;width:28px;text-align:center}
 .pmt{display:flex;flex-direction:column}.pmt small{color:var(--muted);font-size:.8rem;margin-top:2px}
+.fh2{display:flex;justify-content:space-between;align-items:baseline;margin:2px 4px 6px}.fh2 h2{margin:0}
+.flink{border:0;background:transparent;color:var(--a,#1877f2);font:inherit;font-size:1rem;cursor:pointer;padding:6px}
+.fbar{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;background:var(--surface);color:var(--ink);font:inherit;font-size:1.05rem;padding:12px 14px;border-radius:14px;margin:0 0 12px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.fbtx{flex:1}.fbim{display:flex;color:#6b6f76}
+.fbav{width:40px;height:40px;border-radius:50%;background:var(--a-bg,#e7f3ff) center/cover;color:var(--a,#1877f2);font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
+.fbav.has{color:transparent}
+#fform{display:none}
+.fch,.fcwho{display:none}
+body.composing{overflow:hidden}
+body.composing #fform{display:block!important;position:fixed;inset:0;z-index:130;border-radius:0;margin:0;overflow:auto;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 20px;background:var(--surface)}
+body.composing .fch{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+body.composing .fcwho{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+body.composing #ft{min-height:42vh;border:0;background:transparent;font-size:1.15rem;padding:6px 2px;resize:none;box-shadow:none;outline:none}
+body.composing #fpost{display:none}
+.linkish{border:0;background:transparent;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+button.pav{border:0;padding:0;cursor:pointer;font:inherit;font-weight:700}
+.pav.sm{width:30px;height:30px;font-size:.85rem}
+.pcm{flex-direction:row!important;gap:8px;align-items:flex-start!important}.pcc{display:flex;flex-direction:column;align-items:flex-start;min-width:0}
 .pfsh{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:1.1rem}
 
 #jc{position:fixed;inset:0;z-index:250;background:#000;display:flex;flex-direction:column}
@@ -492,7 +510,12 @@ html[data-look] #addbtn::before{content:none}
 </section>
 
 <section id="p-feed" hidden>
+  <div class="fh2"><h2>All posts</h2><button class="flink" id="ffilt" type="button">Filters</button></div>
+  <div id="ffmenu" class="prtabs" hidden></div>
+  <button class="fbar" id="fbar" type="button"><span class="fbav" id="fbav"></span><span class="fbtx">What’s on your mind?</span><span class="fbim" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26"><rect x="3" y="3" width="18" height="18" rx="3.5" fill="currentColor"/><circle cx="9" cy="9" r="2" fill="#fff"/><path d="M4 18l5-5 3 3 3-4 5 6z" fill="#fff"/></svg></span></button>
   <div class="card" id="fform">
+    <div class="fch"><button class="quiet" id="fcx" type="button" aria-label="Close">✕</button><strong>Create post</strong><button class="go" id="fpost2" type="button">Post</button></div>
+    <div class="fcwho"><span class="fbav" id="fcav"></span><b id="fcn"></b></div>
     <textarea id="ft" maxlength="1000" placeholder="What’s on your mind?" aria-label="Write a post"></textarea>
     <div id="fprev" hidden></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
@@ -663,6 +686,7 @@ function note(msg){var n=$("#notice");n.textContent=msg;n.hidden=!msg}
 function showTab(id){
   if(!tabOk(id))id="home";
   CUR=id;
+  if(id==="profile"){if(!PVSET)VIEW=null;PVSET=false}
   var cw=tabEdit(id),chg=cw!==canWrite;canWrite=cw;
   TABS.forEach(function(t){$("#p-"+t[0]).hidden=t[0]!==id;var b=$("#tab-"+t[0]);b.setAttribute("aria-selected",t[0]===id)});
   if(id==="msg"){var ml=$("#ml");ml.scrollTop=ml.scrollHeight}
@@ -873,28 +897,28 @@ function lazyImg(box,mid,cls,onTap,who,cap){
 }
 function renderProf(force){
   var box=$("#prh");if(!box||!db)return;
-  var p=PF(myId),mine=S.hl.filter(function(x){return x.by===myId});
+  var vid=VIEW||myId,own=(vid===myId),nm0=own?(S.me||"You"):memberName(vid),p=PF(vid),mine=S.hl.filter(function(x){return x.by===vid});
   var rem=S.msgs.filter(function(m){return m.kind==="reminder"});
   var evs=Object.keys(S.sched||{}).filter(function(k){return k>=key(new Date())});
-  var myPosts=S.posts.filter(function(x){return x.by===myId});
-  var sg=JSON.stringify([PTAB,S.me,p,mine.map(function(x){return [x.id,x.title]}),rem.map(function(m){return [m.id,m.done,m.title,m.when]}),evs.map(function(k){return [k,S.sched[k]]}),myPosts.map(function(x){return x.id}),canWrite]);
+  var myPosts=S.posts.filter(function(x){return x.by===vid});
+  var sg=JSON.stringify([vid,PTAB,nm0,p,mine.map(function(x){return [x.id,x.title]}),rem.map(function(m){return [m.id,m.done,m.title,m.when]}),evs.map(function(k){return [k,S.sched[k]]}),myPosts.map(function(x){return x.id}),canWrite]);
   if(!force&&PSIG===sg)return;PSIG=sg;
   box.textContent="";
   var cov=h("div","pfcover");setBg(cov,p.cover);
-  var cb=h("button","pfcam","📷");cb.setAttribute("aria-label","Change cover photo");cb.onclick=function(){changeProfilePhoto("cover")};cov.appendChild(cb);
+  var cb=h("button","pfcam","📷");cb.setAttribute("aria-label","Change cover photo");cb.onclick=function(){changeProfilePhoto("cover")};if(own)cov.appendChild(cb);
   box.appendChild(cov);
-  var av=h("div","pfav",(S.me||"?").charAt(0).toUpperCase());setBg(av,p.avatar);
-  av.onclick=function(){if(p.avatar)getMedia(p.avatar).then(function(d){if(d&&d.data)openViewer(d.data,S.me)})};
+  var av=h("div","pfav",(nm0||"?").charAt(0).toUpperCase());setBg(av,p.avatar);
+  av.onclick=function(){if(p.avatar)getMedia(p.avatar).then(function(d){if(d&&d.data)openViewer(d.data,nm0)})};
   var ab=h("button","pfcam sm","📷");ab.setAttribute("aria-label","Change profile photo");ab.onclick=function(e){e.stopPropagation();changeProfilePhoto("avatar")};
-  var avw=h("div","pfavw");avw.appendChild(av);avw.appendChild(ab);box.appendChild(avw);
-  box.appendChild(h("div","pfname",S.me||"You"));
-  var g=(typeof GROUPS!=="undefined"&&MEMBER)?(GROUPS.filter(function(x){return x[0]===MEMBER.grp})[0]||[])[1]:"";
-  box.appendChild(h("div","meta",(g||"Member")+(isOwner?" · Owner":"")+" · "+myPosts.length+(myPosts.length===1?" post":" posts")));
-  box.appendChild(h("div","pfbio",p.bio||"Add a bio so everyone knows who you are."));
+  var avw=h("div","pfavw");avw.appendChild(av);if(own)avw.appendChild(ab);box.appendChild(avw);
+  box.appendChild(h("div","pfname",nm0||"You"));
+  var mm=own?MEMBER:MEMBERS.filter(function(x){return x.user_id===vid})[0];var g=(typeof GROUPS!=="undefined"&&mm)?(GROUPS.filter(function(x){return x[0]===mm.grp})[0]||[])[1]:"";
+  box.appendChild(h("div","meta",(g||"Member")+(mm&&mm.is_owner?" · Owner":"")+" · "+myPosts.length+(myPosts.length===1?" post":" posts")));
+  box.appendChild(h("div","pfbio",p.bio||(own?"Add a bio so everyone knows who you are.":"")));
   var d2=[];if(p.work)d2.push("💼 "+p.work);if(p.loc)d2.push("📍 "+p.loc);
   if(d2.length)box.appendChild(h("div","pfchips",d2.join("  ·  ")));
   var br=h("div","pfbtns");
-  var eb=h("button","pfedit","✏️ Edit profile");eb.onclick=editProfile;br.appendChild(eb);box.appendChild(br);
+  var eb=own?h("button","pfedit","✏️ Edit profile"):h("button","pfedit","💬 Message");eb.onclick=own?editProfile:function(){showTab("msg")};br.appendChild(eb);if(!own){var bb=h("button","pfedit","← My profile");bb.onclick=function(){openProfile(null)};br.appendChild(bb)}box.appendChild(br);
   // tabs
   var tb=$("#prtabs");tb.textContent="";
   [["all","All"],["photos","Photos"],["rem","Reminders"],["ev","Events"]].forEach(function(t){
@@ -907,22 +931,22 @@ function renderProf(force){
     if(p.home){dc.appendChild(detailRow("🏠","From "+p.home));any=true}
     if(p.born){dc.appendChild(detailRow("🎂",p.born));any=true}
     if(p.work){dc.appendChild(detailRow("💼",p.work));any=true}
-    if(!any)dc.appendChild(h("p","empty","Nothing added yet."));
-    var e2=h("button","quiet","Edit details");e2.onclick=editProfile;dc.appendChild(e2);
+    if(!any)dc.appendChild(h("p","empty",own?"Nothing added yet.":"Nothing shared yet."));
+    if(own){var e2=h("button","quiet","Edit details");e2.onclick=editProfile;dc.appendChild(e2)}
     pane.appendChild(dc);
     var hc=h("div","card");hc.appendChild(h("h3",null,"Highlights"));
     var hs=h("div","pfhl");
-    var add=h("button","pfhc add");add.appendChild(h("span","pfplus","+"));add.appendChild(h("span",null,"Add highlight"));add.onclick=addHighlight;hs.appendChild(add);
+    var add=h("button","pfhc add");add.appendChild(h("span","pfplus","+"));add.appendChild(h("span",null,"Add highlight"));add.onclick=addHighlight;if(own)hs.appendChild(add);
     mine.slice().sort(function(a,b){return (b.ts||0)-(a.ts||0)}).forEach(function(x){
       var cd=h("div","pfhc");
-      lazyImg(cd,x.mid,"pfhi",null,S.me,x.title);
+      lazyImg(cd,x.mid,"pfhi",null,nm0,x.title);
       cd.appendChild(h("span","pfht",x.title||"Highlight"));
-      if(canWrite){var dx=h("button","pfhx","×");dx.setAttribute("aria-label","Remove");dx.onclick=function(e){e.stopPropagation();delHighlight(x)};cd.appendChild(dx)}
+      if(own&&canWrite){var dx=h("button","pfhx","×");dx.setAttribute("aria-label","Remove");dx.onclick=function(e){e.stopPropagation();delHighlight(x)};cd.appendChild(dx)}
       hs.appendChild(cd);
     });
     hc.appendChild(hs);pane.appendChild(hc);
-    pane.appendChild(h("h2","pfh2","All posts"));
-    var wr=h("button","pfwrite","Write something…");wr.onclick=function(){showTab("feed")};pane.appendChild(wr);
+    pane.appendChild(h("h2","pfh2",own?"All posts":"Posts"));
+    if(own){var wr=h("button","pfwrite","Write something…");wr.onclick=openComposer;pane.appendChild(wr)}
     var pl=h("div");pl.id="prl";pane.appendChild(pl);
     renderFeed();
   }else if(PTAB==="photos"){
@@ -931,8 +955,8 @@ function renderProf(force){
     mine.forEach(function(x){items.push({mid:x.mid,ts:x.ts,cap:x.title})});
     items.sort(function(a,b){return (b.ts||0)-(a.ts||0)});
     var pc=h("div","card");pc.appendChild(h("h3",null,"Photos"));
-    if(!items.length)pc.appendChild(h("p","empty","No photos yet. Photos you post or add as highlights appear here."));
-    var gr=h("div","mgrid");items.forEach(function(x){lazyImg(gr,x.mid,null,null,S.me,x.cap)});
+    if(!items.length)pc.appendChild(h("p","empty",own?"No photos yet. Photos you post or add as highlights appear here.":"No photos yet."));
+    var gr=h("div","mgrid");items.forEach(function(x){lazyImg(gr,x.mid,null,null,nm0,x.cap)});
     pc.appendChild(gr);pane.appendChild(pc);
   }else if(PTAB==="rem"){
     var rc=h("div","card");rc.appendChild(h("h3",null,"Reminders"));
@@ -1679,10 +1703,17 @@ $("#fpost").onclick=async function(){
       MEDIA[ref.id]=Promise.resolve({data:FPHOTO.data});p.mid=ref.id;p.w=FPHOTO.w;p.h=FPHOTO.h;
     }
     await db.collection("posts").add(p);
-    $("#ft").value="";setPhoto(null);note("");
+    $("#ft").value="";setPhoto(null);note("");closeComposer();
   }catch(e){note(attachErr(e))}
   btn.disabled=false;btn.textContent="Post";
 };
+var VIEW=null,PVSET=false;
+function memberName(id){var m=(typeof MEMBERS!=="undefined"?MEMBERS:[]).filter(function(x){return x.user_id===id})[0];return m?m.name:(PROF[id]||"Member")}
+function openProfile(id){VIEW=(id&&id!==myId)?id:null;PVSET=true;PSIG="";PTAB="all";showTab("profile");window.scrollTo(0,0)}
+function avatarEl(id,cls,name){
+  var e=h("button",cls||"pav",(name||"?").charAt(0).toUpperCase());e.type="button";e.setAttribute("aria-label","Open "+name+"’s profile");
+  var a=PF(id).avatar;if(a)setBg(e,a);e.onclick=function(ev){ev.stopPropagation();openProfile(id)};return e;
+}
 function pname(id,ps){return id&&id===myId?(S.me||"You"):nameOf(id,ps)}
 function postMenu(p){
   var old=document.getElementById("pfs");if(old)old.remove();
@@ -1825,8 +1856,8 @@ function sharePost(p,who){
 
 function buildPost(p,ps){
   var c=h("div","card post"),hd=h("div","phead"),who=pname(p.by,ps);
-  var pv=h("div","pav",who.charAt(0).toUpperCase());if(PF(p.by).avatar)setBg(pv,PF(p.by).avatar);hd.appendChild(pv);
-  var hw=h("div");hw.style.flex="1";hw.appendChild(h("div","pwho",who));hw.appendChild(h("div","meta",(p.pinned?"📌 Pinned · ":"")+ago(p.ts)+(p.edited?" · Edited":"")));hd.appendChild(hw);
+  hd.appendChild(avatarEl(p.by,"pav",who));
+  var hw=h("div");hw.style.flex="1";var wn=h("button","pwho linkish",who);wn.type="button";wn.onclick=function(){openProfile(p.by)};hw.appendChild(wn);hw.appendChild(h("div","meta",(p.pinned?"📌 Pinned · ":"")+ago(p.ts)+(p.edited?" · Edited":"")));hd.appendChild(hw);
   var mb=h("button","pmore","•••");mb.setAttribute("aria-label","Post options");mb.onclick=function(){postMenu(p)};hd.appendChild(mb);
   c.appendChild(hd);
   if(p.text)c.appendChild(h("div","pbody",p.text));
@@ -1866,17 +1897,19 @@ function buildPost(p,ps){
 }
 
 function commentRow(x,ps){
-  var r=h("div","pcm"),b=h("div","pcb");b.appendChild(h("div","pcw",pname(x.by,ps)));
+  var r=h("div","pcm"),col=h("div","pcc"),b=h("div","pcb"),cn=pname(x.by,ps);
+  r.appendChild(avatarEl(x.by,"pav sm",cn));
+  var cw=h("button","pcw linkish",cn);cw.type="button";cw.onclick=function(){closeComments();openProfile(x.by)};b.appendChild(cw);
   if(x.text)b.appendChild(document.createTextNode(x.text));
   if(x.mid){
     var im=h("img","cimg");im.alt="Photo";if(x.w>0&&x.h>0)im.style.aspectRatio=x.w+" / "+x.h;
     im._load=function(){getMedia(x.mid).then(function(d){if(d&&d.data){im.src=d.data;im.onclick=function(){openViewer(d.data)}}else im.alt="Photo unavailable"})};
     b.appendChild(im);if(io)io.observe(im);else im._load();
   }
-  r.appendChild(b);
+  col.appendChild(b);
   var m2=h("div","meta",ago(x.ts));m2.style.cssText="margin:2px 0 0 8px;font-size:.75rem";
   if(x.by&&x.by===myId&&canWrite){var dl=h("button","quiet","Delete");dl.style.fontSize=".75rem";dl.onclick=function(){var ops=[db.doc("pcomments/"+x.id).delete()];if(x.mid)ops.push(db.doc("media/"+x.mid).delete());Promise.all(ops).catch(fail)};m2.appendChild(document.createTextNode(" · "));m2.appendChild(dl)}
-  r.appendChild(m2);return r;
+  col.appendChild(m2);r.appendChild(col);return r;
 }
 
 /* comments sheet: opens when you tap Comment */
@@ -1980,15 +2013,46 @@ function renderFeedInto(L,posts,emptyText,keepFocus){
   };
   if(userCap&&ids.length)Promise.resolve(userCap.profiles(ids)).then(go,function(){go(null)});else go(null);
 }
+
+function openComposer(){
+  if(!canWrite)return note("You can view this section but not post. Ask the owner to change your access.");
+  var p=PF(myId);
+  [["#fcav"],["#fbav"]].forEach(function(a){var e=$(a[0]);e.textContent=(S.me||"?").charAt(0).toUpperCase();e.style.backgroundImage="";e.classList.remove("has");if(p.avatar)setBg(e,p.avatar)});
+  $("#fcn").textContent=S.me||"";
+  document.body.classList.add("composing");
+  setTimeout(function(){$("#ft").focus()},60);
+}
+function closeComposer(){document.body.classList.remove("composing")}
+$("#fbar").onclick=openComposer;
+$("#fcx").onclick=closeComposer;
+$("#fpost2").onclick=function(){$("#fpost").click()};
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&document.body.classList.contains("composing"))closeComposer()});
+var FFILT="all";
+$("#ffilt").onclick=function(){
+  var m=$("#ffmenu");
+  if(!m.hidden){m.hidden=true;return}
+  m.textContent="";
+  [["all","All posts"],["mine","My posts"],["photos","Photos only"],["pinned","Pinned"]].forEach(function(t){
+    var b=h("button","pft"+(FFILT===t[0]?" on":""),t[1]);b.onclick=function(){FFILT=t[0];m.hidden=true;$("#ffilt").textContent=t[0]==="all"?"Filters":t[1];renderFeed()};m.appendChild(b)});
+  m.hidden=false;
+};
+function feedFilter(a){
+  if(FFILT==="mine")return a.filter(function(p){return p.by===myId});
+  if(FFILT==="photos")return a.filter(function(p){return !!p.mid});
+  if(FFILT==="pinned")return a.filter(function(p){return !!p.pinned});
+  return a;
+}
 function pinFirst(a){return a.slice().sort(function(x,y){if(!!x.pinned!==!!y.pinned)return x.pinned?-1:1;if(x.pinned&&y.pinned)return (y.pinTs||0)-(x.pinTs||0);return 0})}
+function syncBar(){var e=$("#fbav");if(!e)return;var p=PF(myId);e.textContent=(S.me||"?").charAt(0).toUpperCase();if(p.avatar)setBg(e,p.avatar);else{e.style.backgroundImage="";e.classList.remove("has")}}
 function renderFeed(){
-  renderFeedInto($("#fl"),pinFirst(S.posts),"No posts yet. Share an update, a photo, or a reminder with everyone.",true);
-  var prl=$("#prl");if(prl)renderFeedInto(prl,pinFirst(S.posts).filter(function(p){return p.by&&p.by===myId}),"You haven’t posted yet.",false);
+  syncBar();
+  renderFeedInto($("#fl"),feedFilter(pinFirst(S.posts)),"No posts yet. Share an update, a photo, or a reminder with everyone.",true);
+  var prl=$("#prl");if(prl)renderFeedInto(prl,pinFirst(S.posts).filter(function(p){return p.by&&p.by===(VIEW||myId)}),"You haven’t posted yet.",false);
   if(CS.post)renderCS(false);
 }
 
 function renderAll(){safe(renderLegend)();safe(renderCal)();safe(openEditor)();safe(renderExp)();safe(renderNotes)();safe(renderMeet)();safe(renderProf)();safe(renderKids)();safe(renderDocs)();safe(renderMsgs)();safe(renderFeed)();safe(renderCall)();safe(renderPeople)();safe(renderHome)()}
-function lockForms(){["#exform","#nform","#mnform","#kform","#editor","#mform","#fform","#cstart","#pform","#dform"].forEach(function(s){var e=$(s);if(e)e.style.display=canWrite?"":"none"})}
+function lockForms(){["#fbar","#exform","#nform","#mnform","#kform","#editor","#mform","#fform","#cstart","#pform","#dform"].forEach(function(s){var e=$(s);if(e)e.style.display=canWrite?"":"none"})}
 
 READY=true;
 renderAll();
@@ -2420,6 +2484,8 @@ async function start(session){
         b.style.cssText="display:block;width:100%;text-align:left;font-size:1.05rem;padding:12px 4px;text-decoration:none;color:var(--ink)";
         b.onclick=function(){
           closeSheet();showTab(a[1]);
+          if(a[2]==="#ft"){setTimeout(openComposer,60);return}
+          if(a[2]==="#ffile"){openComposer();setTimeout(function(){document.getElementById("ffile").click()},120);return}
           if(a[2]==="#ffile")document.getElementById("ffile").click();
           else if(a[2])setTimeout(function(){var e=document.querySelector(a[2]);if(e)e.focus()},60);
         };
