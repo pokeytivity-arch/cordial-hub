@@ -655,6 +655,11 @@ html[data-look] #addbtn::before{content:none}
     <p class="meta">Opens a private call inside the hub. Everyone else sees a green Join button on every page.</p>
     <div class="row"><button class="go" id="cv">Start video call</button><button class="go" id="ca">Start audio call</button></div>
   </div>
+  <div class="card" id="zjanet">
+    <h2>Janet Onyemachi Chuku</h2>
+    <p class="meta">The scheduled Zoom call (Tuesdays and Saturdays). Zoom records it and the summary and transcript appear under Meetings.</p>
+    <p><a class="go" href="https://us02web.zoom.us/j/83026513168" target="_blank" rel="noopener">Join on Zoom</a> <a class="quiet" href="#" id="zmeet">See summaries</a></p>
+  </div>
   <div class="card">
     <h2>Your usual call link</h2>
     <label>Paste a Zoom, Google Meet, or WhatsApp call link<input id="cl" type="url" placeholder="https://"></label>
@@ -1589,6 +1594,7 @@ function startCall(audio){
 $("#cv").onclick=function(){startCall(false)};
 $("#ca").onclick=function(){startCall(true)};
 $("#cend").onclick=function(){if(db)db.doc("calls/current").delete().catch(fail)};
+$("#zmeet").onclick=function(e){e.preventDefault();showTab("meet")};
 $("#cls").onclick=function(){
   var u=$("#cl").value.trim();if(!db)return;
   if(u&&u.indexOf("https://")!==0)return note("Paste a full link that starts with https://");
