@@ -75,6 +75,17 @@ a.go{display:inline-block;text-decoration:none;background:var(--btn);color:var(-
 #ov[hidden]{display:none}
 #pv{position:fixed;inset:0;z-index:300;background:#000;display:flex;align-items:center;justify-content:center;touch-action:none;overflow:hidden}
 #pv[hidden]{display:none}
+#jc{position:fixed;inset:0;z-index:250;background:#000;display:flex;flex-direction:column}
+#jc[hidden]{display:none}
+#jch{display:flex;align-items:center;gap:8px;padding:calc(8px + env(safe-area-inset-top,0px)) 10px 8px;background:#111;color:#fff}
+#jch strong{flex:1;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#jch button,#jch a{background:rgba(255,255,255,.16);color:#fff;border:0;border-radius:999px;padding:8px 14px;font:inherit;font-size:.85rem;font-weight:600;text-decoration:none;cursor:pointer}
+#jch #jcl{background:#d93025}
+#jcf{flex:1;border:0;width:100%;background:#000}
+#cbar{position:fixed;top:calc(var(--abh,60px) + 8px);left:50%;transform:translateX(-50%);z-index:60;background:#188038;color:#fff;border:0;border-radius:999px;padding:9px 16px;font:inherit;font-size:.88rem;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.3);cursor:pointer;white-space:nowrap}
+#cbar[hidden]{display:none}
+body.locked #cbar,body.locked #jc{display:none!important}
+
 #pv img{max-width:100vw;max-height:100vh;max-height:100dvh;object-fit:contain;transform-origin:0 0;user-select:none;-webkit-user-drag:none;will-change:transform}
 #pvx{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:10px;width:42px;height:42px;border-radius:50%;border:0;background:rgba(255,255,255,.16);color:#fff;font-size:22px;line-height:1;cursor:pointer;z-index:2}
 #pvc{position:absolute;left:0;right:0;bottom:0;padding:40px 16px calc(16px + env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:.95rem;z-index:2}
@@ -550,11 +561,11 @@ html[data-look] #addbtn::before{content:none}
   <div class="card" id="clive" hidden>
     <h2>Call in progress</h2>
     <div id="ci" class="meta"></div>
-    <p><a class="go" id="cjoin" target="_blank" rel="noopener">Join call</a> <button class="quiet" id="cend">Mark call as ended</button></p>
+    <p><a class="go" id="cjoin" href="#">Join call</a> <button class="quiet" id="cend">Mark call as ended</button></p>
   </div>
   <div class="card" id="cstart">
     <h2>Start a call</h2>
-    <p class="meta">Opens a private room in a new tab. Everyone else sees a Join button here.</p>
+    <p class="meta">Opens a private call inside the hub. Everyone else sees a green Join button on every page.</p>
     <div class="row"><button class="go" id="cv">Start video call</button><button class="go" id="ca">Start audio call</button></div>
   </div>
   <div class="card">
@@ -1209,10 +1220,46 @@ function openPick(m,row){
 /* calls */
 function newRoom(){var a=new Uint8Array(9);crypto.getRandomValues(a);return "CoParentHub"+Array.prototype.map.call(a,function(x){return x.toString(16).padStart(2,"0")}).join("")}
 function roomUrl(c){return "https://meet.jit.si/"+c.room+(c.audio?"#config.startWithVideoMuted=true":"")}
+
+var JC=null,JCUR=null;
+function openCall(c){
+  if(!c||!c.room)return;
+  if(!JC){
+    JC=h("div");JC.id="jc";JC.hidden=true;JC.setAttribute("role","dialog");JC.setAttribute("aria-label","Call");
+    var hd=h("div");hd.id="jch";hd.appendChild(h("strong",null,"Family call"));
+    var nt=h("a",null,"New tab");nt.id="jcn";nt.target="_blank";nt.rel="noopener";hd.appendChild(nt);
+    var lv=h("button",null,"Leave");lv.id="jcl";lv.onclick=closeCall;hd.appendChild(lv);
+    var fr=h("iframe");fr.id="jcf";fr.title="Call";fr.setAttribute("allow","camera; microphone; fullscreen; display-capture; autoplay; clipboard-write");
+    JC.appendChild(hd);JC.appendChild(fr);document.body.appendChild(JC);
+    document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!JC.hidden)closeCall()});
+  }
+  JCUR=c;
+  var nm=(S.me||"").replace(/["\\]/g,"");
+  var cfg="#config.prejoinPageEnabled=false"+(c.audio?"&config.startWithVideoMuted=true":"");
+  var pub="https://meet.jit.si/"+c.room+cfg+(nm?"&userInfo.displayName=%22"+encodeURIComponent(nm)+"%22":"");
+  var fr=JC.querySelector("#jcf"),nt=JC.querySelector("#jcn");
+  JC.hidden=false;syncCbar();nt.href=roomUrl(c);fr.src="about:blank";
+  var mine=c;
+  (async function(){
+    var u=pub;
+    try{
+      var ss=await sb.auth.getSession();var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;
+      if(tk){
+        var r=await fetch("/.netlify/functions/jaas-token",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({room:c.room})});
+        if(r.ok){var j=await r.json();if(j&&j.jwt&&j.appId){u="https://8x8.vc/"+j.appId+"/"+c.room+"?jwt="+j.jwt+cfg;nt.href=u}}
+      }
+    }catch(e){}
+    if(JCUR===mine&&!JC.hidden)fr.src=u;
+  })();
+}
+function closeCall(){if(!JC)return;JC.hidden=true;JC.querySelector("#jcf").src="about:blank";JCUR=null;syncCbar()}
+var CB=h("button");CB.id="cbar";CB.hidden=true;CB.onclick=function(){if(S.call)openCall(S.call)};document.body.appendChild(CB);
+function callLive(){var c=S.call;return !!(c&&c.room&&Date.now()-c.ts<6*3600*1000)}
+function syncCbar(){var inCall=JC&&!JC.hidden;CB.hidden=!callLive()||inCall;if(callLive())CB.textContent="📞 Call in progress · Join"}
 function startCall(audio){
   var c={room:newRoom(),audio:audio,by:myId||"",ts:Date.now()};
-  window.open(roomUrl(c),"_blank","noopener");
   if(db)db.doc("calls/current").set(c).catch(fail);
+  S.call=c;openCall(c);
 }
 $("#cv").onclick=function(){startCall(false)};
 $("#ca").onclick=function(){startCall(true)};
@@ -1225,12 +1272,13 @@ function renderCall(){
   var c=S.call,live=!!(c&&c.room&&Date.now()-c.ts<6*3600*1000);
   $("#clive").hidden=!live;
   if(live){
-    $("#cjoin").href=roomUrl(c);$("#cjoin").textContent=c.audio?"Join audio call":"Join video call";
+    $("#cjoin").onclick=function(e){e.preventDefault();openCall(c)};$("#cjoin").textContent=c.audio?"Join audio call":"Join video call";
     var go=function(n){$("#ci").textContent="Started by "+n+" at "+new Date(c.ts).toLocaleTimeString("en-US",{timeStyle:"short"})};
     if(c.by&&c.by===myId)go("you");
     else if(userCap&&c.by)Promise.resolve(userCap.profiles([c.by])).then(function(ps){go((ps[c.by]&&ps[c.by].name)||"someone")},function(){go("someone")});
     else go("someone");
   }
+  syncCbar();
   var l=S.link;$("#clo").hidden=!l;
   if(l){$("#clo").href=l;$("#clo").className="go"}
   if(document.activeElement!==$("#cl"))$("#cl").value=l||"";
