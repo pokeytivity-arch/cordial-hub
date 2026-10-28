@@ -416,6 +416,12 @@ html[data-look] #addbtn::before{content:none}
 #csend{flex:none;border-radius:20px;padding:0 16px;height:40px}
 #cprev{margin-bottom:6px}
 #cprev img{max-height:120px;max-width:60%;border-radius:10px;display:block}
+#zc{position:fixed;inset:0;z-index:9999;background:#111;color:#fff;overflow:auto}
+#zc[hidden]{display:none}
+#zch{display:flex;gap:12px;align-items:center;padding:10px 14px;background:#1b1b1b;padding-top:calc(10px + env(safe-area-inset-top,0px))}
+#zch strong{flex:1}#zch a{color:#9cf}
+#zch button{background:#c0392b;color:#fff;border:0;border-radius:18px;padding:8px 16px}
+#zcst{padding:16px}
 .zrow{display:flex;gap:14px;align-items:center}
 .zphone{width:64px;height:64px;border-radius:50%;background:#25a244;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 2px 8px rgba(0,0,0,.25);text-decoration:none}
 .zdays{display:flex;gap:6px;flex-wrap:wrap}
@@ -664,9 +670,9 @@ html[data-look] #addbtn::before{content:none}
   <div class="card" id="zjanet">
     <h2>Janet Onyemachi Chuku</h2>
     <div class="zrow">
-      <a class="zphone" id="zphone" href="https://us02web.zoom.us/j/83026513168" target="_blank" rel="noopener" aria-label="Call on Zoom"><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="#fff" d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z"/></svg></a>
+      <a class="zphone" id="zphone" href="https://us02web.zoom.us/j/83026513168" aria-label="Call on Zoom"><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="#fff" d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z"/></svg></a>
       <div><div id="znext" style="font-weight:600">Zoom call</div><div class="meta" id="zwhen"></div>
-      <a href="https://us02web.zoom.us/wc/join/83026513168" target="_blank" rel="noopener" class="meta">Open in the browser instead</a></div>
+      <a href="https://us02web.zoom.us/j/83026513168" target="_blank" rel="noopener" class="meta">Open in the Zoom app instead</a></div>
     </div>
     <p class="meta" style="margin:10px 0 6px">Zoom records the call. The summary and transcript are saved under Meetings.</p>
     <div class="zdays" id="zdays"></div>
@@ -1612,6 +1618,61 @@ $("#cend").onclick=function(){if(db)db.doc("calls/current").delete().catch(fail)
 $("#zmeet").onclick=function(e){e.preventDefault();showTab("meet")};
 
 /* scheduled Zoom call */
+/* Zoom inside the hub (Meeting SDK, Component View) */
+var ZVS=["6.10.0","3.11.2"],ZC=null,ZCLI=null,ZLOADED=null;
+function loadScript(u){return new Promise(function(ok,no){var s=document.createElement("script");s.src=u;s.onload=ok;s.onerror=function(){s.remove();no(new Error("load "+u))};document.head.appendChild(s)})}
+function loadZoomSdk(){
+  if(ZLOADED)return ZLOADED;
+  var libs=["react.min.js","react-dom.min.js","redux.min.js","redux-thunk.min.js","lodash.min.js"];
+  function tryV(k){
+    if(k>=ZVS.length)return Promise.reject(new Error("sdk"));
+    var v=ZVS[k],b="https://source.zoom.us/"+v+"/lib/vendor/";
+    return libs.reduce(function(p,f){return p.then(function(){return loadScript(b+f)})},Promise.resolve())
+      .then(function(){return loadScript("https://source.zoom.us/zoom-meeting-embedded-"+v+".min.js")})
+      .then(function(){if(!window.ZoomMtgEmbedded)throw new Error("sdk")})
+      .catch(function(){return tryV(k+1)});
+  }
+  ZLOADED=tryV(0).catch(function(e){ZLOADED=null;throw e});
+  return ZLOADED;
+}
+function closeZoom(){
+  try{if(ZCLI&&ZCLI.leaveMeeting)ZCLI.leaveMeeting()}catch(e){}
+  try{if(ZCLI&&window.ZoomMtgEmbedded&&ZoomMtgEmbedded.destroyClient)ZoomMtgEmbedded.destroyClient()}catch(e){}
+  ZCLI=null;if(ZC){ZC.hidden=true;var r=ZC.querySelector("#zcroot");if(r)r.textContent=""}
+}
+function zoomFallback(msg){closeZoom();note(msg+" Opening Zoom instead.");window.open(ZURL,"_blank","noopener")}
+async function openZoomInHub(){
+  if(!ZC){
+    ZC=h("div");ZC.id="zc";ZC.hidden=true;ZC.setAttribute("role","dialog");ZC.setAttribute("aria-label","Zoom call");
+    var hd=h("div");hd.id="zch";hd.appendChild(h("strong",null,"Zoom call"));
+    var nt=h("a",null,"Zoom app");nt.href=ZURL;nt.target="_blank";nt.rel="noopener";hd.appendChild(nt);
+    var lv=h("button",null,"Leave");lv.onclick=closeZoom;hd.appendChild(lv);
+    var st=h("div","meta","Connecting…");st.id="zcst";
+    var rt=h("div");rt.id="zcroot";
+    ZC.appendChild(hd);ZC.appendChild(st);ZC.appendChild(rt);document.body.appendChild(ZC);
+  }
+  var st=ZC.querySelector("#zcst");st.hidden=false;st.textContent="Connecting to Zoom…";
+  ZC.hidden=false;
+  try{
+    var ss=await sb.auth.getSession();var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;
+    if(!tk)return zoomFallback("Please sign in again.");
+    var r=await fetch("/.netlify/functions/zoom-signature",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:"{}"});
+    if(r.status===501)return zoomFallback("In-hub Zoom isn’t set up yet.");
+    if(!r.ok)return zoomFallback("Couldn’t start Zoom here.");
+    var j=await r.json();
+    await loadZoomSdk();
+    var root=ZC.querySelector("#zcroot");root.textContent="";
+    var client=ZoomMtgEmbedded.createClient();ZCLI=client;
+    var w=Math.min(window.innerWidth,1000),hh=Math.max(300,window.innerHeight-90);
+    await client.init({zoomAppRoot:root,language:"en-US",patchJsMedia:true,leaveOnPageUnload:true,customize:{video:{isResizable:false,viewSizes:{default:{width:w,height:hh}}}}});
+    await client.join({signature:j.signature,sdkKey:j.sdkKey,meetingNumber:j.meetingNumber,password:j.password||"",userName:(S.me||j.name||"Member")});
+    st.hidden=true;
+  }catch(e){
+    var m=(e&&(e.reason||e.message))||"";
+    zoomFallback(/host|start/i.test(m)?"The host hasn’t started the call yet.":"Couldn’t connect inside the hub.");
+  }
+}
+
 var ZNUM="83026513168",ZURL="https://us02web.zoom.us/j/"+ZNUM,ZDN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 function zplan(){var p=S.callplan||{};return{days:Array.isArray(p.days)?p.days:[2,4,6],t:p.t||"18:30"}}
 function zutc(t,dayOff){var a=t.split(":"),h=(+a[0]||0)-1,m=+a[1]||0;return{h:((h%24)+24)%24,m:m,back:h<0}}
@@ -1639,6 +1700,7 @@ function renderZoomCard(){
   var days=pl.days.map(function(n){return["SU","MO","TU","WE","TH","FR","SA"][n]}).join(",");
   $("#zgcal").href="https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent("Call: Janet Onyemachi Chuku")+"&dates="+zStamp(st)+"/"+zStamp(en)+(days?"&recur="+encodeURIComponent("RRULE:FREQ=WEEKLY;BYDAY="+days):"")+"&details="+encodeURIComponent("Zoom: "+ZURL)+"&location="+encodeURIComponent(ZURL);
 }
+$("#zphone").onclick=function(e){e.preventDefault();openZoomInHub()};
 $("#zsave").onclick=function(){
   if(!db)return;var pl=zplan();
   db.doc("settings/callplan").set({days:pl.days,t:$("#ztime").value||pl.t}).then(function(){note("Call schedule saved.")},fail)};
