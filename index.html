@@ -416,6 +416,12 @@ html[data-look] #addbtn::before{content:none}
 #csend{flex:none;border-radius:20px;padding:0 16px;height:40px}
 #cprev{margin-bottom:6px}
 #cprev img{max-height:120px;max-width:60%;border-radius:10px;display:block}
+.zrow{display:flex;gap:14px;align-items:center}
+.zphone{width:64px;height:64px;border-radius:50%;background:#25a244;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 2px 8px rgba(0,0,0,.25);text-decoration:none}
+.zdays{display:flex;gap:6px;flex-wrap:wrap}
+.zdays button{min-width:44px;padding:8px 10px;border-radius:18px}
+.zdays button.on{background:#25a244;color:#fff}
+.dcall{display:block;font-size:10px;line-height:1}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -657,8 +663,15 @@ html[data-look] #addbtn::before{content:none}
   </div>
   <div class="card" id="zjanet">
     <h2>Janet Onyemachi Chuku</h2>
-    <p class="meta">The scheduled Zoom call (Tuesdays and Saturdays). Zoom records it and the summary and transcript appear under Meetings.</p>
-    <p><a class="go" href="https://us02web.zoom.us/j/83026513168" target="_blank" rel="noopener">Join on Zoom</a> <a class="quiet" href="#" id="zmeet">See summaries</a></p>
+    <div class="zrow">
+      <a class="zphone" id="zphone" href="https://us02web.zoom.us/j/83026513168" target="_blank" rel="noopener" aria-label="Call on Zoom"><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="#fff" d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z"/></svg></a>
+      <div><div id="znext" style="font-weight:600">Zoom call</div><div class="meta" id="zwhen"></div>
+      <a href="https://us02web.zoom.us/wc/join/83026513168" target="_blank" rel="noopener" class="meta">Open in the browser instead</a></div>
+    </div>
+    <p class="meta" style="margin:10px 0 6px">Zoom records the call. The summary and transcript are saved under Meetings.</p>
+    <div class="zdays" id="zdays"></div>
+    <label style="display:block;margin-top:8px">Call time (Nigeria time)<input id="ztime" type="time" value="18:30"></label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="go" id="zsave">Save schedule</button><a class="quiet" id="zgcal" target="_blank" rel="noopener" href="#">Add to Google Calendar</a><button class="quiet" id="zics">Add to iPhone Calendar</button><a class="quiet" href="#" id="zmeet">See summaries</a></div>
   </div>
   <div class="card">
     <h2>Your usual call link</h2>
@@ -731,6 +744,8 @@ function renderCal(){
     b.appendChild(h("b",null,String(d)));
     if(e.who)b.appendChild(h("small",null,nm(e.who)));
     if(e.note)b.appendChild(h("small",null,e.note));
+    var dt=new Date(y,mo,d);
+    if(k>=today&&zplan().days.indexOf(dt.getDay())>=0)b.appendChild(h("small","dcall","📞 "+zLocalTime(zplan().t)));
     b.onclick=function(){S.sel=k;S.who=e.who||null;openEditor();renderCal()};
     C.appendChild(b);
   })(d);
@@ -1595,6 +1610,43 @@ $("#cv").onclick=function(){startCall(false)};
 $("#ca").onclick=function(){startCall(true)};
 $("#cend").onclick=function(){if(db)db.doc("calls/current").delete().catch(fail)};
 $("#zmeet").onclick=function(e){e.preventDefault();showTab("meet")};
+
+/* scheduled Zoom call */
+var ZNUM="83026513168",ZURL="https://us02web.zoom.us/j/"+ZNUM,ZDN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+function zplan(){var p=S.callplan||{};return{days:Array.isArray(p.days)?p.days:[2,4,6],t:p.t||"18:30"}}
+function zutc(t,dayOff){var a=t.split(":"),h=(+a[0]||0)-1,m=+a[1]||0;return{h:((h%24)+24)%24,m:m,back:h<0}}
+function zLocalTime(t){var u=zutc(t),d=new Date(Date.UTC(2026,0,5,u.h,u.m));return d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
+function zNext(){
+  var pl=zplan(),u=zutc(pl.t),now=new Date();
+  for(var i=0;i<9;i++){
+    var d=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()+i,u.h,u.m));
+    var wd=new Date(d.getTime()+3600*1000).getUTCDay();
+    if(pl.days.indexOf(wd)>=0&&d.getTime()+3600*1000>now.getTime())return d;
+  }
+  return null;
+}
+function zStamp(d){return d.toISOString().replace(/[-:]/g,"").replace(/\.\d+/,"")}
+function renderZoomCard(){
+  var pl=zplan(),D=$("#zdays");if(!D)return;D.textContent="";
+  [1,2,3,4,5,6,0].forEach(function(n){
+    var b=h("button","quiet"+(pl.days.indexOf(n)>=0?" on":""),ZDN[n]);b.type="button";
+    b.onclick=function(){var a=zplan().days.slice(),i=a.indexOf(n);if(i>=0)a.splice(i,1);else a.push(n);S.callplan={days:a,t:$("#ztime").value||pl.t};renderZoomCard()};
+    D.appendChild(b)});
+  if(document.activeElement!==$("#ztime"))$("#ztime").value=pl.t;
+  var nx=zNext();
+  $("#zwhen").textContent=nx?"Next: "+nx.toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})+" at "+nx.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}):"No call days set";
+  var st=nx||new Date(),en=new Date(st.getTime()+1800*1000);
+  var days=pl.days.map(function(n){return["SU","MO","TU","WE","TH","FR","SA"][n]}).join(",");
+  $("#zgcal").href="https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent("Call: Janet Onyemachi Chuku")+"&dates="+zStamp(st)+"/"+zStamp(en)+(days?"&recur="+encodeURIComponent("RRULE:FREQ=WEEKLY;BYDAY="+days):"")+"&details="+encodeURIComponent("Zoom: "+ZURL)+"&location="+encodeURIComponent(ZURL);
+}
+$("#zsave").onclick=function(){
+  if(!db)return;var pl=zplan();
+  db.doc("settings/callplan").set({days:pl.days,t:$("#ztime").value||pl.t}).then(function(){note("Call schedule saved.")},fail)};
+$("#zics").onclick=function(){
+  var pl=zplan(),nx=zNext()||new Date(),en=new Date(nx.getTime()+1800*1000);
+  var days=pl.days.map(function(n){return["SU","MO","TU","WE","TH","FR","SA"][n]}).join(",");
+  var t=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Cordial//EN","BEGIN:VEVENT","UID:janet-zoom-call@cordial","DTSTAMP:"+zStamp(new Date()),"DTSTART:"+zStamp(nx),"DTEND:"+zStamp(en),days?"RRULE:FREQ=WEEKLY;BYDAY="+days:"","SUMMARY:Call: Janet Onyemachi Chuku","DESCRIPTION:Zoom "+ZURL,"LOCATION:"+ZURL,"URL:"+ZURL,"BEGIN:VALARM","TRIGGER:-PT15M","ACTION:DISPLAY","DESCRIPTION:Zoom call in 15 minutes","END:VALARM","END:VEVENT","END:VCALENDAR"].filter(Boolean).join("\r\n");
+  var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type:"text/calendar"}));a.download="janet-zoom-call.ics";document.body.appendChild(a);a.click();setTimeout(function(){a.remove()},500)};
 $("#cls").onclick=function(){
   var u=$("#cl").value.trim();if(!db)return;
   if(u&&u.indexOf("https://")!==0)return note("Paste a full link that starts with https://");
@@ -1609,7 +1661,7 @@ function renderCall(){
     else if(userCap&&c.by)Promise.resolve(userCap.profiles([c.by])).then(function(ps){go((ps[c.by]&&ps[c.by].name)||"someone")},function(){go("someone")});
     else go("someone");
   }
-  syncCbar();
+  syncCbar();safe(renderZoomCard)();
   var l=S.link;$("#clo").hidden=!l;
   if(l){$("#clo").href=l;$("#clo").className="go"}
   if(document.activeElement!==$("#cl"))$("#cl").value=l||"";
@@ -2398,6 +2450,7 @@ function subscribeAll(){
   db.collection("plikes").limit(1000).onSnapshot(function(s){S.plikes=mergePending(s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})}));renderFeed()},err);
   db.collection("pcomments").limit(1000).onSnapshot(function(s){S.pcom=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderFeed()},err);
   db.doc("calls/current").onSnapshot(function(s){S.call=s.exists?s.data():null;renderCall()},err);
+  db.doc("settings/callplan").onSnapshot(function(s){S.callplan=s.exists?s.data():null;renderZoomCard();renderCal()},err);
   db.doc("settings/calllink").onSnapshot(function(s){S.link=s.exists?(s.data().url||""):"";renderCall()},err);
   db.doc("settings/names").onSnapshot(function(s){if(s.exists){S.names=Object.assign({a:"Parent 1",b:"Parent 2"},s.data())}$("#na").value=S.names.a;$("#nb").value=S.names.b;renderAll()},err);
 }
