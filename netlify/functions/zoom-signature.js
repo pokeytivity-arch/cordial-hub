@@ -30,12 +30,13 @@ exports.handler = async (event) => {
   const me = await who.json();
 
   const mr = await fetch(`${URL_}/rest/v1/members?user_id=eq.${me.id}&select=name,grp,is_owner`, { headers: admin });
-  const m = (mr.ok ? await mr.json() : [])[0];
-  if (!m) return out(403, { error: "forbidden" });
+  if (!mr.ok) return out(403, { error: "member_lookup_failed_" + mr.status });
+  const m = (await mr.json())[0];
+  if (!m) return out(403, { error: "not_a_member" });
   if (!m.is_owner) {
     const pr = await fetch(`${URL_}/rest/v1/group_permissions?grp=eq.${encodeURIComponent(m.grp)}&feature=eq.calls&select=can_view,can_edit`, { headers: admin });
     const p = (pr.ok ? await pr.json() : [])[0];
-    if (!p || !(p.can_view || p.can_edit)) return out(403, { error: "forbidden" });
+    if (!p || !(p.can_view || p.can_edit)) return out(403, { error: "no_calls_permission_for_" + m.grp });
   }
 
   const now = Math.floor(Date.now() / 1000) - 30;
