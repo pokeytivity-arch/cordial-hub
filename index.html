@@ -420,6 +420,7 @@ html[data-look] #addbtn::before{content:none}
 #zc[hidden]{display:none}
 #zcroot{flex:1;min-height:0;position:relative;overflow:hidden;width:100%}
 #zcroot>div{max-width:100%}
+@media (orientation:landscape) and (max-height:520px){#zch{padding-top:6px;padding-bottom:6px}#zcst{padding:8px 16px}}
 #zch{display:flex;gap:12px;align-items:center;padding:10px 14px;background:#1b1b1b;padding-top:calc(10px + env(safe-area-inset-top,0px))}
 #zch strong{flex:1}#zch a{color:#9cf}
 #zch button{background:#c0392b;color:#fff;border:0;border-radius:18px;padding:8px 16px}
@@ -1637,6 +1638,18 @@ function loadZoomSdk(){
   ZLOADED=tryV(0).catch(function(e){ZLOADED=null;throw e});
   return ZLOADED;
 }
+var ZRT=0;
+function zoomResize(){
+  clearTimeout(ZRT);
+  ZRT=setTimeout(function(){
+    if(!ZC||ZC.hidden||!ZCLI)return;
+    var root=ZC.querySelector("#zcroot");if(!root)return;
+    var w=Math.max(300,root.clientWidth||window.innerWidth),hh=Math.max(240,root.clientHeight||(window.innerHeight-60));
+    try{if(ZCLI.updateVideoOptions)ZCLI.updateVideoOptions({viewSizes:{default:{width:w,height:hh}}})}catch(e){}
+  },350);
+}
+window.addEventListener("resize",zoomResize);
+window.addEventListener("orientationchange",zoomResize);
 function closeZoom(){
   try{if(ZCLI&&ZCLI.leaveMeeting)ZCLI.leaveMeeting()}catch(e){}
   try{if(ZCLI&&window.ZoomMtgEmbedded&&ZoomMtgEmbedded.destroyClient)ZoomMtgEmbedded.destroyClient()}catch(e){}
