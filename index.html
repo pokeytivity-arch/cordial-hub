@@ -1623,14 +1623,14 @@ function fail(e){
   var m=String(e&&e.message||""),c=e&&e.code;
   if(c==="42501"||/row-level security|permission denied|not allowed/i.test(m))return note("You can view this section but not change it. Ask the owner to change your access.");
   if(/exceeds the maximum|too large|toolarge/i.test(m))return note("That file is too big. The limit is "+(CFG.MAX_UPLOAD_MB||50)+" MB.");
-  note("That didn’t save. Check your connection and try again.");
+  note("That didn’t save. Check your connection and try again."+(m?" ["+m.slice(0,140)+"]":""));
 }
 function attachErr(e){
   var m=String(e&&e.message||"");
   if(m==="photo")return "Couldn’t read that photo. Try a JPEG or PNG.";
   if(m==="toolarge"||/exceeds the maximum|too large/i.test(m))return "That file is too big. The limit is "+(CFG.MAX_UPLOAD_MB||50)+" MB.";
   if(/row-level security|permission|not allowed|unauthorized/i.test(m)||(e&&e.code==="42501"))return "You can view this section but not add to it. Ask the owner to change your access.";
-  return "That didn’t send. Check your connection and try again.";
+  return "That didn’t send. Check your connection and try again."+(m?" ["+m.slice(0,140)+"]":"");
 }
 
 /* the data layer: a small wrapper that talks to the Supabase "docs" table */
