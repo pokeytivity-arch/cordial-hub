@@ -1658,7 +1658,7 @@ async function openZoomInHub(){
     if(!tk)return zoomFallback("Please sign in again.");
     var r=await fetch("/.netlify/functions/zoom-signature",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:"{}"});
     if(r.status===501)return zoomFallback("In-hub Zoom isn’t set up yet.");
-    if(!r.ok)return zoomFallback("Couldn’t start Zoom here.");
+    if(!r.ok){var er="";try{er=(await r.json()).error||""}catch(x){}return zoomFallback("Couldn’t start Zoom here ("+r.status+(er?" "+er:"")+").")}
     var j=await r.json();
     await loadZoomSdk();
     var root=ZC.querySelector("#zcroot");root.textContent="";
@@ -1669,7 +1669,7 @@ async function openZoomInHub(){
     st.hidden=true;
   }catch(e){
     var m=(e&&(e.reason||e.message))||"";
-    zoomFallback(/host|start/i.test(m)?"The host hasn’t started the call yet.":"Couldn’t connect inside the hub.");
+    zoomFallback(/host|start/i.test(m)?"The host hasn’t started the call yet.":"Couldn’t connect inside the hub"+(m?" ("+String(m).slice(0,80)+")":"")+".");
   }
 }
 
