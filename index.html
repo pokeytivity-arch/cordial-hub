@@ -416,8 +416,10 @@ html[data-look] #addbtn::before{content:none}
 #csend{flex:none;border-radius:20px;padding:0 16px;height:40px}
 #cprev{margin-bottom:6px}
 #cprev img{max-height:120px;max-width:60%;border-radius:10px;display:block}
-#zc{position:fixed;inset:0;z-index:9999;background:#111;color:#fff;overflow:auto}
+#zc{position:fixed;left:0;top:0;width:100%;height:100vh;height:100dvh;z-index:9999;background:#111;color:#fff;overflow:hidden;display:flex;flex-direction:column}
 #zc[hidden]{display:none}
+#zcroot{flex:1;min-height:0;position:relative;overflow:hidden;width:100%}
+#zcroot>div{max-width:100%}
 #zch{display:flex;gap:12px;align-items:center;padding:10px 14px;background:#1b1b1b;padding-top:calc(10px + env(safe-area-inset-top,0px))}
 #zch strong{flex:1}#zch a{color:#9cf}
 #zch button{background:#c0392b;color:#fff;border:0;border-radius:18px;padding:8px 16px}
@@ -1663,7 +1665,7 @@ async function openZoomInHub(){
     await loadZoomSdk();
     var root=ZC.querySelector("#zcroot");root.textContent="";
     var client=ZoomMtgEmbedded.createClient();ZCLI=client;
-    var w=Math.min(window.innerWidth,1000),hh=Math.max(300,window.innerHeight-90);
+    await new Promise(function(r){setTimeout(r,50)});var w=Math.max(300,root.clientWidth||window.innerWidth),hh=Math.max(300,root.clientHeight||(window.innerHeight-60));
     await client.init({zoomAppRoot:root,language:"en-US",patchJsMedia:true,leaveOnPageUnload:true,customize:{video:{isResizable:false,viewSizes:{default:{width:w,height:hh}}}}});
     await client.join({signature:j.signature,sdkKey:j.sdkKey,meetingNumber:j.meetingNumber,password:j.password||"",userName:(S.me||j.name||"Member")});
     st.hidden=true;
