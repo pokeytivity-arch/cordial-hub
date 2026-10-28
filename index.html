@@ -873,6 +873,13 @@ function renderPeople(){
 }
 
 /* attachments and pins */
+var MEDIA={};
+function getMedia(id){
+  if(!id||!db)return Promise.resolve(null);
+  if(MEDIA[id])return MEDIA[id];
+  MEDIA[id]=db.doc("media/"+id).get().then(function(sn){return sn.exists?sn.data():null}).catch(function(){delete MEDIA[id];return null});
+  return MEDIA[id];
+}
 var io=("IntersectionObserver" in window)?new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){io.unobserve(e.target);if(e.target._load)e.target._load()}})},{rootMargin:"300px"}):null;
 function fmtSize(n){n=n||0;return n>=1048576?(n/1048576).toFixed(1)+" MB":Math.max(1,Math.round(n/1024))+" KB"}
 function vs(t){return String(t||"").replace(/[\r\n;,\\]/g," ").trim()}
@@ -1002,6 +1009,26 @@ async function saveFileMsg(m){
   catch(e){stat("");note("That file isn’t available.")}
 }
 function readDataUrl(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(r.result)};r.onerror=function(){rej(r.error)};r.readAsDataURL(f)})}
+function shrink(file){
+  return new Promise(function(res,rej){
+    var url=URL.createObjectURL(file),im=new Image();
+    im.onload=function(){
+      var dim=1280,q=0.72;
+      for(var tries=0;tries<8;tries++){
+        var sc=Math.min(1,dim/Math.max(im.naturalWidth,im.naturalHeight));
+        var w=Math.max(1,Math.round(im.naturalWidth*sc)),hh=Math.max(1,Math.round(im.naturalHeight*sc));
+        var cv=document.createElement("canvas");cv.width=w;cv.height=hh;
+        var cx=cv.getContext("2d");cx.fillStyle="#fff";cx.fillRect(0,0,w,hh);cx.drawImage(im,0,0,w,hh);
+        var out=cv.toDataURL("image/jpeg",q);
+        if(out.length<=190000){URL.revokeObjectURL(url);return res({data:out,w:w,h:hh})}
+        if(q>0.5)q-=0.1;else dim=Math.round(dim*0.8);
+      }
+      URL.revokeObjectURL(url);rej(new Error("photo"));
+    };
+    im.onerror=function(){URL.revokeObjectURL(url);rej(new Error("photo"))};
+    im.src=url;
+  });
+}
 function shrinkBlob(file){
   return new Promise(function(res,rej){
     var url=URL.createObjectURL(file),im=new Image();
