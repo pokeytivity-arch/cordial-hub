@@ -103,6 +103,16 @@ async function finish(uuid, topic, start, meetingId, text, from) {
   const patch = { topic, start, summary: d.overview, takeaways: d.takeaways, agreed: d.agreed, todos: d.todos, next_steps: "", transcript: null, digestBy: from, meeting_id: meetingId };
   if (!old.shared) { if (await shareChat(uuid, topic, start || old.start, d)) patch.shared = Date.now(); }
   await save(uuid, patch);
+  // Each to-do becomes an agreed task: one parent marks it done, the other confirms.
+  const nid = noteId(uuid);
+  for (let i = 0; i < (d.todos || []).length; i++) {
+    const t = d.todos[i], id = `td_${nid}_${i}`;
+    const who = /daddy|father/i.test(t.who) ? "daddy" : /mummy|mother/i.test(t.who) ? "mummy" : /both/i.test(t.who) ? "both" : "";
+    await fetch(`${URL_}/rest/v1/docs?on_conflict=key`, {
+      method: "POST", headers: { ...dbh(), Prefer: "resolution=ignore-duplicates,return=minimal" },
+      body: JSON.stringify({ key: `expenses/${id}`, collection: "expenses", id, data: { kind: "todo", title: t.task, who, due: t.due || "", topic, meeting: nid, status: "open", date: new Date().toISOString().slice(0, 10), ts: Date.now() + i, by: BOT_ID } }),
+    });
+  }
 }
 
 // Permanent call-log entry (insert only; the database blocks any later edit or delete).
