@@ -65,15 +65,19 @@ exports.handler = async (event) => {
 
   let b = {};
   try { b = JSON.parse(event.body || "{}"); } catch {}
-  const kind = b.kind === "missed" ? "missed" : "call";
+  const kind = b.kind === "missed" ? "missed" : b.kind === "msg" ? "msg" : "call";
   const ids = (Array.isArray(b.to) ? b.to : []).map(String).filter((id) => id !== me.id && members.some((m) => m.user_id === id)).slice(0, 10);
   if (!ids.length) return out(200, { sent: 0 });
   const audio = !!b.audio;
   const label = audio ? "voice" : "video";
   const callId = String(b.callId || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60);
+  const chat = String(b.chat || "family").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 80);
+  const clip = (t, n) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
   const payload = kind === "call"
     ? { kind, title: sender.name || "Someone", body: `Incoming ${label} call`, tag: "call-" + callId, url: "/?ring=" + callId }
-    : { kind, title: "Missed call", body: `${sender.name || "Someone"} · ${label} call`, tag: "call-" + callId, url: "/" };
+    : kind === "msg"
+      ? { kind, title: clip(b.title, 80) || sender.name || "New message", body: clip(b.body, 160), tag: "chat-" + chat, url: "/?chat=" + chat }
+      : { kind, title: sender.name || "Someone", body: `📞 Missed ${label} call`, tag: "call-" + callId, url: "/?chat=" + chat };
 
   let sent = 0;
   for (const uid of ids) {
@@ -81,6 +85,7 @@ exports.handler = async (event) => {
     const rr = await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent(key)}&select=data`, { headers: admin });
     const row = (rr.ok ? await rr.json() : [])[0];
     const data = (row && row.data) || {};
+    if (kind === "msg" && Array.isArray(data.mute) && data.mute.indexOf(chat) >= 0) continue;
     const subs = Array.isArray(data.push) ? data.push : [];
     const keep = [];
     for (const s of subs) {
