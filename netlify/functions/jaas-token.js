@@ -8,7 +8,16 @@ const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const APP = process.env.JAAS_APP_ID;
 const KID = process.env.JAAS_KID;
-const PK = (process.env.JAAS_PRIVATE_KEY || "").replace(/\\n/g, "\n");
+// Accepts the key however it was pasted (lost line breaks, spaces, quotes, \n text).
+function fixKey(raw) {
+  let t = String(raw || "").trim().replace(/^["']|["']$/g, "").replace(/\\n/g, "\n");
+  const m = t.match(/-----BEGIN ([A-Z ]*?)-----([\s\S]*?)-----END [A-Z ]*?-----/);
+  const label = m ? m[1] : "PRIVATE KEY";
+  const body = (m ? m[2] : t).replace(/[^A-Za-z0-9+/=]/g, "");
+  if (!body) return "";
+  return `-----BEGIN ${label}-----\n${body.match(/.{1,64}/g).join("\n")}\n-----END ${label}-----\n`;
+}
+const PK = fixKey(process.env.JAAS_PRIVATE_KEY);
 
 const out = (code, body) => ({
   statusCode: code,
@@ -58,6 +67,6 @@ exports.handler = async (event) => {
     const sig = crypto.sign("RSA-SHA256", Buffer.from(data), PK).toString("base64url");
     return out(200, { jwt: `${data}.${sig}`, appId: APP });
   } catch (e) {
-    return out(500, { error: "sign_failed", message: "The call key could not be read. Check JAAS_PRIVATE_KEY in Netlify." });
+    return out(500, { error: "sign_failed", message: "The call key could not be read. Check JAAS_PRIVATE_KEY in Netlify.", detail: String(e && e.message || e).slice(0, 120) });
   }
 };
