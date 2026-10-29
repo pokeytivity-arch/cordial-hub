@@ -1558,7 +1558,7 @@ function post(extra){
   var msg=Object.assign({ts:Date.now(),by:myId||""},extra),inWA=!!(WA.open&&WA.chat),rp=inWA?WA.reply:S.reply;
   if(inWA&&WA.chat!=="family")msg.chat=WA.chat;
   if(rp){msg.rid=rp.id;msg.rtext=rp.text;msg.rby=rp.by||""}
-  return db.collection("messages").add(msg).then(function(){if(inWA){if(WA.setReply)WA.setReply(null)}else setReply(null);note("")});
+  return db.collection("messages").add(msg).then(function(){try{if(window.hubNotifyMsg)hubNotifyMsg(msg)}catch(e){}if(inWA){if(WA.setReply)WA.setReply(null)}else setReply(null);note("")});
 }
 $("#msend").onclick=function(){
   var t=$("#mt").value.trim();if(!db||!t)return;
@@ -1906,6 +1906,9 @@ window.pushSubscribe=async function(){
   },3000);
 })();
 try{if(location.search.indexOf("ring=")>=0)history.replaceState(null,"",location.pathname)}catch(e){}
+function openFromUrl(u){try{var m=String(u||"").match(/[?&]chat=([\w-]+)/);if(m&&window.waOpenChat)waOpenChat(m[1])}catch(e){}}
+try{if(location.search.indexOf("chat=")>=0){var cu=location.search;setTimeout(function(){openFromUrl(cu);try{history.replaceState(null,"",location.pathname)}catch(e){}},3500)}}catch(e){}
+try{if(navigator.serviceWorker)navigator.serviceWorker.addEventListener("message",function(e){if(e.data&&e.data.type==="open")openFromUrl(e.data.url)})}catch(e){}
 function previewText(m){
   switch(m.kind){
     case "image":return "📷 Photo";
@@ -5403,7 +5406,7 @@ function callChat(c,audio){
     if(RING.cur&&RING.cur.id===id){db.doc("calls/"+id).update({state:"missed"}).catch(function(){});stopRing();sendPush("missed",to,id,audio);logCall(call,"📞 Missed "+(call.audio?"voice":"video")+" call");permLog(Object.assign({id:id},call),"missed");toast("No answer.");setTimeout(function(){db.doc("calls/"+id).delete().catch(function(){})},4000)}
   },45000);
 }
-function sendPush(kind,to,id,audio){try{sb.auth.getSession().then(function(ss){var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)return;fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:kind,to:to,callId:id,audio:!!audio})}).catch(function(){})})}catch(e){}}
+function sendPush(kind,to,id,audio){try{sb.auth.getSession().then(function(ss){var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)return;fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:kind,to:to,callId:id,audio:!!audio,chat:(S.calls||[]).filter(function(x){return x.id===id}).map(function(x){return x.chat})[0]||"family"})}).catch(function(){})})}catch(e){}}
 function permLog(call,outcome,extra){
   if(!db||!call)return;
   var id=call.id||db.collection("calllog").doc().id;
@@ -5411,6 +5414,14 @@ function permLog(call,outcome,extra){
   var rec=Object.assign({by:call.by||myId,name:call.name||S.me||"",withNames:names||(call.chat&&call.chat!=="family"?"":"Family"),to:call.to||[],chat:call.chat||"family",audio:!!call.audio,ts:call.ts||Date.now(),outcome:outcome,logged:Date.now()},extra||{});
   try{db.doc("calllog/"+id).set(rec).catch(function(){})}catch(e){}
 }
+window.hubNotifyMsg=function(m){
+  if(!m||m.kind==="sys"||m.chat===BOT_ID)return;
+  var cid=m.chat||"family",c=chatById(cid);if(!c)return;
+  var to=(c.members||[]).filter(function(u){return u!==myId});if(!to.length)return;
+  var me=S.me||"Someone",pv=previewText(m)||"";
+  var title=c.type==="dm"?me:(c.name||"Family chat"),body=c.type==="dm"?pv:me+": "+pv;
+  try{sb.auth.getSession().then(function(ss){var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)return;fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:"msg",to:to,chat:cid,title:title,body:body})}).catch(function(){})})}catch(e){}
+};
 function logCall(call,text){try{db.collection("messages").add({kind:"sys",text:text,ts:Date.now(),by:myId,chat:call.chat})}catch(e){}}
 function showRing(r){
   RING.cur=r;ringEl.hidden=false;ringEl.textContent="";
