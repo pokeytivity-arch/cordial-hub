@@ -5316,6 +5316,7 @@ function renderUpdates(){
   });
   buildNav();
 }
+var CLF="all";
 function renderCalls(){
   main.textContent="";head("Calls");
   if(S.call&&S.call.room&&Date.now()-S.call.ts<6*3600*1000){
@@ -5324,10 +5325,21 @@ function renderCalls(){
   var zp=E("button","wlist","");zp.appendChild(E("div","ic",ic("info",24)));var zpt=E("div","t");zpt.appendChild(T("b",null,"Call schedule & Zoom in the hub"));zpt.appendChild(T("small",null,"Times, summaries and recordings"));zp.appendChild(zpt);zp.onclick=function(){go("call")};main.appendChild(zp);
   main.appendChild(T("div","wsec","Call log"));
   var note2=T("div",null,"🔒 Call records are permanent. They can’t be edited or deleted.");note2.style.cssText="font-size:.8rem;opacity:.7;padding:0 16px 8px";main.appendChild(note2);
+  var chips=E("div");chips.style.cssText="display:flex;gap:8px;padding:2px 16px 10px;overflow-x:auto";
+  [["all","All"],["missed","Missed"],["recv","Received"],["sent","Sent"]].forEach(function(x){var b=E("button",null,x[1]);b.type="button";b.style.cssText="border:0;border-radius:999px;padding:7px 16px;font:inherit;font-weight:600;cursor:pointer;white-space:nowrap;background:"+(CLF===x[0]?"var(--wg)":"rgba(127,127,127,.18)")+";color:"+(CLF===x[0]?"#fff":"inherit");b.onclick=function(){CLF=x[0];renderCalls()};chips.appendChild(b)});
+  main.appendChild(chips);
   var LG0=(S.calllog||[]).slice(),have={};LG0.forEach(function(r){have[r.id]=1});
   (S.mnotes||[]).forEach(function(m){if(m.source!=="zoom"||have["z_"+String(m.id).slice(0,22)]||have[m.id])return;LG0.push({id:m.id,source:"zoom",outcome:"zoom",topic:m.topic,ts:m.start||m.ts,dur:0,note:1})});
   var LG=LG0.sort(function(x,y){return (y.ts||0)-(x.ts||0)});
-  if(!LG.length)main.appendChild(T("div","wempty","No calls recorded yet."));
+  if(!LG.length&&CLF==="all")main.appendChild(T("div","wempty","No calls recorded yet."));
+  if(CLF!=="all")LG=LG.filter(function(r){
+    if(r.source==="zoom")return false;
+    var mine=r.by===myId;
+    if(CLF==="sent")return mine;
+    if(CLF==="recv")return !mine&&r.outcome==="completed";
+    return !mine&&(r.outcome==="missed"||r.outcome==="declined"||r.outcome==="cancelled");
+  });
+  if(CLF!=="all"&&!LG.length)main.appendChild(T("div","wempty","Nothing here."));
   var lastDay="";
   LG.forEach(function(r){
     var d=new Date(r.ts||0),dk=d.toDateString(),td=new Date(),yd=new Date(Date.now()-864e5);

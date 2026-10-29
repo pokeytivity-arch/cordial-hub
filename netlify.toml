@@ -15,3 +15,6 @@
 
 [functions."live-check"]
   schedule = "*/10 6-10 * * 1-5"
+
+[functions."call-reminders"]
+  schedule = "*/5 * * * *"
