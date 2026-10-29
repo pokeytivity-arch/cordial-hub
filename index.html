@@ -391,9 +391,10 @@ html:not([data-look]) #fbmenu{display:flex;margin-right:8px}
 html:not([data-look]) .tile[data-t="feed"],html:not([data-look]) #addm button[data-t="feed"],html:not([data-look]) #tab-feed{display:none!important}
 #cdrawer{position:fixed;left:0;top:0;bottom:0;width:min(84vw,320px);z-index:40;background:var(--surface,#fff);color:var(--ink);box-shadow:4px 0 24px rgba(0,0,0,.3);transform:translateX(-105%);visibility:hidden;transition:transform .25s cubic-bezier(.22,.9,.3,1),visibility 0s .25s;overflow-y:auto;overscroll-behavior:contain;padding:calc(14px + env(safe-area-inset-top,0px)) 0 24px}
 #cdrawer.open{transform:none;visibility:visible;transition:transform .25s cubic-bezier(.22,.9,.3,1),visibility 0s}
+#cdrawer #acctcard{margin:14px 12px 0!important;box-shadow:none;border:1px solid var(--line);border-radius:12px}
 #cdrawer h3{margin:0;padding:6px 18px 12px;font-size:1.15rem}
-#cdrawer button{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:0;background:none;color:inherit;font:inherit;font-size:1rem;padding:11px 18px;cursor:pointer}
-#cdrawer button.on{background:var(--a-bg,rgba(127,127,127,.15));font-weight:700}
+#cdrawer>button{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:0;background:none;color:inherit;font:inherit;font-size:1rem;padding:11px 18px;cursor:pointer}
+#cdrawer>button.on{background:var(--a-bg,rgba(127,127,127,.15));font-weight:700}
 #cdrawer .ci{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;flex:none}
 #cdrawer .ci svg{width:20px;height:20px}
 @media (prefers-reduced-motion:reduce){#cdrawer{transition:none}}
@@ -761,6 +762,8 @@ main{max-width:100%}
       <label>Paid by<select id="xw"></select></label>
       <label>Date<input id="xt" type="date"></label>
     </div>
+    <label>Receipt or proof (required)<input id="xf" type="file" accept="image/*,application/pdf,.doc,.docx"></label>
+    <p class="meta" style="margin:0 0 8px">Every expense needs a receipt, invoice or other document. A photo is fine.</p>
     <button class="go" id="xadd">Add expense</button>
   </div>
   <div class="card"><h2>Balance</h2><div id="bal" class="balance"></div><div id="bal2" class="meta"></div></div>
@@ -1171,20 +1174,46 @@ $("#nsave").onclick=function(){
 
 /* expenses */
 $("#xt").value=key(new Date());
-$("#xadd").onclick=function(){
-  var d=$("#xd").value.trim(),a=parseFloat($("#xa").value);
+$("#xadd").onclick=async function(){
+  var d=$("#xd").value.trim(),a=parseFloat($("#xa").value),f=$("#xf").files[0];
   if(!db||!d||!(a>0))return note("Add a description and an amount above zero.");
-  db.collection("expenses").add({desc:d,amount:a,by:$("#xw").value,date:$("#xt").value||key(new Date())}).then(function(){$("#xd").value="";$("#xa").value="";note("")},fail)};
+  if(!f)return note("Attach the receipt or document for this expense first.");
+  var btn=$("#xadd");btn.disabled=true;btn.textContent="Adding…";
+  try{
+    var blob=f,name=f.name,type=f.type||"application/octet-stream";
+    if(/^image\//.test(type)){try{var sh=await shrinkBlob(f);blob=sh.blob;type="image/jpeg";name=(f.name||"receipt").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
+    var path=await upload("docs",blob,name);
+    await db.collection("expenses").add({desc:d,amount:a,by:$("#xw").value,date:$("#xt").value||key(new Date()),proof:{path:path,name:name,type:type,size:blob.size||f.size}});
+    $("#xd").value="";$("#xa").value="";$("#xf").value="";note("");
+  }catch(e){note(attachErr(e))}
+  btn.disabled=false;btn.textContent="Add expense";
+};
+
+/* Cordial helper cards on Expenses, Trips and Documents */
+(function(){
+  var C=[["p-exp","💳","Add an expense with Cordial","Tell Cordial what was paid and attach the receipt. It fills in the details and asks you to confirm.","I want to add an expense: "],
+         ["p-trips","✈️","Add a trip or visit with Cordial","Tell Cordial about the trip or visit and attach tickets, bookings or photos. It files them under the right trip.","I want to add a trip or visit: "],
+         ["p-docs","📄","Save a document with Cordial","Attach the document and tell Cordial what it is. It files it under the right category once you confirm.","Please save this document: "]];
+  C.forEach(function(x){
+    var sec=document.getElementById(x[0]);if(!sec)return;
+    var c=document.createElement("div");c.className="card cordq";c.style.cssText="display:flex;gap:12px;align-items:center";
+    var ic=document.createElement("div");ic.textContent=x[1];ic.style.cssText="font-size:1.8rem;flex:none";
+    var tx=document.createElement("div");tx.style.cssText="flex:1;min-width:0";var b=document.createElement("b");b.textContent=x[2];var p=document.createElement("div");p.className="meta";p.textContent=x[3];tx.appendChild(b);tx.appendChild(p);
+    var bt=document.createElement("button");bt.type="button";bt.className="go";bt.textContent="Ask Cordial";bt.style.cssText="flex:none;white-space:nowrap";
+    bt.onclick=function(){if(window.hubAskCordial)hubAskCordial(x[4]);else note("Cordial isn’t ready yet. Try again in a moment.")};
+    c.appendChild(ic);c.appendChild(tx);c.appendChild(bt);sec.insertBefore(c,sec.firstChild);
+  });
+})();
 function renderExp(){
   var pa=0,pb=0;S.exp.forEach(function(x){if(x.by==="a")pa+=x.amount;else pb+=x.amount});
-  var diff=(pa-pb)/2;
-  $("#bal").textContent=Math.abs(diff)<0.005?"You’re even.":(diff>0?nm("b")+" owes "+nm("a")+" "+money(diff):nm("a")+" owes "+nm("b")+" "+money(-diff));
-  $("#bal2").textContent=nm("a")+" paid "+money(pa)+" · "+nm("b")+" paid "+money(pb)+" · split 50/50";
+  $("#bal").textContent=S.exp.length?nm("a")+" has contributed "+money(pa)+" · "+nm("b")+" has contributed "+money(pb):"No expenses yet";
+  $("#bal2").textContent=S.exp.length?"Total spent "+money(pa+pb):"";
   var L=$("#xl");L.textContent="";
   if(!S.exp.length)L.appendChild(h("p","empty","No expenses yet. Add the first one above."));
   S.exp.forEach(function(x){
     var r=h("div","item"),l=h("div");
     l.appendChild(h("div",null,x.desc));l.appendChild(h("div","meta",x.date+" – paid by "+nm(x.by)));
+    if(x.proof&&x.proof.path){var rc=h("button","quiet","🧾 View receipt");rc.type="button";rc.style.cssText="padding:2px 0;text-decoration:underline";rc.onclick=function(){signed(x.proof.path).then(function(u){preview(Object.assign({},x.proof,{url:u}))}).catch(function(){note("That receipt isn’t available.")})};l.appendChild(rc)}
     var rt=h("div");rt.style.textAlign="right";rt.appendChild(h("div","amt",money(x.amount)));
     var rm=h("button","quiet","Remove");rm.onclick=function(){db.doc("expenses/"+x.id).delete().catch(fail)};
     if(canWrite)rt.appendChild(rm);r.appendChild(l);r.appendChild(rt);L.appendChild(r)});
@@ -3408,6 +3437,21 @@ function igCode(u){try{var x=new URL(u);if(!/(^|\.)instagram\.com$/.test(x.hostn
 function daysTo(d){if(!d)return null;var t=new Date(d+"T00:00:00"),n=new Date();n.setHours(0,0,0,0);return Math.round((t-n)/86400000)}
 function dueText(d){var n=daysTo(d);if(n===null)return "";var dt=tdate(d);return n<0?"Shopping day was "+dt:n===0?"Shopping day is today":n===1?"Shopping day is tomorrow ("+dt+")":"Shopping day "+dt+" · in "+n+" days"}
 function renderShop(){safe(renderFeed)()}
+function igThumbCard(o,big){
+  var w=h("a");w.href="https://www.instagram.com/"+o.kind+"/"+o.code+"/";w.target="_blank";w.rel="noopener";
+  w.style.cssText="position:relative;display:block;overflow:hidden;background:linear-gradient(135deg,#feda75,#d62976,#4f5bd5);text-decoration:none;color:#fff;"+(big?"border-radius:14px;aspect-ratio:4/5;width:100%":"aspect-ratio:1/1");
+  var im=h("img");im.alt="";im.loading="lazy";im.referrerPolicy="no-referrer";im.src="https://www.instagram.com/"+o.kind+"/"+o.code+"/media/?size="+(big?"l":"m");
+  im.style.cssText="width:100%;height:100%;object-fit:cover;display:block";im.onerror=function(){im.remove()};w.appendChild(im);
+  var b=h("div",null,"▶");b.style.cssText="position:absolute;top:8px;right:8px;font-size:"+(big?"1rem":".7rem")+";background:rgba(0,0,0,.45);border-radius:999px;padding:3px 8px";
+  if(o.v||o.kind!=="p")w.appendChild(b);
+  if(big){var ov=h("div");ov.style.cssText="position:absolute;left:0;right:0;bottom:0;padding:28px 12px 12px;background:linear-gradient(transparent,rgba(0,0,0,.65));font-weight:700";
+    ov.appendChild(h("div",null,"📷 Newest from "+shopName()));var s2=h("div",null,"Tap to open on Instagram");s2.style.cssText="font-weight:400;font-size:.85rem;opacity:.9";ov.appendChild(s2);w.appendChild(ov)}
+  return w;
+}
+function igGrid(list){
+  var g=h("div");g.style.cssText="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:6px;border-radius:12px;overflow:hidden";
+  list.forEach(function(o){g.appendChild(igThumbCard(o,false))});return g;
+}
 function shopEl(){
   var el=h("div","card");
   var items=shopItems(),saved=savedIds(),mine=items.filter(function(i){return saved.indexOf(i.id)>=0});
@@ -3416,8 +3460,9 @@ function shopEl(){
   var op=h("button","quiet","Open");op.type="button";op.onclick=function(){shopOpen("latest")};hd.appendChild(op);el.appendChild(hd);
   var nl=S.prof&&S.prof.cordial_shoplatest;
   if(nl&&nl.code&&nl.handle===shopHandle()){
-    var nw=h("div");nw.style.cssText="background:#fff;border-radius:12px;overflow:hidden;margin-top:8px;border:1px solid rgba(0,0,0,.06)";
-    var nf=h("iframe");nf.src="https://www.instagram.com/"+nl.kind+"/"+nl.code+"/embed/captioned";nf.style.cssText="width:100%;height:560px;border:0;display:block";nf.setAttribute("loading","lazy");nw.appendChild(nf);el.appendChild(nw);
+    var bw=h("div");bw.style.marginTop="8px";bw.appendChild(igThumbCard({kind:nl.kind,code:nl.code,v:nl.kind!=="p"?1:((nl.recent&&nl.recent[0]&&nl.recent[0].code===nl.code&&nl.recent[0].v)?1:0)},true));
+    if(nl.recent&&nl.recent.length>1)bw.appendChild(igGrid(nl.recent.filter(function(x){return x.code!==nl.code}).slice(0,3)));
+    el.appendChild(bw);
   }
   var lp0=h("button","go sm","📷 More from "+shopName());lp0.type="button";lp0.style.marginTop="8px";lp0.onclick=function(){shopOpen("latest")};el.appendChild(lp0);
   if(!items.length)return el;
@@ -3485,8 +3530,13 @@ function shopDraw(){
       var nh=h("div");nh.style.cssText="display:flex;justify-content:space-between;align-items:center;margin:4px 0 6px";
       nh.appendChild(h("b",null,"🆕 Newest post"));
       var na=h("a","quiet","Open on Instagram");na.href="https://www.instagram.com/"+nl.kind+"/"+nl.code+"/";na.target="_blank";na.rel="noopener";nh.appendChild(na);body.appendChild(nh);
-      var nw=h("div");nw.style.cssText="background:#fff;border-radius:14px;overflow:hidden;margin-bottom:12px";
-      var nf=h("iframe");nf.src="https://www.instagram.com/"+nl.kind+"/"+nl.code+"/embed/captioned";nf.style.cssText="width:100%;height:620px;border:0";nf.setAttribute("loading","lazy");nw.appendChild(nf);body.appendChild(nw);
+      var nw=h("div");nw.style.marginBottom="12px";
+      var rv=(nl.recent&&nl.recent[0]&&nl.recent[0].code===nl.code&&nl.recent[0].v)?1:0;
+      nw.appendChild(igThumbCard({kind:nl.kind,code:nl.code,v:rv},true));
+      var pvb=h("button","quiet","Preview here");pvb.type="button";pvb.style.marginTop="6px";
+      pvb.onclick=function(){var ex=nw.querySelector("iframe");if(ex){ex.remove();pvb.textContent="Preview here";return}var nf=h("iframe");nf.src="https://www.instagram.com/"+nl.kind+"/"+nl.code+"/embed/captioned";nf.style.cssText="width:100%;height:620px;border:0;background:#fff;border-radius:12px;margin-top:6px";nw.appendChild(nf);pvb.textContent="Hide preview"};nw.appendChild(pvb);
+      if(nl.recent&&nl.recent.length>1){nw.appendChild(h("b",null,"Recent posts"));nw.lastChild.style.cssText="display:block;margin-top:12px";nw.appendChild(igGrid(nl.recent.filter(function(x){return x.code!==nl.code})))}
+      body.appendChild(nw);
     }else{body.appendChild(h("p","meta","Looking for the newest post… If it doesn’t appear, the page’s recent posts are shown below."))}
     var lw=h("div");lw.style.cssText="background:#fff;border-radius:14px;overflow:hidden";
     var fr=h("iframe");fr.setAttribute("loading","lazy");fr.style.cssText="width:100%;height:640px;border:0";
@@ -3904,6 +3954,12 @@ async function start(session){
   var scrim=mk("div");scrim.id="scrim";scrim.hidden=true;document.body.appendChild(scrim);
   function menuIsOpen(){return root.getAttribute("data-menu")==="open"}
   var cdr=mk("div");cdr.id="cdrawer";cdr.setAttribute("aria-label","Menu");document.body.appendChild(cdr);
+  var ACC=document.getElementById("acctcard");
+  function placeAcct(){
+    var ac=ACC,fc=document.getElementById("famcard"),home=document.getElementById("home");if(!ac)return;
+    if(look==="classic"){if(ac.parentNode!==cdr)cdr.appendChild(ac)}
+    else if(ac.parentNode!==home)home.insertBefore(ac,fc?fc.nextSibling:null);
+  }
   function buildC(){
     cdr.textContent="";cdr.appendChild(mk("h3",null,"Menu"));
     Array.prototype.forEach.call(document.getElementById("grid").children,function(t){
@@ -3914,6 +3970,7 @@ async function start(session){
       b.appendChild(c);b.appendChild(mk("span",null,lb?lb.textContent:t.dataset.t));
       b.onclick=function(){setMenu(false);showTab(t.dataset.t)};cdr.appendChild(b);
     });
+    placeAcct();
     var hm=mk("button");hm.type="button";hm.innerHTML="<span class='ci' style='background:var(--a)'>"+svg("home",20)+"</span><span>Home</span>";hm.onclick=function(){setMenu(false);showTab("home")};cdr.insertBefore(hm,cdr.children[1]);
   }
   function setMenu(on){
@@ -4242,7 +4299,7 @@ async function start(session){
     sel.value="";
     Array.prototype.forEach.call(sel.options,function(o){var n={classic:"Classic",fb:"Social"}[o.value];if(n)o.textContent=(o.value===look?"✓ ":"")+n});
     document.getElementById("lookwrap").appendChild(sel);
-    buildNav();SIG={};setMenu(false);
+    placeAcct();buildNav();SIG={};setMenu(false);
     showTab("home");
   }
   sel.onchange=function(){if(!sel.value)return;look=sel.value;try{localStorage.setItem(KEY,look)}catch(e){}apply()};
@@ -4437,8 +4494,12 @@ async function aiRun(a){
     return "Posted on the timeline.";
   }
   if(a.type==="expense"){
-    await db.collection("expenses").add({desc:a.desc,amount:a.amount,by:a.by||$("#xw").value||"a",date:a.date||key(new Date())});
-    return "Expense added.";
+    if(!AILAST||!AILAST.file)throw new Error("nofile");
+    var ef=AILAST.file,eb=ef,en=ef.name,et=ef.type||"application/octet-stream";
+    if(/^image\//.test(et)){try{var esh=await shrinkBlob(ef);eb=esh.blob;et="image/jpeg";en=(ef.name||"receipt").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
+    var epath=await upload("docs",eb,en);
+    await db.collection("expenses").add({desc:a.desc,amount:a.amount,by:a.by||$("#xw").value||"a",date:a.date||key(new Date()),proof:{path:epath,name:en,type:et,size:eb.size||ef.size}});
+    return "Expense added with its receipt.";
   }
   if(a.type==="trip"){
     var r0=await db.collection("documents").add({cat:"Trip",type:a.kind,title:a.title,place:a.place,who:a.who,start:a.start,end:a.end||"",notes:a.notes||"",by:myId||"",ts:Date.now()});
@@ -5368,6 +5429,10 @@ function go(tab){close();window.WA_BYPASS=true;try{showTab(tab)}finally{window.W
 WA.chat=null;
 window.waOpen=function(tab){open(tab==="calls"?"calls":tab==="updates"?"updates":"chats")};
 window.waClose=close;
+window.hubAskCordial=function(t){
+  open("chats");
+  if(chatById(BOT_ID)){openChat(BOT_ID);setTimeout(function(){var ta=document.querySelector("#wacomp textarea");if(ta){ta.value=t||"";ta.dispatchEvent(new Event("input"));ta.focus();try{ta.setSelectionRange(ta.value.length,ta.value.length)}catch(e){}}},300)}
+};
 window.waOpenChat=function(id){if(!id||id==="family"){open("chats");return}open("chats");if(chatById(id))openChat(id)};
 window.hubAddToCall=function(){
   var cur=window.hubCallInfo&&hubCallInfo();if(!cur)return;
