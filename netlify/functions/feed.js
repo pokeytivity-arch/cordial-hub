@@ -31,6 +31,16 @@ async function channelFromHandle(vid) {
   return m ? m[1] : "";
 }
 
+// Is the channel streaming right now? Reads the channel's "/live" page. Returns the live video id or "".
+async function liveVideo(ch) {
+  try {
+    const t = await (await fetch(`https://www.youtube.com/channel/${ch}/live`, { headers: UA })).text();
+    if (!/"isLiveNow":true|"isLive":true/.test(t)) return "";
+    const m = t.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([\w-]{6,20})"/) || t.match(/"videoId":"([\w-]{11})"/);
+    return m ? m[1] : "";
+  } catch { return ""; }
+}
+
 async function readSaved() {
   const r = await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent(KEYNAME)}&select=data`, { headers: H });
   return ((r.ok ? await r.json() : [])[0] || {}).data || {};
@@ -40,7 +50,10 @@ exports.handler = async (event) => {
   if (!URL_ || !KEY) return out(501, { error: "not_configured" });
   const saved = await readSaved();
   const now = Date.now();
-  if (!event.force && saved.checked && now - saved.checked < 10 * 60 * 1000 && saved.vid) return out(200, { ok: true, cached: true, title: saved.title, url: saved.url });
+  // during the 7:00 am-12:00 weekday window (Nigerian time) check more often
+  const lagos = new Date(now + 3600 * 1000), wk = lagos.getUTCDay() >= 1 && lagos.getUTCDay() <= 5, inWin = wk && lagos.getUTCHours() >= 7 && lagos.getUTCHours() < 12;
+  const gap = (inWin ? 2 : 10) * 60 * 1000;
+  if (!event.force && saved.checked && now - saved.checked < gap && saved.vid) return out(200, { ok: true, cached: true, title: saved.title, url: saved.url });
 
   let ch = (process.env.YT_CHANNEL_ID || saved.channelId || "").trim();
   try { if (!ch) ch = await channelFromVideo(SEED); } catch {}
@@ -60,7 +73,9 @@ exports.handler = async (event) => {
   const title = dec((entry.match(/<title>([\s\S]*?)<\/title>/) || [])[1]).trim().slice(0, 200);
   const pub = Date.parse((entry.match(/<published>([^<]+)<\/published>/) || [])[1] || "") || now;
   const chName = dec((xml.match(/<author>\s*<name>([\s\S]*?)<\/name>/) || [])[1]).trim().slice(0, 80);
+  const liveVid = await liveVideo(ch);
   const data = {
+    liveNow: !!liveVid, liveVid,
     channelId: ch, channel: chName || saved.channel || "YouTube", vid, title,
     url: `https://www.youtube.com/watch?v=${vid}`, live: `https://www.youtube.com/channel/${ch}/live`,
     published: pub, seen: saved.vid === vid ? (saved.seen || now) : now, checked: now,
