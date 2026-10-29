@@ -1792,6 +1792,17 @@ $("#nadd").onclick=function(){
 function myRole(){var o=ownerM(),m=mumM();return o&&o.user_id===myId?"daddy":m&&m.user_id===myId?"mummy":""}
 function todoWho(x){return x.who==="daddy"?"Our Daddy":x.who==="mummy"?"Our Mummy":x.who==="both"?"Both parents":"Not assigned"}
 function todoCanDo(x){var r=myRole();return canWrite&&r&&(x.who==="both"||!x.who||x.who===r)}
+function todoNotify(x,what){
+  try{
+    var o=ownerM(),m=mumM(),other=what==="done"?(myRole()==="daddy"?(m&&m.user_id):(o&&o.user_id)):x.doneBy;
+    var me=xtName(myId).replace(/^You \(/,"").replace(/\)$/,"")||"A parent";var mine=myRole()==="daddy"?"Our Daddy":myRole()==="mummy"?"Our Mummy":"A parent";
+    var title=what==="done"?"✅ "+mine+" marked a task done":"✅ "+mine+" confirmed a task";
+    var body=what==="done"?"“"+x.title+"”. Please open Meetings and confirm.":"“"+x.title+"” is confirmed and moved to the archive.";
+    db.collection("messages").add({kind:"text",text:(what==="done"?"✅ "+mine+" marked this task as done: “"+x.title+"”. Waiting for the other parent to confirm.":"✅ "+mine+" confirmed that this task is done: “"+x.title+"”. It has moved to the archive."),ts:Date.now(),by:"cordial_ai"}).catch(function(){});
+    if(other)sb.auth.getSession().then(function(ss){var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)return;
+      fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:"task",to:[other],title:title,body:body,tag:x.id})}).catch(function(){})}).catch(function(){});
+  }catch(e){}
+}
 function renderTodos(){
   var box=$("#todocard");if(!box)return;box.textContent="";
   var all=(S.xo||[]).filter(function(x){return x.kind==="todo"}).sort(function(a,b){return (b.ts||0)-(a.ts||0)});
@@ -1811,7 +1822,7 @@ function renderTodos(){
   }
   sect("To do",open,function(x,r){
     var a=h("div");
-    if(todoCanDo(x))a.appendChild(xtBtn("✅ Mark as done",function(){db.doc("expenses/"+x.id).update({status:"done",doneBy:myId,doneAt:Date.now(),_selfie:"fulfilled"}).catch(fail)}));
+    if(todoCanDo(x))a.appendChild(xtBtn("✅ Mark as done",function(){db.doc("expenses/"+x.id).update({status:"done",doneBy:myId,doneAt:Date.now(),_selfie:"fulfilled"}).then(function(){todoNotify(x,"done")}).catch(fail)}));
     if(canWrite&&myRole()){var sel=h("select");sel.setAttribute("aria-label","Who is responsible");sel.style.cssText="width:auto;padding:4px 8px;font-size:.85rem;margin:6px 8px 0 0";
       [["","Not assigned"],["daddy","Our Daddy"],["mummy","Our Mummy"],["both","Both parents"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sel.appendChild(op)});sel.value=x.who||"";
       sel.onchange=function(){db.doc("expenses/"+x.id).update({who:sel.value}).catch(fail)};a.appendChild(sel);
@@ -1821,7 +1832,7 @@ function renderTodos(){
     r.appendChild(h("div","meta","Marked done by "+xtName(x.doneBy)+" · "+when(x.doneAt)));
     var a=h("div");
     if(canWrite&&myRole()&&x.doneBy!==myId){
-      a.appendChild(xtBtn("✅ Confirm it was done",function(){db.doc("expenses/"+x.id).update({status:"confirmed",confirmedBy:myId,confirmedAt:Date.now(),_selfie:"confirmed"}).catch(fail)}));
+      a.appendChild(xtBtn("✅ Confirm it was done",function(){db.doc("expenses/"+x.id).update({status:"confirmed",confirmedBy:myId,confirmedAt:Date.now(),_selfie:"confirmed"}).then(function(){todoNotify(x,"confirmed")}).catch(fail)}));
       a.appendChild(xtBtn("Not done yet",function(){db.doc("expenses/"+x.id).update({status:"open",doneBy:null,doneAt:null,selfie_fulfilled:null}).catch(fail)},"quiet"));
     }else a.appendChild(h("div","meta","Waiting for the other parent to confirm."));
     r.appendChild(a)});
@@ -2656,8 +2667,8 @@ window.pushSubscribe=async function(){
   },3000);
 })();
 try{if(location.search.indexOf("ring=")>=0)history.replaceState(null,"",location.pathname)}catch(e){}
-function openFromUrl(u){try{var m=String(u||"").match(/[?&]chat=([\w-]+)/);if(m&&window.waOpenChat)waOpenChat(m[1])}catch(e){}}
-try{if(location.search.indexOf("chat=")>=0){var cu=location.search;setTimeout(function(){openFromUrl(cu);try{history.replaceState(null,"",location.pathname)}catch(e){}},3500)}}catch(e){}
+function openFromUrl(u){try{var m=String(u||"").match(/[?&]chat=([\w-]+)/);if(m&&window.waOpenChat)waOpenChat(m[1]);var g=String(u||"").match(/[?&]goto=(\w+)/);if(g&&typeof showTab==="function")showTab(g[1])}catch(e){}}
+try{if(location.search.indexOf("chat=")>=0||location.search.indexOf("goto=")>=0){var cu=location.search;setTimeout(function(){openFromUrl(cu);try{history.replaceState(null,"",location.pathname)}catch(e){}},3500)}}catch(e){}
 try{if(navigator.serviceWorker)navigator.serviceWorker.addEventListener("message",function(e){if(e.data&&e.data.type==="open")openFromUrl(e.data.url)})}catch(e){}
 function previewText(m){
   switch(m.kind){
@@ -5293,6 +5304,10 @@ async function start(session){
       var d=new Date(k+"T12:00:00").getTime(),e=S.sched[k]||{};
       if(d<now-432e5||d>now+3*864e5)return;
       E.push({ts:new Date(k+"T00:00:00").getTime()-2*864e5,k:"event",lead:"Calendar",text:": "+new Date(d).toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})+(e.who?" · "+nm(e.who)+" has the kids":"")+(e.note?" · "+e.note:"")});
+    });
+    (S.xo||[]).filter(function(x){return x.kind==="todo"}).forEach(function(x){
+      if(x.status==="done"&&x.doneBy&&x.doneBy!==myId&&myRole())E.push({ts:x.doneAt||x.ts||0,k:"reminder",lead:"Task",text:": "+xtName(x.doneBy)+" marked “"+x.title+"” done. Please confirm."});
+      else if(x.status==="confirmed"&&x.doneBy===myId)E.push({ts:x.confirmedAt||x.ts||0,k:"reminder",lead:"Task",text:": “"+x.title+"” was confirmed by "+xtName(x.confirmedBy)+"."});
     });
     (S.mnotes||[]).forEach(function(m){E.push({ts:m.ts||m.start||0,k:"meeting",lead:"Meeting summary",text:": "+(m.topic||"Meeting")+" is ready"})});
     S.hl.forEach(function(x){if(x.by&&x.by!==myId)E.push({ts:x.ts,k:"highlight",by:x.by,text:" added a highlight: "+(x.title||"")})});
