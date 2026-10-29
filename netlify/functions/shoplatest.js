@@ -19,7 +19,7 @@ exports.handler = async (event) => {
   const handle = String(shop.handle || "one_stop_baby_shop").replace(/[^\w.]/g, "").slice(0, 40);
   const saved = await readDoc("profiles/cordial_shoplatest");
   const now = Date.now();
-  if (!debug && saved.handle === handle && saved.checked && now - saved.checked < 20 * 60 * 1000) return out(200, { ok: true, cached: true, code: saved.code });
+  if (!debug && saved.handle === handle && saved.recent && saved.checked && now - saved.checked < 20 * 60 * 1000) return out(200, { ok: true, cached: true, code: saved.code });
 
   const log = {};
   let first = null;
