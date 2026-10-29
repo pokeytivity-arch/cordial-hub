@@ -187,7 +187,10 @@ button.pav{border:0;padding:0;cursor:pointer;font:inherit;font-weight:700}
 body.locked #cbar,body.locked #jc{display:none!important}
 #jc{background:#000}
 #jc.min{visibility:hidden;pointer-events:none}
-#jcm{position:absolute;inset:0}
+#jcm{position:absolute;left:0;right:0;bottom:0;top:env(safe-area-inset-top,0px)}
+#jcswap{position:absolute;z-index:4;top:env(safe-area-inset-top,0px);right:0;width:118px;height:118px;background:transparent;border:0;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+@media (min-width:700px){#jcswap{width:210px;height:210px}#jct .jr{margin-top:200px}}
+#jct .jr{margin-top:104px}
 #jcm iframe{width:100%;height:100%;border:0;background:#000}
 #jct{position:absolute;left:0;right:0;top:0;z-index:3;display:flex;align-items:flex-start;justify-content:space-between;padding:calc(14px + env(safe-area-inset-top,0px)) 14px 0;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.55),transparent)}
 #jct>*{pointer-events:auto}
@@ -1606,6 +1609,28 @@ window.pushSubscribe=async function(){
   if(!window.hubPref||!S.profLoaded)return;
   clearInterval(iv);window.pushSubscribe();
 },4000)})();
+(function(){
+  var n=0,iv=setInterval(function(){
+    if(++n>40){clearInterval(iv);return}
+    if(!("Notification" in window)||Notification.permission!=="default")return;
+    if(!myId||!S.profLoaded)return;
+    var st=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone;
+    if(!st)return;
+    try{if(localStorage.getItem("hubAlertAsk"))return}catch(e){}
+    clearInterval(iv);
+    var bar=document.createElement("div");
+    bar.style.cssText="position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:310;background:#1f2a1a;color:#fff;border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.35);font-size:.95rem;line-height:1.35";
+    bar.innerHTML="<b>Turn on alerts?</b><div style='opacity:.85;margin:4px 0 10px'>Get the red number on the app icon, and calls that ring even when the app is closed.</div>";
+    var row=document.createElement("div");row.style.cssText="display:flex;gap:10px;justify-content:flex-end";
+    var no=document.createElement("button"),yes=document.createElement("button");
+    no.textContent="Not now";yes.textContent="Turn on";
+    no.style.cssText="background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:10px;padding:10px 16px;font:inherit";
+    yes.style.cssText="background:#1fa855;color:#fff;border:0;border-radius:10px;padding:10px 18px;font:inherit;font-weight:700";
+    no.onclick=function(){try{localStorage.setItem("hubAlertAsk","1")}catch(e){}bar.remove()};
+    yes.onclick=function(){bar.remove();var b=document.getElementById("alon");if(b)b.click()};
+    row.appendChild(no);row.appendChild(yes);bar.appendChild(row);document.body.appendChild(bar);
+  },3000);
+})();
 try{if(location.search.indexOf("ring=")>=0)history.replaceState(null,"",location.pathname)}catch(e){}
 function previewText(m){
   switch(m.kind){
@@ -1617,6 +1642,7 @@ function previewText(m){
     case "voice":return "🎤 Voice message";
     case "sticker":return (m.emoji||"🙂")+" Sticker";
     case "sys":return m.text||"";
+    case "announce":return "📢 "+(m.text||"Announcement");
   }
   return m.text||"";
 }
@@ -1909,12 +1935,13 @@ function openPick(m,row){
 function newRoom(){var a=new Uint8Array(9);crypto.getRandomValues(a);return "CoParentHub"+Array.prototype.map.call(a,function(x){return x.toString(16).padStart(2,"0")}).join("")}
 function roomUrl(c){return "https://meet.jit.si/"+c.room+"#config.disableDeepLinking=true"+(c.audio?"&config.startWithVideoMuted=true":"")}
 
-var JC=null,JCUR=null,JAPI=null,JT=null,JSTART=0,JSCR={};
+var JC=null,JCUR=null,JAPI=null,JT=null,JSTART=0,JSCR={},JLOC=null,JREM=[],JPIN="remote";
 var JI={
  min:"<svg viewBox='0 0 24 24' width='22' height='22' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7'/></svg>",
  add:"<svg viewBox='0 0 24 24' width='24' height='24' fill='currentColor'><circle cx='9' cy='8' r='4'/><path d='M1.5 20c0-3.6 3.4-6 7.5-6s7.5 2.4 7.5 6z'/><circle cx='19' cy='17' r='4.2' fill='#222'/><path d='M19 14.8v4.4M16.8 17h4.4' stroke='#fff' stroke-width='1.6' stroke-linecap='round'/></svg>",
  chat:"<svg viewBox='0 0 24 24' width='24' height='24' fill='currentColor'><path d='M12 3C6.5 3 2 6.6 2 11.2c0 2.3 1.2 4.4 3 5.8-.1 1.4-.6 2.8-1.5 3.8 2-.1 3.7-.8 4.9-1.8 1.1.3 2.3.5 3.6.5 5.5 0 10-3.6 10-8.2S17.5 3 12 3z'/></svg>",
  flip:"<svg viewBox='0 0 24 24' width='26' height='26' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z' fill='currentColor' stroke='none'/><path d='M9 13a3.2 3.2 0 0 1 5.6-2M15 14a3.2 3.2 0 0 1-5.6 2' stroke='#222'/><path d='M14.8 9.6v1.6h-1.6M9.2 17.4v-1.6h1.6' stroke='#222'/></svg>",
+ swap:"<svg viewBox='0 0 24 24' width='24' height='24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M7 4v14M3.5 14.5 7 18l3.5-3.5M17 20V6M13.5 9.5 17 6l3.5 3.5'/></svg>",
  more:"<svg viewBox='0 0 24 24' width='26' height='26' fill='currentColor'><circle cx='5' cy='12' r='2'/><circle cx='12' cy='12' r='2'/><circle cx='19' cy='12' r='2'/></svg>",
  cam:"<svg viewBox='0 0 24 24' width='28' height='28' fill='currentColor'><rect x='2' y='6' width='13' height='12' rx='3'/><path d='M22 8l-6 4 6 4z'/></svg>",
  camoff:"<svg viewBox='0 0 24 24' width='28' height='28' fill='currentColor'><rect x='2' y='6' width='13' height='12' rx='3'/><path d='M22 8l-6 4 6 4z'/><path d='M3 3l18 18' stroke='currentColor' stroke-width='2.4' stroke-linecap='round'/></svg>",
@@ -1939,6 +1966,13 @@ function jcParts(){
   var n=1;try{n=JAPI.getNumberOfParticipants()}catch(e){}
   if(n>1){if(!JSTART){JSTART=Date.now();if(JCUR)JCUR.at=JSTART}}else if(JSTART&&n<=1){/* others left: keep timer */}
   jcTick();
+}
+function jcSwap(){
+  if(!JAPI||!JLOC||!JREM.length){toast("Waiting for the other person to join.");return}
+  try{
+    if(JPIN==="remote"){JAPI.executeCommand("pinParticipant",JLOC);JPIN="local"}
+    else{JAPI.executeCommand("pinParticipant",JREM[0]);JPIN="remote"}
+  }catch(e){}
 }
 function jcMin(){if(!JC)return;JC.classList.add("min");syncCbar()}
 function jcRestore(){if(!JC)return;JC.classList.remove("min");syncCbar()}
@@ -1967,6 +2001,7 @@ function openCall(c){
     rt.appendChild(jbtn("",JI.add,"Add people",function(){if(window.hubAddToCall)hubAddToCall();else toast("Add people isn’t ready yet.")}));
     rt.appendChild(jbtn("",JI.chat,"Return to chat",function(){jcToChat()}));
     var fl=jbtn("",JI.flip,"Switch camera",jcFlip);fl.id="jcflip";rt.appendChild(fl);
+    rt.appendChild(jbtn("",JI.swap,"Swap big and small video",jcSwap));
     tp.appendChild(rt);
     var bt=h("div");bt.id="jcb";
     bt.appendChild(jbtn("",JI.more,"More",jcMenu));
@@ -1978,10 +2013,10 @@ function openCall(c){
     var m2=h("button",null,"Grid / speaker view");m2.onclick=function(){mn.hidden=true;if(JAPI)JAPI.executeCommand("toggleTileView")};
     var m3=h("a",null,"Open in new tab");m3.id="jcn";m3.target="_blank";m3.rel="noopener";
     mn.appendChild(m1);mn.appendChild(m2);mn.appendChild(m3);
-    JC.appendChild(tp);JC.appendChild(bt);JC.appendChild(mn);document.body.appendChild(JC);
+    var sw=h("button");sw.id="jcswap";sw.type="button";sw.setAttribute("aria-label","Swap big and small video");sw.onclick=jcSwap;JC.appendChild(sw);JC.appendChild(tp);JC.appendChild(bt);JC.appendChild(mn);document.body.appendChild(JC);
     document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!JC.hidden&&!JC.classList.contains("min"))jcMin()});
   }
-  JCUR=c;JSTART=0;JC.classList.remove("min");
+  JCUR=c;JSTART=0;JLOC=null;JREM=[];JPIN="remote";JC.classList.remove("min");
   var nm=(S.me||"").replace(/["\\]/g,"");
   var base=c.title||"Family call";JC.querySelector(".jtt b").textContent=base;
   var camb=JC.querySelector("#jccam"),micb=JC.querySelector("#jcmic"),nt=JC.querySelector("#jcn");
@@ -2011,9 +2046,9 @@ function openCall(c){
         userInfo:{displayName:S.me||"Guest"}};
       if(jwt)opts.jwt=jwt;
       var api=new JitsiMeetExternalAPI(host,opts);JAPI=api;
-      api.addListener("videoConferenceJoined",jcParts);
-      api.addListener("participantJoined",jcParts);
-      api.addListener("participantLeft",function(){jcParts();var mc=JCUR;setTimeout(function(){if(JCUR!==mc||!mc||!mc.callId||!JSTART)return;var n=1;try{n=JAPI.getNumberOfParticipants()}catch(e){}if(n<=1)closeCall()},1500)});
+      api.addListener("videoConferenceJoined",function(e){JLOC=e&&e.id;jcParts()});
+      api.addListener("participantJoined",function(e){if(e&&e.id&&JREM.indexOf(e.id)<0){JREM.push(e.id);if(JREM.length===1&&JPIN==="remote")setTimeout(function(){try{JAPI&&JAPI.executeCommand("pinParticipant",JREM[0])}catch(x){}},800)}jcParts()});
+      api.addListener("participantLeft",function(e){if(e&&e.id)JREM=JREM.filter(function(x){return x!==e.id});jcParts();var mc=JCUR;setTimeout(function(){if(JCUR!==mc||!mc||!mc.callId||!JSTART)return;var n=1;try{n=JAPI.getNumberOfParticipants()}catch(e){}if(n<=1)closeCall()},1500)});
       api.addListener("audioMuteStatusChanged",function(e){micb.innerHTML=e.muted?JI.micoff:JI.mic;micb.classList.toggle("off",!!e.muted)});
       api.addListener("videoMuteStatusChanged",function(e){camb.innerHTML=e.muted?JI.camoff:JI.cam;camb.classList.toggle("off",!!e.muted)});
       api.addListener("readyToClose",function(){if(JAPI===api)closeCall()});
@@ -3545,7 +3580,8 @@ async function start(session){
 
   function badgeNow(){
     var E=events(),sn=lget(SEEN_N),sc=lget(SEEN_C);
-    var n=(cur==="notif"?0:E.filter(function(e){return e.k!=="msg"&&e.ts>sn}).length)+(cur==="msg"?0:S.msgs.filter(function(m){return m.by!==myId&&m.ts>sc}).length);
+    var mu=null;try{if(look!=="classic"&&window.waUnread)mu=window.waUnread()}catch(x){}
+    var n=(cur==="notif"?0:E.filter(function(e){return e.k!=="msg"&&e.ts>sn}).length)+(mu!=null?mu:(cur==="msg"?0:S.msgs.filter(function(m){return m.by!==myId&&m.ts>sc}).length));
     setIconBadge(n);
     var np=(cur==="notif"?0:E.filter(function(e){return e.k!=="msg"&&e.ts>sn}).length);
     if(window.__lastNp!=null&&np>window.__lastNp)hubSound("notif");window.__lastNp=np;
@@ -3679,12 +3715,13 @@ var I={
 };
 var COLORS=["#6a4ae0","#d3396d","#128c7e","#e1851d","#2b7bbd","#a8387a","#547a1f","#b5403a"];
 function colorOf(s){var n=0;String(s||"").split("").forEach(function(c){n=(n*31+c.charCodeAt(0))>>>0});return COLORS[n%COLORS.length]}
-function mname(id){return id===myId?"You":memberName(id)}
+function mname(id){return id===myId?"You":id===BOT_ID?BOT_NAME:memberName(id)}
 function inits(n){return String(n||"?").trim().charAt(0).toUpperCase()}
 function cap(){return document.querySelector(".logo img")&&document.querySelector(".logo img").src}
 function avatar(c,cls){
   var a=T("div","wav"+(cls?" "+cls:""));
   if(c.type==="family"){var im=E("img");im.src=cap();im.alt="";a.appendChild(im);return a}
+  if(c.type==="bot"){a.style.background="linear-gradient(135deg,#4f5d2f,#1fa855)";a.style.color="#fff";a.textContent="C";return a}
   if(c.type==="dm"){
     var o=c.members.filter(function(x){return x!==myId})[0]||myId,p=PF(o);
     a.style.background=colorOf(o);a.textContent=inits(mname(o));
@@ -3696,7 +3733,62 @@ function avatar(c,cls){
 function chatOf(m){return m.chat||"family"}
 function dmId(a,b){return "dm_"+[a,b].sort().join("_")}
 function dmMembers(id){return id.slice(3).split("_")}
-function allMsgs(){return S.allmsgs||S.msgs||[]}
+var BOT_ID="cordial_ai",BOT_NAME="Cordial Co-Parenting";
+var BOT_TIPS=[
+"Keep it about the child. Before you send a message, ask: does this help our child? If not, leave it out.",
+"Write like a colleague. Short, polite and factual messages are easier to read and harder to argue with.",
+"Pause before you reply. If a message makes you angry, wait an hour. Most things don’t need an answer in minutes.",
+"Never use your child as a messenger. Pass plans and news directly to the other parent.",
+"Say it once, clearly. Put the date, time and place in one message instead of several small ones.",
+"Praise out loud. When the other parent does something good for your child, tell them. It builds goodwill.",
+"Keep routines similar in both homes: bedtime, screen time and homework rules. Children feel safer with consistency.",
+"Don’t speak badly about the other parent in front of your child, even when you are upset.",
+"Hand-overs go better when they are short and calm. Be on time, say hello, and keep the talking for later.",
+"Use the Calendar. A plan that is written down can’t be remembered two different ways.",
+"Share school news fast. Report cards, events and notes are for both parents.",
+"When you disagree, name the shared goal first: “We both want what’s best for her.” Then discuss the choice.",
+"Ask, don’t tell. “Can we swap Saturday?” works better than “I’m taking Saturday.”",
+"Give notice for changes. The earlier you tell the other parent, the easier it is for them to say yes.",
+"Let small things go. Different snacks and different outfits rarely matter. Save your energy for what does.",
+"Listen to your child’s feelings without taking sides. “That sounds hard” is often enough.",
+"Keep a record of expenses in the hub with receipts. Clear records prevent money arguments.",
+"Be reliable. If you say you’ll call at 6, call at 6. Children measure love by consistency.",
+"Take care of yourself too. Rest, exercise and friends make you a calmer parent.",
+"Celebrate milestones together when you can: birthdays, graduations and recitals. Your child will remember it.",
+"Agree on how to handle emergencies before one happens: who to call, who has the insurance card, who is closer.",
+"Avoid “always” and “never”. They start fights. Describe the one thing that happened instead.",
+"Stay flexible within limits. Life changes, and swapping a weekend now and then keeps the peace.",
+"Tell your child the plan ahead of time. Knowing what comes next lowers worry at hand-overs.",
+"Keep new partners out of disputes. Introduce them slowly and only when you are sure the relationship is steady.",
+"Respect the other parent’s time. Don’t call or text during their parenting time unless it matters.",
+"When a message upsets you, reread it and ask: what is the actual request? Answer only that.",
+"Let your child love both homes. Never ask them to pick a side or report on the other parent.",
+"Review your parenting plan once a year. Children grow, and the plan should grow with them.",
+"If talking keeps failing, ask a mediator or family counsellor for help. It is a sign of strength."
+];
+var BOT_HELP=[
+"📷 Camera and microphone keep asking? Here’s how to stop it on an iPhone:\n\n1. Open Settings > Apps > Safari.\n2. Tap Camera and choose Allow. Do the same for Microphone.\n3. In Safari, open the hub, tap the “aA” icon, then Website Settings, and set Camera and Microphone to Allow.\n\nIf you use the hub from your Home Screen icon, iPhone may still ask once each time you open it. Tap Allow and it won’t ask again during that visit.",
+"🤖 On Android (Chrome): tap the lock or tune icon next to the web address > Permissions > set Camera and Microphone to Allow. Chrome remembers it after that.\n\nStill no picture or sound? Check that nothing else (another call or app) is using the camera, and that your phone’s own Settings allow Chrome or Safari to use them."
+];
+var botCache={key:"",list:[]};
+function botMsgs(){
+  var lp=LPf();
+  if(!S.profLoaded)return [];
+  if(!lp.botSince){lp.botSince=Date.now();saveLP(true)}
+  var bs=lp.botSince,day=new Date();day.setHours(8,0,0,0);
+  var key=bs+"|"+day.getTime()+"|"+(new Date().getHours()>=8?1:0);
+  if(botCache.key===key)return botCache.list;
+  var L=[{id:"bot_w",by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs,text:"Hi, I’m Cordial 👋\n\nI’m the AI agent for this hub, and I’m not a real person. I send co-parenting tips and quick help with the hub. You can’t reply to me here, and I can’t see your private messages."}];
+  BOT_HELP.forEach(function(t,i){L.push({id:"bot_h"+i,by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs+1000*(i+1),text:t})});
+  for(var k=6;k>=0;k--){
+    var t=day.getTime()-k*86400000;
+    if(t>bs+5000&&t<=Date.now()){var n=Math.floor(t/86400000);L.push({id:"bot_t"+n,by:BOT_ID,chat:BOT_ID,kind:"text",ts:t,text:"💡 Tip of the day\n\n"+BOT_TIPS[n%BOT_TIPS.length]})}
+  }
+  botCache={key:key,list:L};return L;
+}
+function vtick(sz){return "<svg viewBox='0 0 24 24' width='"+(sz||16)+"' height='"+(sz||16)+"' style='flex:none' aria-label='Verified'><path fill='#1fa855' d='M12 1.5l2.7 1.9 3.3-.2 1.2 3.1 2.8 1.8-.9 3.2.9 3.2-2.8 1.8-1.2 3.1-3.3-.2L12 22.5l-2.7-1.9-3.3.2-1.2-3.1L2 15.9l.9-3.2L2 9.5l2.8-1.8L6 4.6l3.3.2z'/><path d='M7.6 12.2l3 3 5.8-6' fill='none' stroke='#fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/></svg>"}
+function botName(big){var w=E("span");w.style.cssText="display:inline-flex;align-items:center;gap:5px;min-width:0;max-width:100%";var n=T("span",null,BOT_NAME);n.style.cssText="overflow:hidden;text-overflow:ellipsis;white-space:nowrap";w.appendChild(n);var v=E("span");v.style.cssText="display:inline-flex;flex:none";v.innerHTML=vtick(big?18:16);w.appendChild(v);var a=T("span",null,"AI agent");a.style.cssText="flex:none;font-size:.68rem;font-weight:700;letter-spacing:.03em;color:#1a7f45;background:#e3f6ea;border-radius:6px;padding:1px 6px";w.appendChild(a);return w}
+function allMsgs(){return (S.allmsgs||S.msgs||[]).concat(botMsgs())}
 function LPf(){
   var d=S.prof&&S.prof["cp_"+myId];
   if(!d){d={cp:true,pin:[],arch:[],read:{},unr:[],since:Date.now()};if(!S.profLoaded||!S.prof)return d;S.prof["cp_"+myId]=d;saveLP(true)}
@@ -3707,7 +3799,7 @@ function saveLP(now){
   clearTimeout(saveT);
   saveT=setTimeout(function(){if(!db||!myId||!S.prof||!S.prof["cp_"+myId])return;db.doc("profiles/cp_"+myId).set(S.prof["cp_"+myId]).catch(function(){})},now?200:600);
 }
-function msgsOf(id){return allMsgs().filter(function(m){return chatOf(m)===id})}
+function msgsOf(id){var r=allMsgs().filter(function(m){return chatOf(m)===id});if(id===BOT_ID)r.sort(function(a,b){return a.ts-b.ts});return r}
 function canMsg(u){
   if(u.is_owner)return true;
   return (PERMROWS||[]).some(function(p){return p.grp===u.grp&&p.feature==="messages"&&(p.can_view||p.can_edit)});
@@ -3716,6 +3808,7 @@ function getChats(){
   var out={},msgs=allMsgs(),by={};
   msgs.forEach(function(m){var c=chatOf(m);(by[c]=by[c]||[]).push(m)});
   out.family={id:"family",type:"family",name:"Family chat",members:MEMBERS.map(function(u){return u.user_id})};
+  if(S.profLoaded)out[BOT_ID]={id:BOT_ID,type:"bot",name:BOT_NAME,members:[myId]};
   Object.keys(S.prof||{}).forEach(function(k){
     var d=S.prof[k];
     if(k.indexOf("chat_")===0&&d&&d.chatmeta&&(d.members||[]).indexOf(myId)>=0)out[k.slice(5)]={id:k.slice(5),type:"group",name:d.name||"Group",members:d.members,by:d.by,ts:d.ts||0};
@@ -3835,12 +3928,12 @@ function rowEl(c,lp){
   Rr.appendChild(ab(ic("archive",26)+"<span>"+(isArch?"Unarchive":"Archive")+"</span>","#1fa855",function(){togArch(c.id)}));
   var row=E("div","wrow");row.appendChild(avatar(c));
   var bd=E("div","wbd"),l1=E("div","wl1"),l2=E("div","wl2");
-  l1.appendChild(T("b",null,c.name));l1.appendChild(T("span",c.unread||c.mark?"un":"",wTime(c.ts)));
+  if(c.type==="bot"){var bb=E("b");bb.appendChild(botName());l1.appendChild(bb)}else l1.appendChild(T("b",null,c.name));l1.appendChild(T("span",c.unread||c.mark?"un":"",wTime(c.ts)));
   var last=c.last,tx=E("span","tx");
   if(last){
     var mine=last.by===myId;
-    if(mine&&last.kind!=="sys")tx.innerHTML="<span style='display:inline-flex;vertical-align:-3px;margin-right:4px;color:"+(isRead(last,c)?"#34b7f1":"inherit")+"'>"+ic("tick2",18,1.7)+"</span>";
-    var who=(!mine&&c.type!=="dm"&&last.kind!=="sys")?mname(last.by)+": ":"";
+    if(mine&&last.kind!=="sys"&&c.type!=="bot")tx.innerHTML="<span style='display:inline-flex;vertical-align:-3px;margin-right:4px;color:"+(isRead(last,c)?"#34b7f1":"inherit")+"'>"+ic("tick2",18,1.7)+"</span>";
+    var who=(!mine&&c.type!=="dm"&&c.type!=="bot"&&last.kind!=="sys")?mname(last.by)+": ":"";
     tx.appendChild(document.createTextNode(who+pv(last)));
   }else tx.textContent=c.type==="group"?"Group created":"Say hello";
   l2.appendChild(tx);
@@ -3949,6 +4042,7 @@ function newGroup(){
   });
 }
 function info(c){
+  if(c.type==="bot"){page("About Cordial",function(B){var top=E("div");top.style.cssText="text-align:center;padding:18px";var a=avatar(c);a.style.cssText="width:96px;height:96px;margin:0 auto 10px;font-size:2.4rem";top.appendChild(a);var n=E("div");n.style.cssText="font-size:1.3rem;font-weight:700;display:flex;justify-content:center";n.appendChild(botName(true));top.appendChild(n);var p=T("p",null,"Cordial is an automated AI agent made for this hub. It posts a co-parenting tip each day and shares help with the hub, such as camera and microphone settings. Announcements from the hub owner also appear here, labelled with the owner’s name. It is not a person, it cannot read your chats, and it can’t reply to messages. Tips are general guidance, not legal or medical advice.");p.style.cssText="color:var(--wmut);line-height:1.45;margin-top:12px";top.appendChild(p);B.appendChild(top)});return}
   page(c.type==="group"?"Group info":"Chat info",function(B,hd,pg){
     var top=E("div");top.style.cssText="text-align:center;padding:14px";var a=avatar(c);a.style.cssText="width:96px;height:96px;margin:0 auto 10px;font-size:2.4rem";top.appendChild(a);
     var n=T("div",null,c.name);n.style.cssText="font-size:1.4rem;font-weight:700";top.appendChild(n);B.appendChild(top);
@@ -3987,14 +4081,14 @@ function buildChat(c){
   var others=totalUnread();
   var bk=pill(ic("back",22)+(others?"<span style='font-weight:600'>"+others+"</span>":""),closeChat);hd.appendChild(bk);
   var tt=E("button","wpill ttl","");tt.type="button";tt.appendChild(avatar(c,"sm"));
-  var tb=E("div");tb.style.cssText="min-width:0;text-align:left";tb.appendChild(T("b",null,c.name));
-  var sub=c.type==="family"?"Everyone in the hub":c.type==="group"?c.members.map(mname).join(", "):"tap for info";
+  var tb=E("div");tb.style.cssText="min-width:0;text-align:left";if(c.type==="bot"){var bb2=E("b");bb2.style.cssText="display:block;font-weight:600;font-size:1.02rem;min-width:0";bb2.appendChild(botName(true));tb.appendChild(bb2)}else tb.appendChild(T("b",null,c.name));
+  var sub=c.type==="bot"?"Automated tips and help":c.type==="family"?"Everyone in the hub":c.type==="group"?c.members.map(mname).join(", "):"tap for info";
   tb.appendChild(T("small",null,sub));tt.appendChild(tb);tt.onclick=function(){info(c)};hd.appendChild(tt);
   var cg=E("div","wpill","");cg.style.gap="14px";
   var v=E("button",null,ic("video",26,1.7)),p=E("button",null,ic("phone",24,1.7));v.type=p.type="button";
   v.setAttribute("aria-label","Video call");p.setAttribute("aria-label","Voice call");
   v.onclick=function(){callChat(c,false)};p.onclick=function(){callChat(c,true)};
-  cg.appendChild(v);cg.appendChild(p);hd.appendChild(cg);chatEl.appendChild(hd);
+  cg.appendChild(v);cg.appendChild(p);if(c.type!=="bot")hd.appendChild(cg);chatEl.appendChild(hd);
   CH.pin=E("div");CH.pin.id="wapin";CH.pin.hidden=true;chatEl.appendChild(CH.pin);
   CH.list=E("div");CH.list.id="wamsgs";chatEl.appendChild(CH.list);
   CH.reply=E("div");CH.reply.id="wareply";CH.reply.hidden=true;chatEl.appendChild(CH.reply);
@@ -4011,8 +4105,18 @@ function buildChat(c){
   rec.appendChild(tr);rec.appendChild(E("span","dot",""));var tm=T("b",null,"0:00");tm.id="watime";rec.appendChild(tm);var sp=T("span",null,"Recording…");sp.style.cssText="flex:1;color:var(--wmut)";rec.appendChild(sp);
   cp.insertBefore(rec,box);
   CH.comp=cp;CH.ta=ta;CH.cam=cam;CH.mic=mic;CH.box=box;CH.plus=plus;CH.rec=rec;CH.tm=tm;
+  if(c.type==="bot"){cp.textContent="";cp.id="wacomp";CH.ta=null;
+    if(isOwner){
+      var obox=E("div","box"),ota=E("textarea");ota.rows=1;ota.maxLength=2000;ota.placeholder="Write an announcement for everyone…";ota.setAttribute("aria-label","Announcement");obox.appendChild(ota);
+      var osend=E("button","round g",ic("send",22));osend.type="button";osend.setAttribute("aria-label","Post announcement");
+      ota.addEventListener("input",function(){ota.style.height="46px";ota.style.height=Math.min(ota.scrollHeight,120)+"px"});
+      osend.onclick=function(){var t=ota.value.trim();if(!t)return;if(!confirm("Post this announcement to everyone in the hub?"))return;ota.value="";ota.style.height="46px";post({kind:"announce",text:t}).catch(fail)};
+      cp.appendChild(obox);cp.appendChild(osend);
+    }else{var nb=T("div",null,"Cordial is an AI agent. You can’t reply to it here.");nb.style.cssText="flex:1;text-align:center;color:var(--wmut);font-size:.92rem;padding:12px 8px";cp.appendChild(nb)}
+  }
   chatEl.appendChild(cp);
   CH.tray=E("div");CH.tray.id="watray";CH.tray.hidden=true;chatEl.appendChild(CH.tray);
+  if(c.type==="bot"){CH.fit=function(){};return}
   function fit(){ta.style.height="46px";ta.style.height=Math.min(ta.scrollHeight,120)+"px";var has=!!ta.value.trim();cam.hidden=has;mic.innerHTML=has?ic("send",22):ic("mic",24,1.8);mic.setAttribute("aria-label",has?"Send":"Record voice message")}
   ta.addEventListener("input",fit);fit();
   mic.onclick=function(){if(ta.value.trim())sendOrEdit();else recStart()};
@@ -4045,7 +4149,7 @@ WA.setReply=function(m){
   WA.reply=m?{id:m.id,text:pv(m).slice(0,100),by:m.by||""}:null;
   var r=CH.reply;if(!r)return;
   r.textContent="";r.hidden=!m;
-  if(m){var tx=E("div","tx");tx.appendChild(T("b",null,mname(m.by)));tx.appendChild(T("div",null,pv(m)));r.appendChild(tx);var x=E("button",null,ic("back",20));x.innerHTML="✕";x.type="button";x.onclick=function(){WA.setReply(null)};r.appendChild(x);CH.ta.focus()}
+  if(m){var tx=E("div","tx");tx.appendChild(T("b",null,mname(m.by)));tx.appendChild(T("div",null,pv(m)));r.appendChild(tx);var x=E("button",null,ic("back",20));x.innerHTML="✕";x.type="button";x.onclick=function(){WA.setReply(null)};r.appendChild(x);if(CH.ta)CH.ta.focus()}
 };
 function startEdit(m){
   WA.setReply(null);WA.edit=m;var r=CH.reply;r.textContent="";r.hidden=false;
@@ -4080,16 +4184,17 @@ function renderChat(force){
     if(d!==lastDay){lastDay=d;var n=new Date(),y=new Date();y.setDate(n.getDate()-1);
       L.appendChild(T("div","wday",d===n.toDateString()?"Today":d===y.toDateString()?"Yesterday":new Date(m.ts).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})));pm=null}
     if(m.kind==="sys"){L.appendChild(T("div","wsys",m.text||""));pm=null;return}
-    var me=m.by===myId,first=!pm||pm.by!==m.by||m.ts-pm.ts>120000;pm=m;
+    var me=m.by===myId&&c.type!=="bot",first=!pm||pm.by!==m.by||m.ts-pm.ts>120000;pm=m;
     var rs=rx.filter(function(r){return r.msg===m.id});
     var row=E("div","wm"+(me?" me":"")+(first?" tail gap":"")+(rs.length?" hasrx":""));row.dataset.id=m.id||"";
     var b=E("div","wb");
     var stkm=m.kind==="sticker",med=m.kind==="image";
     if(stkm)b.classList.add("stk");if(med)b.classList.add("media");
-    if(!me&&first&&c.type!=="dm"){var nm=T("div","nm",mname(m.by));nm.style.color=colorOf(m.by);b.appendChild(nm)}
+    if(!me&&first&&c.type!=="dm"&&c.type!=="bot"){var nm=T("div","nm",mname(m.by));nm.style.color=colorOf(m.by);b.appendChild(nm)}
     if(m.rid){var q=E("div","wq");q.appendChild(T("b",null,m.rby===myId?"You":mname(m.rby)));q.appendChild(T("div",null,m.rtext||""));q.onclick=function(e){e.stopPropagation();jump(m.rid)};b.appendChild(q)}
     if(stkm)b.appendChild(T("div","st",m.emoji||"🙂"));
     else if(m.kind==="voice")b.appendChild(voiceEl(m));
+    else if(m.kind==="announce"){var ah=T("div","nm","📢 Announcement from "+mname(m.by).replace(/^You$/,"you"));ah.style.color="#1a7f45";ah.style.fontWeight="700";b.appendChild(ah);b.appendChild(document.createTextNode(m.text||""))}
     else if(!m.kind||m.kind==="text")b.appendChild(document.createTextNode(m.text||""));
     else{var inner=E("div");fillBody(inner,m);if(inner.classList.contains("media")){b.classList.add("media")}while(inner.firstChild)b.appendChild(inner.firstChild)}
     var meta=E("span","wmeta");
@@ -4121,6 +4226,15 @@ function jump(id){var r=CH.list&&CH.list.querySelector(".wm[data-id='"+id+"']");
 function gest(row,m,b){
   var x0=0,y0=0,dx=0,down=false,tm=null,drag=false;
   function end(){clearTimeout(tm);down=false}
+  if(ST.chat===BOT_ID||m.by===BOT_ID){
+    if(isOwner&&m.kind==="announce"){
+      var tm0=null,del=function(){closeMenu();if(confirm("Delete this announcement for everyone?"))db.doc("messages/"+m.id).delete().catch(fail)};
+      row.addEventListener("pointerdown",function(){tm0=setTimeout(del,650)});
+      ["pointerup","pointermove","pointercancel"].forEach(function(ev){row.addEventListener(ev,function(){clearTimeout(tm0)})});
+      row.addEventListener("contextmenu",function(e){e.preventDefault();del()});
+    }
+    return;
+  }
   row.addEventListener("pointerdown",function(e){
     if(e.target.closest("button,a,.wq,.wrx,.mimg,.wvoice"))return;
     down=true;drag=false;dx=0;x0=e.clientX;y0=e.clientY;
@@ -4371,8 +4485,9 @@ window.hubAddToCall=function(){
   jc.appendChild(ov);
 };
 window.waRender=function(){if(WA.open)render()};
+window.waUnread=function(){if(!S.profLoaded)return null;return totalUnread()};
 document.addEventListener("keydown",function(e){if(e.key==="Escape"&&WA.open&&!menuEl){if(ST.chat)closeChat();else close()}});
-setInterval(function(){if(WA.open&&!document.hidden)render()},4000);
+setInterval(function(){if(WA.open&&!document.hidden)render();try{if(!document.hidden&&window.__badgeNow)__badgeNow()}catch(e){}},4000);
 })();
 
 </script>
