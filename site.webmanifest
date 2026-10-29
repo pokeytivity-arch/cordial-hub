@@ -1,6 +1,6 @@
 {
-  "name": "Cordial Co-Parenting",
-  "short_name": "Cordial",
+  "name": "Cordial Co-Parenting App",
+  "short_name": "Cordial Co-Parenting App",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

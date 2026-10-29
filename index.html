@@ -14,8 +14,8 @@
 <meta name="theme-color" content="#4f5d2f">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Cordial">
-<meta name="application-name" content="Cordial Co-Parenting">
+<meta name="apple-mobile-web-app-title" content="Cordial Co-Parenting App">
+<meta name="application-name" content="Cordial Co-Parenting App">
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
@@ -729,6 +729,8 @@ main{max-width:100%}
     <div class="arow"><span>Face ID lock</span><button id="fidon" class="go sm" type="button" hidden>Turn on</button></div>
     <p class="meta" id="fidsts" style="margin:0 0 6px" hidden></p>
     <div class="arow"><span>Sound for messages and alerts</span><button id="sndbtn" class="go sm" type="button">On</button></div>
+    <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
+    <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" style="margin-top:6px"><button class="quiet" id="tourbtn" type="button">Take a tour</button><button class="go sm" id="signout2" type="button" style="background:#d93025">Log out</button></div>
   </div>
@@ -1088,6 +1090,25 @@ function hubSound(kind){
     var a=acx();if(!a)return;var ns=kind==="msg"?[[880,0],[1175,.13]]:[[660,0]],t=a.currentTime;
     ns.forEach(function(n){var o=a.createOscillator(),g=a.createGain();o.type="sine";o.frequency.value=n[0];g.gain.setValueAtTime(.0001,t+n[1]);g.gain.exponentialRampToValueAtTime(.2,t+n[1]+.02);g.gain.exponentialRampToValueAtTime(.0001,t+n[1]+.32);o.connect(g);g.connect(a.destination);o.start(t+n[1]);o.stop(t+n[1]+.34)});
     if(navigator.vibrate)navigator.vibrate(kind==="msg"?[40,40,40]:30);
+  }catch(e){}
+}
+var RINGS={classic:["Classic",[[880,0,.3],[1175,.13,.3],[880,.6,.3],[1175,.73,.3]],"sine"],marimba:["Marimba",[[523,0,.25],[659,.18,.25],[784,.36,.25],[1046,.54,.45]],"triangle"],chime:["Soft chime",[[1046,0,.5],[1318,.35,.5],[1568,.7,.7]],"sine"],digital:["Digital",[[1000,0,.12],[1000,.18,.12],[1000,.36,.12],[1000,.9,.12],[1000,1.08,.12],[1000,1.26,.12]],"square"],lullaby:["Lullaby",[[392,0,.4],[330,.45,.4],[392,.9,.4],[330,1.35,.4],[392,1.8,.6]],"sine"],phone:["Old phone",[[440,0,.4],[480,0,.4],[440,.5,.4],[480,.5,.4]],"sine"]};
+function ringKey(){try{return localStorage.getItem("hubRing")||"classic"}catch(e){return "classic"}}
+var RINGBUF=null;
+function ringCustom(){try{return localStorage.getItem("hubRingData")||""}catch(e){return ""}}
+function hubRing(force){
+  if(!force&&!soundOn())return;
+  var a=acx(),k=ringKey();if(!a)return;
+  try{
+    if(k==="custom"&&ringCustom()){
+      var play=function(b){var src=a.createBufferSource(),g=a.createGain();g.gain.value=.9;src.buffer=b;src.connect(g);g.connect(a.destination);src.start(0);try{src.stop(a.currentTime+Math.min(b.duration,6))}catch(e){}};
+      if(RINGBUF)return play(RINGBUF);
+      fetch(ringCustom()).then(function(r){return r.arrayBuffer()}).then(function(ab){return new Promise(function(ok,no){a.decodeAudioData(ab,ok,no)})}).then(function(b){RINGBUF=b;play(b)}).catch(function(){});
+      return;
+    }
+    var R=RINGS[k]||RINGS.classic,t=a.currentTime;
+    R[1].forEach(function(n){var o=a.createOscillator(),g=a.createGain();o.type=R[2];o.frequency.value=n[0];var v=R[2]==="square"?.08:.22;g.gain.setValueAtTime(.0001,t+n[1]);g.gain.exponentialRampToValueAtTime(v,t+n[1]+.02);g.gain.exponentialRampToValueAtTime(.0001,t+n[1]+n[2]);o.connect(g);g.connect(a.destination);o.start(t+n[1]);o.stop(t+n[1]+n[2]+.05)});
+    if(navigator.vibrate)navigator.vibrate([300,150,300]);
   }catch(e){}
 }
 var STARTED=false,READY=false,isOwner=false,PERM={},CUR="home";
@@ -3683,6 +3704,21 @@ $("#tadd").onclick=function(){
 
 /* settings: sound and skin tone */
 function syncSnd(){$("#sndbtn").textContent=soundOn()?"On":"Off";$("#sndbtn").style.background=soundOn()?"":"var(--muted)"}
+(function(){
+  var sel=$("#ringsel");if(!sel)return;
+  function fill(){sel.textContent="";Object.keys(RINGS).forEach(function(k){var o=h("option",null,RINGS[k][0]);o.value=k;sel.appendChild(o)});
+    if(ringCustom()){var c=h("option",null,"My own sound");c.value="custom";sel.appendChild(c)}
+    var u=h("option",null,"Choose my own…");u.value="upload";sel.appendChild(u);sel.value=ringKey()==="custom"&&ringCustom()?"custom":(RINGS[ringKey()]?ringKey():"classic")}
+  fill();
+  sel.onchange=function(){
+    if(sel.value==="upload"){fill();$("#ringfile").click();return}
+    try{localStorage.setItem("hubRing",sel.value)}catch(e){}hubRing(true)};
+  $("#ringpv").onclick=function(){hubRing(true)};
+  $("#ringfile").onchange=function(){
+    var f=this.files&&this.files[0];this.value="";if(!f)return;
+    if(f.size>1500000){note("That sound is too big. Pick one under 1.5 MB.");return}
+    var r=new FileReader();r.onload=function(){try{localStorage.setItem("hubRingData",r.result);localStorage.setItem("hubRing","custom");RINGBUF=null;fill();hubRing(true)}catch(e){note("Couldn’t save that sound.")}};r.readAsDataURL(f)};
+})();
 $("#sndbtn").onclick=function(){try{localStorage.setItem("hubSound",soundOn()?"0":"1")}catch(e){}syncSnd();if(soundOn())hubSound("msg")};
 function buildTones(){
   var bar=$("#tonebar");bar.textContent="";
@@ -5445,7 +5481,7 @@ function showRing(r){
     row.appendChild(yes);
   }
   ringEl.appendChild(row);
-  hubSound("msg");RING.iv=setInterval(function(){hubSound("msg")},1600);
+  hubRing();RING.iv=setInterval(function(){hubRing()},2400);
   if(!r.out&&document.hidden&&window.Notification&&Notification.permission==="granted"){try{new Notification(who+" is calling",{tag:"hubcall",body:"Incoming "+kind+" call"})}catch(e){}}
 }
 function stopRing(){clearTimeout(RING.timer);clearInterval(RING.iv);RING.cur=null;ringEl.hidden=true;ringEl.textContent=""}
