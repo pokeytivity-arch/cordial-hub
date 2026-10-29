@@ -707,6 +707,8 @@ main{max-width:100%}
     <div class="arow"><span>Interface</span><span id="lookwrap"></span></div>
     <div class="arow"><span>Alerts</span><button id="alon" class="go sm" type="button">Turn on</button></div>
     <p class="meta" id="alsts" style="margin:0 0 6px">Checking…</p>
+    <div class="arow"><span>Face ID lock</span><button id="fidon" class="go sm" type="button" hidden>Turn on</button></div>
+    <p class="meta" id="fidsts" style="margin:0 0 6px" hidden></p>
     <div class="arow"><span>Sound for messages and alerts</span><button id="sndbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" style="margin-top:6px"><button class="quiet" id="tourbtn" type="button">Take a tour</button><button class="go sm" id="signout2" type="button" style="background:#d93025">Log out</button></div>
@@ -963,6 +965,79 @@ main{max-width:100%}
 
 <div id="ov" hidden role="dialog" aria-modal="true" aria-label="Document preview"><div id="ovb"><div id="ovh"><strong id="ovt"></strong><span><button class="quiet" id="ovx">Close</button></span></div><div id="ova"></div><div id="ovc"></div></div></div>
 
+<script>
+/* Face ID / Touch ID lock: asks for your face or fingerprint when the app opens or returns after a while. */
+(function(){
+  var KEY="hubFid",AWAY=30000,hiddenAt=0,el=null,busy=false;
+  function rd(){try{return JSON.parse(localStorage.getItem(KEY)||"null")}catch(e){return null}}
+  function b64(buf){var a=new Uint8Array(buf),s="";for(var i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
+  function unb64(t){t=t.replace(/-/g,"+").replace(/_/g,"/");while(t.length%4)t+="=";var r=atob(t),a=new Uint8Array(r.length);for(var i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a}
+  function rnd(){var a=new Uint8Array(32);crypto.getRandomValues(a);return a}
+  function build(){
+    if(el)return;
+    el=document.createElement("div");el.id="fidlock";
+    el.style.cssText="position:fixed;inset:0;z-index:500;background:linear-gradient(180deg,#1f2a1a,#0f1710);color:#fff;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:30px;text-align:center";
+    var lg=document.querySelector(".logo img");
+    if(lg){var im=document.createElement("img");im.src=lg.src;im.alt="";im.style.cssText="width:84px;height:84px;border-radius:22px";el.appendChild(im)}
+    var h=document.createElement("div");h.textContent="Cordial is locked";h.style.cssText="font-size:1.5rem;font-weight:700";el.appendChild(h);
+    var p=document.createElement("div");p.id="fidmsg";p.textContent="Use Face ID or your fingerprint to open.";p.style.cssText="opacity:.8;max-width:300px";el.appendChild(p);
+    var b=document.createElement("button");b.type="button";b.id="fidgo";b.textContent="Unlock";
+    b.style.cssText="margin-top:10px;background:#1fa855;color:#fff;border:0;border-radius:14px;padding:14px 34px;font:inherit;font-weight:700;font-size:1.05rem";
+    b.onclick=unlock;el.appendChild(b);
+    var o=document.createElement("button");o.type="button";o.textContent="Sign out instead";
+    o.style.cssText="background:none;border:0;color:#fff;opacity:.7;font:inherit;text-decoration:underline;margin-top:6px";
+    o.onclick=function(){try{localStorage.removeItem(KEY)}catch(e){}hide();var so=document.getElementById("signout");if(so)so.click();else location.reload()};
+    el.appendChild(o);document.body.appendChild(el);
+  }
+  function show(){build();el.style.display="flex";document.documentElement.style.overflow="hidden"}
+  function hide(){if(el)el.style.display="none";document.documentElement.style.overflow=""}
+  function msg(t){var m=document.getElementById("fidmsg");if(m)m.textContent=t}
+  async function unlock(){
+    var r=rd();if(!r){hide();return}
+    if(busy)return;busy=true;
+    try{
+      await navigator.credentials.get({publicKey:{challenge:rnd(),allowCredentials:[{type:"public-key",id:unb64(r.id),transports:["internal"]}],userVerification:"required",timeout:60000}});
+      hide();
+    }catch(e){
+      msg(e&&e.name==="NotAllowedError"?"Not unlocked. Tap Unlock to try again.":"Couldn’t check Face ID here. Tap Unlock to try again, or sign out.");
+    }
+    busy=false;
+  }
+  async function enable(){
+    var uid=window.myId||null;
+    try{
+      var sess=await sb.auth.getSession();uid=sess&&sess.data&&sess.data.session&&sess.data.session.user.id;
+      var em=(sess.data.session.user.email)||"member";
+      var cred=await navigator.credentials.create({publicKey:{
+        challenge:rnd(),rp:{name:"Cordial Co-Parenting"},
+        user:{id:new TextEncoder().encode(String(uid)).slice(0,64),name:em,displayName:em},
+        pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],
+        authenticatorSelection:{authenticatorAttachment:"platform",userVerification:"required",residentKey:"preferred"},
+        timeout:60000,attestation:"none"}});
+      localStorage.setItem(KEY,JSON.stringify({id:b64(cred.rawId),uid:uid}));
+      status();
+    }catch(e){var t=document.getElementById("fidsts");if(t){t.hidden=false;t.textContent=e&&e.name==="NotAllowedError"?"Face ID was cancelled.":"This device couldn’t set up Face ID here."}}
+  }
+  function status(){
+    var b=document.getElementById("fidon"),t=document.getElementById("fidsts");if(!b||!t)return;
+    var on=!!rd();b.hidden=false;t.hidden=false;
+    b.textContent=on?"Turn off":"Turn on";
+    t.textContent=on?"On. The hub asks for Face ID or your fingerprint when you open it or come back after a short break.":"Off. Turn on to ask for Face ID or your fingerprint when the hub opens.";
+    b.onclick=function(){if(on){try{localStorage.removeItem(KEY)}catch(e){}status()}else enable()};
+  }
+  function init(){
+    if(!window.PublicKeyCredential||!navigator.credentials)return;
+    PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(ok){if(ok)status()}).catch(function(){});
+  }
+  window.hubFidCheck=function(uid){var r=rd();if(r&&r.uid!==uid){try{localStorage.removeItem(KEY)}catch(e){}hide()}status()};
+  document.addEventListener("visibilitychange",function(){
+    if(document.hidden){hiddenAt=Date.now();return}
+    if(rd()&&hiddenAt&&Date.now()-hiddenAt>AWAY){show();unlock()}
+  });
+  if(rd()){show();setTimeout(unlock,300)}
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+})();
+</script>
 <script>
 var $=function(s){return document.querySelector(s)};
 function h(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
@@ -3213,7 +3288,7 @@ $("#savename").onclick=function(){
   });
 };
 $("#chgpw").onclick=function(){showSet(true)};
-$("#signout").onclick=function(){sb.auth.signOut().then(function(){location.reload()})};
+$("#signout").onclick=function(){try{localStorage.removeItem("hubFid")}catch(e){}sb.auth.signOut().then(function(){location.reload()})};
 $("#signout2").onclick=$("#signout").onclick;
 
 function subscribeAll(){
@@ -3245,6 +3320,7 @@ function subscribeAll(){
 async function start(session){
   if(STARTED)return;
   myId=session.user.id;
+  try{if(window.hubFidCheck)hubFidCheck(myId)}catch(e){}
   var me=null,lerr=null;
   try{me=await loadAccess()}catch(e){console.error(e);lerr=e}
   if(!me){
@@ -3770,20 +3846,41 @@ var BOT_HELP=[
 "📷 Camera and microphone keep asking? Here’s how to stop it on an iPhone:\n\n1. Open Settings > Apps > Safari.\n2. Tap Camera and choose Allow. Do the same for Microphone.\n3. In Safari, open the hub, tap the “aA” icon, then Website Settings, and set Camera and Microphone to Allow.\n\nIf you use the hub from your Home Screen icon, iPhone may still ask once each time you open it. Tap Allow and it won’t ask again during that visit.",
 "🤖 On Android (Chrome): tap the lock or tune icon next to the web address > Permissions > set Camera and Microphone to Allow. Chrome remembers it after that.\n\nStill no picture or sound? Check that nothing else (another call or app) is using the camera, and that your phone’s own Settings allow Chrome or Safari to use them."
 ];
-var botCache={key:"",list:[]};
+var botCache={key:"",list:[]},AIH=null,AIPEND=false;
+function aiLoad(){try{return JSON.parse(localStorage.getItem("hubAI_"+myId)||"[]")}catch(e){return []}}
+function aiSave(){try{localStorage.setItem("hubAI_"+myId,JSON.stringify(AIH.slice(-60)))}catch(e){}}
+function aiAsk(t){
+  if(AIPEND||!t)return;
+  if(AIH===null)AIH=aiLoad();
+  AIH.push({by:"me",text:t,ts:Date.now()});aiSave();AIPEND=true;lastSig="";renderChat(true);
+  var hist=AIH.slice(-12).map(function(x){return {role:x.by==="bot"?"assistant":"user",content:x.text}});
+  function done(txt,keep){AIPEND=false;if(keep!==false){AIH.push({by:"bot",text:txt,ts:Date.now()});aiSave()}else{AIH.push({by:"bot",text:txt,ts:Date.now()})}lastSig="";renderChat(true)}
+  sb.auth.getSession().then(function(ss){
+    var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;
+    return fetch("/.netlify/functions/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({messages:hist})});
+  }).then(function(r){return r.json().then(function(j){return {r:r,j:j}})}).then(function(x){
+    if(x.r.ok&&x.j.reply)return done(x.j.reply);
+    if(x.r.status===501)return done("Live chat isn’t switched on yet. The hub owner needs to add the AI key in Netlify.",false);
+    if(x.r.status===429)return done("You’ve reached today’s question limit. Try again tomorrow.",false);
+    done("I couldn’t answer just now. Please try again in a moment.",false);
+  }).catch(function(){done("I couldn’t connect. Check your internet and try again.",false)});
+}
 function botMsgs(){
   var lp=LPf();
   if(!S.profLoaded)return [];
   if(!lp.botSince){lp.botSince=Date.now();saveLP(true)}
   var bs=lp.botSince,day=new Date();day.setHours(8,0,0,0);
-  var key=bs+"|"+day.getTime()+"|"+(new Date().getHours()>=8?1:0);
+  if(AIH===null)AIH=aiLoad();
+  var key=bs+"|"+day.getTime()+"|"+(new Date().getHours()>=8?1:0)+"|"+AIH.length+(AIPEND?"p":"");
   if(botCache.key===key)return botCache.list;
-  var L=[{id:"bot_w",by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs,text:"Hi, I’m Cordial 👋\n\nI’m the AI agent for this hub, and I’m not a real person. I send co-parenting tips and quick help with the hub. You can’t reply to me here, and I can’t see your private messages."}];
+  var L=[{id:"bot_w",by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs,text:"Hi, I’m Cordial 👋\n\nI’m the AI agent for this hub, and I’m not a real person. I send co-parenting tips and help with the hub, and you can ask me questions here.\n\nI can make mistakes, and I’m not a lawyer, doctor or counsellor. I can’t see your private messages, files or calendar."}];
   BOT_HELP.forEach(function(t,i){L.push({id:"bot_h"+i,by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs+1000*(i+1),text:t})});
   for(var k=6;k>=0;k--){
     var t=day.getTime()-k*86400000;
     if(t>bs+5000&&t<=Date.now()){var n=Math.floor(t/86400000);L.push({id:"bot_t"+n,by:BOT_ID,chat:BOT_ID,kind:"text",ts:t,text:"💡 Tip of the day\n\n"+BOT_TIPS[n%BOT_TIPS.length]})}
   }
+  AIH.forEach(function(x,i){L.push({id:"ai_"+x.ts+"_"+i,by:x.by==="bot"?BOT_ID:myId,chat:BOT_ID,kind:"text",ts:x.ts,text:x.text})});
+  if(AIPEND)L.push({id:"ai_pending",by:BOT_ID,chat:BOT_ID,kind:"text",ts:Date.now(),text:"…"});
   botCache={key:key,list:L};return L;
 }
 function vtick(sz){return "<svg viewBox='0 0 24 24' width='"+(sz||16)+"' height='"+(sz||16)+"' style='flex:none' aria-label='Verified'><path fill='#1fa855' d='M12 1.5l2.7 1.9 3.3-.2 1.2 3.1 2.8 1.8-.9 3.2.9 3.2-2.8 1.8-1.2 3.1-3.3-.2L12 22.5l-2.7-1.9-3.3.2-1.2-3.1L2 15.9l.9-3.2L2 9.5l2.8-1.8L6 4.6l3.3.2z'/><path d='M7.6 12.2l3 3 5.8-6' fill='none' stroke='#fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/></svg>"}
@@ -4042,7 +4139,9 @@ function newGroup(){
   });
 }
 function info(c){
-  if(c.type==="bot"){page("About Cordial",function(B){var top=E("div");top.style.cssText="text-align:center;padding:18px";var a=avatar(c);a.style.cssText="width:96px;height:96px;margin:0 auto 10px;font-size:2.4rem";top.appendChild(a);var n=E("div");n.style.cssText="font-size:1.3rem;font-weight:700;display:flex;justify-content:center";n.appendChild(botName(true));top.appendChild(n);var p=T("p",null,"Cordial is an automated AI agent made for this hub. It posts a co-parenting tip each day and shares help with the hub, such as camera and microphone settings. Announcements from the hub owner also appear here, labelled with the owner’s name. It is not a person, it cannot read your chats, and it can’t reply to messages. Tips are general guidance, not legal or medical advice.");p.style.cssText="color:var(--wmut);line-height:1.45;margin-top:12px";top.appendChild(p);B.appendChild(top)});return}
+  if(c.type==="bot"){page("About Cordial",function(B){var top=E("div");top.style.cssText="text-align:center;padding:18px";var a=avatar(c);a.style.cssText="width:96px;height:96px;margin:0 auto 10px;font-size:2.4rem";top.appendChild(a);var n=E("div");n.style.cssText="font-size:1.3rem;font-weight:700;display:flex;justify-content:center";n.appendChild(botName(true));top.appendChild(n);var p=T("p",null,"Cordial is an AI agent made for this hub. It posts a co-parenting tip each day, answers your questions, and shares help with the hub. It can make mistakes and is not a lawyer, doctor or counsellor. Your questions are sent to an AI service to get an answer; Cordial cannot see your private messages. Announcements from the hub owner also appear here, labelled with the owner’s name. It is not a person, it cannot read your chats, and it can’t reply to messages. Tips are general guidance, not legal or medical advice.");p.style.cssText="color:var(--wmut);line-height:1.45;margin-top:12px";top.appendChild(p);B.appendChild(top);
+    var cl=E("button","wlist","");var ct=E("div","t");var cb=T("b",null,"Clear my chat with Cordial");cb.style.color="#ea0038";ct.appendChild(cb);cl.appendChild(ct);
+    cl.onclick=function(){if(!confirm("Clear your questions and answers with Cordial on this device?"))return;AIH=[];aiSave();lastSig="";botCache.key="";renderChat(true)};B.appendChild(cl)});return}
   page(c.type==="group"?"Group info":"Chat info",function(B,hd,pg){
     var top=E("div");top.style.cssText="text-align:center;padding:14px";var a=avatar(c);a.style.cssText="width:96px;height:96px;margin:0 auto 10px;font-size:2.4rem";top.appendChild(a);
     var n=T("div",null,c.name);n.style.cssText="font-size:1.4rem;font-weight:700";top.appendChild(n);B.appendChild(top);
@@ -4106,13 +4205,24 @@ function buildChat(c){
   cp.insertBefore(rec,box);
   CH.comp=cp;CH.ta=ta;CH.cam=cam;CH.mic=mic;CH.box=box;CH.plus=plus;CH.rec=rec;CH.tm=tm;
   if(c.type==="bot"){cp.textContent="";cp.id="wacomp";CH.ta=null;
+    var mode="ask";
+    var obox=E("div","box"),ota=E("textarea");ota.rows=1;ota.maxLength=2000;ota.placeholder="Ask Cordial a question…";ota.setAttribute("aria-label","Message");obox.appendChild(ota);
+    var osend=E("button","round g",ic("send",22));osend.type="button";osend.setAttribute("aria-label","Send");
+    ota.addEventListener("input",function(){ota.style.height="46px";ota.style.height=Math.min(ota.scrollHeight,120)+"px"});
     if(isOwner){
-      var obox=E("div","box"),ota=E("textarea");ota.rows=1;ota.maxLength=2000;ota.placeholder="Write an announcement for everyone…";ota.setAttribute("aria-label","Announcement");obox.appendChild(ota);
-      var osend=E("button","round g",ic("send",22));osend.type="button";osend.setAttribute("aria-label","Post announcement");
-      ota.addEventListener("input",function(){ota.style.height="46px";ota.style.height=Math.min(ota.scrollHeight,120)+"px"});
-      osend.onclick=function(){var t=ota.value.trim();if(!t)return;if(!confirm("Post this announcement to everyone in the hub?"))return;ota.value="";ota.style.height="46px";post({kind:"announce",text:t}).catch(fail)};
-      cp.appendChild(obox);cp.appendChild(osend);
-    }else{var nb=T("div",null,"Cordial is an AI agent. You can’t reply to it here.");nb.style.cssText="flex:1;text-align:center;color:var(--wmut);font-size:.92rem;padding:12px 8px";cp.appendChild(nb)}
+      var seg=E("div");seg.style.cssText="display:flex;gap:8px;padding:6px 12px 0;background:var(--wbar,transparent)";
+      var sa=T("button",null,"Ask Cordial"),sn=T("button",null,"📢 Announce");
+      [sa,sn].forEach(function(x){x.type="button";x.style.cssText="border:0;border-radius:999px;padding:6px 14px;font:inherit;font-size:.85rem;font-weight:600"});
+      function paint(){sa.style.background=mode==="ask"?"#1fa855":"rgba(0,0,0,.08)";sa.style.color=mode==="ask"?"#fff":"inherit";sn.style.background=mode==="ann"?"#1fa855":"rgba(0,0,0,.08)";sn.style.color=mode==="ann"?"#fff":"inherit";ota.placeholder=mode==="ask"?"Ask Cordial a question…":"Write an announcement for everyone…"}
+      sa.onclick=function(){mode="ask";paint()};sn.onclick=function(){mode="ann";paint()};paint();
+      seg.appendChild(sa);seg.appendChild(sn);chatEl.appendChild(seg);
+    }
+    osend.onclick=function(){
+      var t=ota.value.trim();if(!t)return;
+      if(mode==="ann"){if(!confirm("Post this announcement to everyone in the hub?"))return;ota.value="";ota.style.height="46px";post({kind:"announce",text:t}).catch(fail)}
+      else{ota.value="";ota.style.height="46px";aiAsk(t)}
+    };
+    cp.appendChild(obox);cp.appendChild(osend);
   }
   chatEl.appendChild(cp);
   CH.tray=E("div");CH.tray.id="watray";CH.tray.hidden=true;chatEl.appendChild(CH.tray);
@@ -4184,7 +4294,7 @@ function renderChat(force){
     if(d!==lastDay){lastDay=d;var n=new Date(),y=new Date();y.setDate(n.getDate()-1);
       L.appendChild(T("div","wday",d===n.toDateString()?"Today":d===y.toDateString()?"Yesterday":new Date(m.ts).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})));pm=null}
     if(m.kind==="sys"){L.appendChild(T("div","wsys",m.text||""));pm=null;return}
-    var me=m.by===myId&&c.type!=="bot",first=!pm||pm.by!==m.by||m.ts-pm.ts>120000;pm=m;
+    var me=m.by===myId&&(c.type!=="bot"||m.kind!=="announce"),first=!pm||pm.by!==m.by||m.ts-pm.ts>120000;pm=m;
     var rs=rx.filter(function(r){return r.msg===m.id});
     var row=E("div","wm"+(me?" me":"")+(first?" tail gap":"")+(rs.length?" hasrx":""));row.dataset.id=m.id||"";
     var b=E("div","wb");
@@ -4200,7 +4310,7 @@ function renderChat(force){
     var meta=E("span","wmeta");
     if(wpinned(m.id))meta.innerHTML=ic("pin",12,2);
     meta.appendChild(document.createTextNode((m.edited?"Edited ":"")+clock(m.ts)));
-    if(me){var tk=E("span",null,ic("tick2",16,1.8));tk.style.cssText="display:inline-flex;color:"+(isRead(m,c)?"#34b7f1":"#6b7780");meta.appendChild(tk)}
+    if(me&&c.type!=="bot"){var tk=E("span",null,ic("tick2",16,1.8));tk.style.cssText="display:inline-flex;color:"+(isRead(m,c)?"#34b7f1":"#6b7780");meta.appendChild(tk)}
     b.appendChild(meta);row.appendChild(b);
     if(rs.length){var cnt={};rs.forEach(function(r){cnt[r.emoji]=(cnt[r.emoji]||0)+1});var rr=E("div","wrx");Object.keys(cnt).forEach(function(e){rr.appendChild(T("span",null,e+(cnt[e]>1?cnt[e]:"")))});rr.onclick=function(){toggleReact(m.id,Object.keys(cnt)[0])};row.appendChild(rr)}
     gest(row,m,b);L.appendChild(row);
