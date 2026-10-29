@@ -1718,6 +1718,7 @@ function previewText(m){
     case "sticker":return (m.emoji||"🙂")+" Sticker";
     case "sys":return m.text||"";
     case "announce":return "📢 "+(m.text||"Announcement");
+    case "ytcard":return "🔴 "+(m.title||"Watch today");
   }
   return m.text||"";
 }
@@ -3849,6 +3850,19 @@ var BOT_HELP=[
 var botCache={key:"",list:[]},AIH=null,AIPEND=false;
 function aiLoad(){try{return JSON.parse(localStorage.getItem("hubAI_"+myId)||"[]")}catch(e){return []}}
 function aiSave(){try{localStorage.setItem("hubAI_"+myId,JSON.stringify(AIH.slice(-60)))}catch(e){}}
+function ytOpen(vid){
+  var old=document.getElementById("ytv");if(old)old.remove();
+  var o=E("div");o.id="ytv";o.style.cssText="position:fixed;inset:0;z-index:260;background:#000;display:flex;flex-direction:column";
+  var bar=E("div");bar.style.cssText="display:flex;justify-content:flex-end;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px";
+  var x=T("button",null,"Close");x.type="button";x.style.cssText="background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:999px;padding:9px 18px;font:inherit;font-weight:600";x.onclick=function(){o.remove()};bar.appendChild(x);
+  var fr=E("iframe");fr.src="https://www.youtube.com/embed/"+encodeURIComponent(vid)+"?autoplay=1&playsinline=1&rel=0";fr.setAttribute("allow","autoplay; encrypted-media; picture-in-picture; fullscreen");fr.setAttribute("allowfullscreen","");fr.style.cssText="flex:1;border:0;width:100%";
+  o.appendChild(bar);o.appendChild(fr);document.body.appendChild(o);
+}
+var feedAt=0;
+function feedRefresh(){
+  if(Date.now()-feedAt<10*60*1000)return;feedAt=Date.now();
+  try{fetch("/.netlify/functions/feed").catch(function(){})}catch(e){}
+}
 function aiAsk(t){
   if(AIPEND||!t)return;
   if(AIH===null)AIH=aiLoad();
@@ -3871,7 +3885,7 @@ function botMsgs(){
   if(!lp.botSince){lp.botSince=Date.now();saveLP(true)}
   var bs=lp.botSince,day=new Date();day.setHours(8,0,0,0);
   if(AIH===null)AIH=aiLoad();
-  var key=bs+"|"+day.getTime()+"|"+(new Date().getHours()>=8?1:0)+"|"+AIH.length+(AIPEND?"p":"");
+  var yd0=S.prof&&S.prof.cordial_daily;var key=bs+"|"+day.getTime()+"|"+(new Date().getHours()>=8?1:0)+"|"+AIH.length+(AIPEND?"p":"")+"|"+(yd0?yd0.vid+(yd0.seen||""):"")+"|"+((S.prof&&S.prof.cordial_recap&&S.prof.cordial_recap.items||[]).map(function(x){return x.ts}).join(","));
   if(botCache.key===key)return botCache.list;
   var L=[{id:"bot_w",by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs,text:"Hi, I’m Cordial 👋\n\nI’m the AI agent for this hub, and I’m not a real person. I send co-parenting tips and help with the hub, and you can ask me questions here.\n\nI can make mistakes, and I’m not a lawyer, doctor or counsellor. I can’t see your private messages, files or calendar."}];
   BOT_HELP.forEach(function(t,i){L.push({id:"bot_h"+i,by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs+1000*(i+1),text:t})});
@@ -3879,6 +3893,10 @@ function botMsgs(){
     var t=day.getTime()-k*86400000;
     if(t>bs+5000&&t<=Date.now()){var n=Math.floor(t/86400000);L.push({id:"bot_t"+n,by:BOT_ID,chat:BOT_ID,kind:"text",ts:t,text:"💡 Tip of the day\n\n"+BOT_TIPS[n%BOT_TIPS.length]})}
   }
+  var yd=S.prof&&S.prof.cordial_daily;
+  if(yd&&yd.vid)L.push({id:"bot_yt_"+yd.vid,by:BOT_ID,chat:BOT_ID,kind:"ytcard",ts:Math.max(yd.seen||0,bs+1500),vid:yd.vid,title:yd.title||"",channel:yd.channel||"YouTube",live:yd.live||"",url:yd.url||""});
+  var rc=S.prof&&S.prof.cordial_recap;
+  if(rc&&rc.items)rc.items.forEach(function(x){if(x&&x.text)L.push({id:"bot_rc_"+x.day,by:BOT_ID,chat:BOT_ID,kind:"text",ts:Math.max(x.ts||0,bs+1500),text:x.text})});
   AIH.forEach(function(x,i){L.push({id:"ai_"+x.ts+"_"+i,by:x.by==="bot"?BOT_ID:myId,chat:BOT_ID,kind:"text",ts:x.ts,text:x.text})});
   if(AIPEND)L.push({id:"ai_pending",by:BOT_ID,chat:BOT_ID,kind:"text",ts:Date.now(),text:"…"});
   botCache={key:key,list:L};return L;
@@ -4161,6 +4179,7 @@ function chatById(id){return getChats().filter(function(c){return c.id===id})[0]
 function openChat(id){
   ST.chat=id;WA.chat=id;WA.reply=null;ST.tray=null;
   var c=chatById(id);buildChat(c);chatEl.hidden=false;markRead(id);renderChat(true);
+  if(id===BOT_ID)feedRefresh();
 }
 function closeChat(){
   if(ST.rec)recStop(false);
@@ -4211,11 +4230,19 @@ function buildChat(c){
     ota.addEventListener("input",function(){ota.style.height="46px";ota.style.height=Math.min(ota.scrollHeight,120)+"px"});
     if(isOwner){
       var seg=E("div");seg.style.cssText="display:flex;gap:8px;padding:6px 12px 0;background:var(--wbar,transparent)";
+      var sr=T("button",null,"🌙 Recap now");sr.type="button";sr.style.cssText="border:0;border-radius:999px;padding:6px 14px;font:inherit;font-size:.85rem;font-weight:600;background:rgba(0,0,0,.08);color:inherit";
+      sr.onclick=function(){
+        if(!confirm("Write tonight’s recap now? It uses today’s session and the AI key."))return;
+        sr.disabled=true;sr.textContent="Working…";
+        sb.auth.getSession().then(function(ss){var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;return fetch("/.netlify/functions/recap",{method:"POST",headers:{Authorization:"Bearer "+tk}})})
+          .then(function(r){return r.json().then(function(j){toast(r.ok?(j.withTranscript?"Recap ready.":"Recap ready (no captions found, so no summary)."):"Couldn’t make the recap ("+(j.error||r.status)+").")})})
+          .catch(function(){toast("Couldn’t reach the server.")}).then(function(){sr.disabled=false;sr.textContent="🌙 Recap now"});
+      };
       var sa=T("button",null,"Ask Cordial"),sn=T("button",null,"📢 Announce");
       [sa,sn].forEach(function(x){x.type="button";x.style.cssText="border:0;border-radius:999px;padding:6px 14px;font:inherit;font-size:.85rem;font-weight:600"});
       function paint(){sa.style.background=mode==="ask"?"#1fa855":"rgba(0,0,0,.08)";sa.style.color=mode==="ask"?"#fff":"inherit";sn.style.background=mode==="ann"?"#1fa855":"rgba(0,0,0,.08)";sn.style.color=mode==="ann"?"#fff":"inherit";ota.placeholder=mode==="ask"?"Ask Cordial a question…":"Write an announcement for everyone…"}
       sa.onclick=function(){mode="ask";paint()};sn.onclick=function(){mode="ann";paint()};paint();
-      seg.appendChild(sa);seg.appendChild(sn);chatEl.appendChild(seg);
+      seg.appendChild(sa);seg.appendChild(sn);seg.appendChild(sr);chatEl.appendChild(seg);
     }
     osend.onclick=function(){
       var t=ota.value.trim();if(!t)return;
@@ -4304,6 +4331,17 @@ function renderChat(force){
     if(m.rid){var q=E("div","wq");q.appendChild(T("b",null,m.rby===myId?"You":mname(m.rby)));q.appendChild(T("div",null,m.rtext||""));q.onclick=function(e){e.stopPropagation();jump(m.rid)};b.appendChild(q)}
     if(stkm)b.appendChild(T("div","st",m.emoji||"🙂"));
     else if(m.kind==="voice")b.appendChild(voiceEl(m));
+    else if(m.kind==="ytcard"){
+      var yh=T("div","nm","🔴 "+(m.channel||"YouTube"));yh.style.cssText="color:#d93025;font-weight:700";b.appendChild(yh);
+      b.appendChild(T("div",null,m.title||"Today’s session"));
+      var yr=E("div");yr.style.cssText="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px";
+      var w1=T("button",null,"▶ Watch here"),w2=T("a",null,"Open in YouTube"),w3=m.live?T("a",null,"Live now"):null;
+      w1.type="button";w1.onclick=function(e){e.stopPropagation();ytOpen(m.vid)};
+      [w1,w2,w3].forEach(function(x){if(!x)return;x.style.cssText="border:0;border-radius:999px;padding:7px 14px;font:inherit;font-size:.85rem;font-weight:600;text-decoration:none;background:#1fa855;color:#fff;cursor:pointer";yr.appendChild(x)});
+      w2.href=m.url;w2.target="_blank";w2.rel="noopener";w2.style.background="rgba(0,0,0,.1)";w2.style.color="inherit";
+      if(w3){w3.href=m.live;w3.target="_blank";w3.rel="noopener";w3.style.background="#d93025"}
+      b.appendChild(yr);
+    }
     else if(m.kind==="announce"){var ah=T("div","nm","📢 Announcement from "+mname(m.by).replace(/^You$/,"you"));ah.style.color="#1a7f45";ah.style.fontWeight="700";b.appendChild(ah);b.appendChild(document.createTextNode(m.text||""))}
     else if(!m.kind||m.kind==="text")b.appendChild(document.createTextNode(m.text||""));
     else{var inner=E("div");fillBody(inner,m);if(inner.classList.contains("media")){b.classList.add("media")}while(inner.firstChild)b.appendChild(inner.firstChild)}
