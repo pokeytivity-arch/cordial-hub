@@ -775,6 +775,7 @@ main{max-width:100%}
 
 <section id="p-feed" hidden>
   <div class="card" id="nsppd" hidden></div>
+  <div class="card" id="shopcard"></div>
   <div class="fh2"><h2>All posts</h2><button class="flink" id="ffilt" type="button">Filters</button></div>
   <div id="ffmenu" class="prtabs" hidden></div>
   <button class="fbar" id="fbar" type="button"><span class="fbav" id="fbav"></span><span class="fbtx">What’s on your mind?</span><span class="fbim" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26"><rect x="3" y="3" width="18" height="18" rx="3.5" fill="currentColor"/><circle cx="9" cy="9" r="2" fill="#fff"/><path d="M4 18l5-5 3 3 3-4 5 6z" fill="#fff"/></svg></span></button>
@@ -2907,6 +2908,13 @@ function feedFilter(a){
 }
 function pinFirst(a){return a.slice().sort(function(x,y){if(!!x.pinned!==!!y.pinned)return x.pinned?-1:1;if(x.pinned&&y.pinned)return (y.pinTs||0)-(x.pinTs||0);return 0})}
 function syncBar(){var e=$("#fbav");if(!e)return;var p=PF(myId);e.textContent=(S.me||"?").charAt(0).toUpperCase();if(p.avatar)setBg(e,p.avatar);else{e.style.backgroundImage="";e.classList.remove("has")}}
+function nsppdLive(d){
+  if(!d||!d.liveNow||!d.checked||Date.now()-d.checked>25*60*1000)return false;
+  var n=new Date(Date.now()+3600000),wd=n.getUTCDay();
+  var hr=n.getUTCHours();return wd>=1&&wd<=5&&hr>=7&&hr<12;
+}
+window.nsppdLive=nsppdLive;
+setInterval(function(){try{renderNsppd();var n=new Date(Date.now()+3600000),wd=n.getUTCDay(),hr=n.getUTCHours();if(!document.hidden&&wd>=1&&wd<=5&&hr>=7&&hr<12&&window.feedRefresh)feedRefresh()}catch(e){}},60000);
 function renderNsppd(){
   var el=$("#nsppd");if(!el)return;
   var d=S.prof&&S.prof.cordial_daily,r=S.prof&&S.prof.cordial_recap,items=(r&&r.items)||[],last=items[items.length-1];
@@ -2917,9 +2925,10 @@ function renderNsppd(){
   var t=h("div",null,d.title||"Today’s session");t.style.cssText="font-size:1.05rem;font-weight:600;margin-bottom:10px";el.appendChild(t);
   var row=h("div");row.style.cssText="display:flex;flex-wrap:wrap;gap:8px";
   function btn(txt,bg,fn,href){var b=h(href?"a":"button",null,txt);if(href){b.href=href;b.target="_blank";b.rel="noopener"}else b.type="button";b.style.cssText="border:0;border-radius:999px;padding:8px 16px;font:inherit;font-size:.9rem;font-weight:600;text-decoration:none;cursor:pointer;background:"+bg+";color:"+(bg==="rgba(0,0,0,.08)"?"inherit":"#fff");if(fn)b.onclick=fn;row.appendChild(b)}
-  btn("▶ Watch here","#1fa855",function(){if(window.ytOpen)ytOpen(d.vid)});
+  var live=nsppdLive(d);
+  btn("▶ Watch here","#1fa855",function(){if(window.ytOpen)ytOpen(live&&d.liveVid?d.liveVid:d.vid)});
   btn("Open in YouTube","rgba(0,0,0,.08)",null,d.url);
-  if(d.live)btn("Live now","#d93025",null,d.live);
+  if(live&&d.live)btn("🔴 Live now","#d93025",null,d.live);
   el.appendChild(row);
   if(last&&last.text){
     var rc=h("div");rc.style.cssText="margin-top:12px;padding-top:10px;border-top:1px solid rgba(0,0,0,.08);white-space:pre-wrap;line-height:1.4;font-size:.95rem";
@@ -3071,6 +3080,125 @@ async function upload(folder,blob,name){
 var TCATS=[["Flight","✈️ Flight tickets"],["Hotel","🏨 Hotel reservations"],["Expense","💳 Expenses"],["Other","📎 Other documents"]];
 var tsig="";
 function tdate(x){return x?new Date(x+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):""}
+
+/* ---------- Baby shop: shared finds + private saved list ---------- */
+function shopHandle(){var d=S.prof&&S.prof.cordial_shop;return (d&&d.handle)||"one_stop_baby_shop"}
+function shopItems(){return (S.docs||[]).filter(function(d){return d.cat==="ShopItem"}).sort(function(a,b){return (b.ts||0)-(a.ts||0)})}
+function savedIds(){var v=window.hubPref&&hubPref("saved");return Array.isArray(v)?v:[]}
+function setSaved(ids){if(window.hubPref)hubPref("saved",ids);renderShop();if(SHOPV)shopDraw()}
+function toggleSave(id){var a=savedIds(),i=a.indexOf(id);if(i>=0)a.splice(i,1);else a.push(id);setSaved(a.slice())}
+function igCode(u){try{var x=new URL(u);if(!/(^|\.)instagram\.com$/.test(x.hostname))return null;var m=x.pathname.match(/\/(p|reel|tv)\/([\w-]+)/);return m?{kind:m[1],code:m[2],url:"https://www.instagram.com/"+m[1]+"/"+m[2]+"/"}:{kind:"profile",code:"",url:x.origin+x.pathname}}catch(e){return null}}
+function daysTo(d){if(!d)return null;var t=new Date(d+"T00:00:00"),n=new Date();n.setHours(0,0,0,0);return Math.round((t-n)/86400000)}
+function dueText(d){var n=daysTo(d);if(n===null)return "";var dt=tdate(d);return n<0?"Shopping day was "+dt:n===0?"Shopping day is today":n===1?"Shopping day is tomorrow ("+dt+")":"Shopping day "+dt+" · in "+n+" days"}
+function renderShop(){
+  var el=$("#shopcard");if(!el)return;
+  var items=shopItems(),saved=savedIds(),mine=items.filter(function(i){return saved.indexOf(i.id)>=0});
+  el.textContent="";
+  var hd=h("div");hd.style.cssText="display:flex;align-items:center;justify-content:space-between;gap:8px";
+  hd.appendChild(h("b",null,"🛍 Baby shop"));
+  var op=h("button","quiet","Open");op.type="button";op.onclick=function(){shopOpen("latest")};hd.appendChild(op);el.appendChild(hd);
+  var lp0=h("button","go sm","📷 See latest posts from @"+shopHandle());lp0.type="button";lp0.style.marginTop="8px";lp0.onclick=function(){shopOpen("latest")};el.appendChild(lp0);
+  if(!items.length)return;
+  var soon=mine.filter(function(i){var n=daysTo(i.date);return n!==null&&n>=0&&n<=3}).sort(function(a,b){return String(a.date).localeCompare(String(b.date))});
+  if(soon.length){var sb2=h("div",null,"⏰ "+soon.map(function(i){return i.title+" — "+dueText(i.date)}).join("  ·  "));sb2.style.cssText="background:#fff4d6;border-radius:10px;padding:8px 10px;margin:8px 0;font-size:.9rem";el.appendChild(sb2)}
+  items.slice(0,2).forEach(function(i){el.appendChild(shopRow(i,true))});
+  var more=h("div");more.style.cssText="display:flex;gap:8px;margin-top:8px";
+  var a1=h("button","go sm","See all ("+items.length+")");a1.type="button";a1.onclick=function(){shopOpen("feed")};
+  var a2=h("button","quiet","♥ Saved ("+mine.length+")");a2.type="button";a2.onclick=function(){shopOpen("saved")};
+  more.appendChild(a1);more.appendChild(a2);el.appendChild(more);
+}
+function shopRow(i,compact){
+  var saved=savedIds().indexOf(i.id)>=0;
+  var c=h("div");c.style.cssText="border:1px solid rgba(0,0,0,.08);border-radius:14px;padding:10px;margin-top:8px;background:#fff";
+  if(i.path&&!compact){var im=h("div");im.style.cssText="height:200px;border-radius:10px;background:#eee center/cover;margin-bottom:8px";c.appendChild(im);signed(i.path).then(function(u){im.style.backgroundImage="url("+JSON.stringify(u)+")"}).catch(function(){})}
+  var t=h("div");t.style.cssText="display:flex;justify-content:space-between;gap:8px;align-items:flex-start";
+  var l=h("div");l.style.cssText="min-width:0;flex:1";
+  l.appendChild(h("strong",null,i.title||"Item"));
+  l.appendChild(h("div","meta",[i.shop,i.price?money(i.price):""].filter(Boolean).join(" · ")));
+  t.appendChild(l);
+  var sv=h("button",null,saved?"♥ Saved":"♡ Save");sv.type="button";
+  sv.style.cssText="border:0;border-radius:999px;padding:7px 14px;font:inherit;font-weight:700;font-size:.85rem;cursor:pointer;background:"+(saved?"#d6336c":"rgba(0,0,0,.08)")+";color:"+(saved?"#fff":"inherit");
+  sv.onclick=function(){toggleSave(i.id)};t.appendChild(sv);c.appendChild(t);
+  if(i.date){var d=h("div",null,"📅 "+dueText(i.date));d.style.cssText="margin-top:6px;font-size:.9rem;font-weight:600";c.appendChild(d)}
+  if(i.note&&!compact)c.appendChild(h("div","pre",i.note));
+  if(!compact){
+    var r=h("div");r.style.cssText="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px";
+    var g=i.link&&igCode(i.link);
+    if(g&&g.url){var a=h("a","quiet","Open on Instagram");a.href=g.url;a.target="_blank";a.rel="noopener";r.appendChild(a);
+      if(g.code){var pv2=h("button","quiet","Preview post");pv2.type="button";pv2.onclick=function(){
+        if(c.querySelector("iframe")){c.querySelector("iframe").remove();pv2.textContent="Preview post";return}
+        var fr=h("iframe");fr.src="https://www.instagram.com/"+g.kind+"/"+g.code+"/embed/captioned";fr.style.cssText="width:100%;height:520px;border:0;margin-top:8px;border-radius:10px";fr.setAttribute("loading","lazy");c.appendChild(fr);pv2.textContent="Hide preview"};r.appendChild(pv2)}}
+    if(isOwner||i.by===myId){var rm=h("button","quiet","Remove");rm.type="button";rm.onclick=function(){if(!confirm("Remove this item for everyone?"))return;db.doc("documents/"+i.id).delete().catch(fail)};r.appendChild(rm)}
+    c.appendChild(r);
+  }
+  return c;
+}
+var SHOPV=null,SHOPMODE="feed";
+function shopOpen(mode){
+  SHOPMODE=mode||"feed";
+  if(!SHOPV){
+    SHOPV=h("div");SHOPV.id="shopv";SHOPV.style.cssText="position:fixed;inset:0;z-index:270;background:var(--bg,#f1ede0);display:flex;flex-direction:column";
+    document.body.appendChild(SHOPV);
+  }
+  SHOPV.hidden=false;shopDraw();
+}
+function shopDraw(){
+  var V=SHOPV;if(!V||V.hidden)return;V.textContent="";
+  var top=h("div");top.style.cssText="display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;background:#fff;border-bottom:1px solid rgba(0,0,0,.08)";
+  var bk=h("button","quiet","‹ Back");bk.type="button";bk.onclick=function(){V.hidden=true};top.appendChild(bk);
+  top.appendChild(h("b",null,"🛍 Baby shop"));V.appendChild(top);
+  var tabs=h("div");tabs.style.cssText="display:flex;gap:8px;padding:10px 14px 0";
+  [["latest","Latest posts"],["feed","Saved finds"],["saved","♥ My list"]].forEach(function(x){var b=h("button",null,x[1]);b.type="button";b.style.cssText="border:0;border-radius:999px;padding:8px 16px;font:inherit;font-weight:600;cursor:pointer;background:"+(SHOPMODE===x[0]?"#1fa855":"rgba(0,0,0,.08)")+";color:"+(SHOPMODE===x[0]?"#fff":"inherit");b.onclick=function(){SHOPMODE=x[0];shopDraw()};tabs.appendChild(b)});
+  V.appendChild(tabs);
+  var body=h("div");body.style.cssText="flex:1;overflow:auto;padding:6px 14px calc(24px + env(safe-area-inset-bottom,0px))";V.appendChild(body);
+  var items=shopItems(),saved=savedIds();
+  if(SHOPMODE==="latest"){
+    var hn=shopHandle();
+    body.appendChild(h("p","meta","New posts from @"+hn+", straight from Instagram. Found something you like? Tap its date to open the post, copy the link, then add it under Saved finds so everyone can see it."));
+    var lw=h("div");lw.style.cssText="background:#fff;border-radius:14px;overflow:hidden";
+    var fr=h("iframe");fr.src="https://www.instagram.com/"+encodeURIComponent(hn)+"/embed/";fr.style.cssText="width:100%;height:640px;border:0";fr.setAttribute("loading","lazy");lw.appendChild(fr);body.appendChild(lw);
+    var ig=h("a","go","Open @"+hn+" on Instagram");ig.href="https://www.instagram.com/"+encodeURIComponent(hn)+"/";ig.target="_blank";ig.rel="noopener";ig.style.cssText="display:block;text-align:center;margin-top:10px;text-decoration:none";body.appendChild(ig);
+    body.appendChild(h("p","meta","If the posts above don’t load (Instagram sometimes asks for a login), use the button to open the page."));
+    if(isOwner){var ch=h("button","quiet","Change the shop");ch.type="button";ch.onclick=function(){var v=prompt("Instagram username or page link of the shop",hn);if(!v)return;var m=String(v).match(/instagram\.com\/([\w.]+)/),u=(m?m[1]:String(v).replace(/^@/,"")).trim();if(!/^[\w.]{1,40}$/.test(u))return note("That doesn’t look like an Instagram username.");db.doc("profiles/cordial_shop").set({handle:u}).catch(fail)};body.appendChild(ch)}
+    return;
+  }
+  if(SHOPMODE==="saved"){
+    var mine=items.filter(function(i){return saved.indexOf(i.id)>=0}).sort(function(a,b){return String(a.date||"9999").localeCompare(String(b.date||"9999"))});
+    body.appendChild(h("p","meta","Only you decide what’s on this list. Items with a shopping day come first, so you can plan ahead."));
+    if(!mine.length)body.appendChild(h("p","empty","Nothing saved yet. Tap ♡ Save on an item in the Shop feed."));
+    mine.forEach(function(i){body.appendChild(shopRow(i,false))});
+    return;
+  }
+  if(canWrite){
+    var dt=h("details");dt.style.cssText="background:#fff;border-radius:14px;padding:10px 12px;margin-top:10px";dt.appendChild(h("summary",null,"+ Add an item from the shop"));
+    var bx=h("div");bx.style.marginTop="8px";
+    function fld(lbl,el){var l=h("label",null,lbl);l.appendChild(el);bx.appendChild(l);return el}
+    function inp(t,ph){var e=h("input");e.type=t||"text";if(ph)e.placeholder=ph;return e}
+    var fTitle=fld("What is it?",inp("text","e.g. Soft baby blanket"));fTitle.maxLength=80;
+    var fShop=fld("Shop name or Instagram handle",inp("text","e.g. @littlestarsbabyshop"));fShop.maxLength=60;
+    var fLink=fld("Link to the Instagram post",inp("url","https://www.instagram.com/p/…"));
+    var fPrice=fld("Price (₦), if shown",inp("number"));fPrice.min="0";fPrice.inputMode="decimal";
+    var fDate=fld("Shopping day or sale date (optional)",inp("date"));
+    var fNote=fld("Note for everyone (optional)",h("textarea"));fNote.maxLength=300;fNote.rows=2;
+    var fPhoto=fld("Photo (optional, a screenshot is fine)",inp("file"));fPhoto.accept="image/*";
+    var go=h("button","go","Add to shop feed");go.type="button";bx.appendChild(go);
+    go.onclick=async function(){
+      var title=fTitle.value.trim();if(!title)return note("Write what the item is.");
+      var lk=fLink.value.trim(),g=lk?igCode(lk):null;if(lk&&!g)return note("That link isn’t an Instagram link.");
+      go.disabled=true;go.textContent="Adding…";
+      try{
+        var path="";if(fPhoto.files[0])path=await upload("docs",fPhoto.files[0],fPhoto.files[0].name);
+        await db.collection("documents").add({cat:"ShopItem",title:title,shop:fShop.value.trim(),link:g?g.url:"",price:parseFloat(fPrice.value)||0,date:fDate.value||"",note:fNote.value.trim(),path:path,by:myId||"",ts:Date.now()});
+        note("");
+      }catch(e){note(attachErr(e))}
+      go.disabled=false;go.textContent="Add to shop feed";
+    };
+    dt.appendChild(bx);body.appendChild(dt);
+  }
+  if(!items.length)body.appendChild(h("p","empty","No items yet."));
+  items.forEach(function(i){body.appendChild(shopRow(i,false))});
+}
+
 function renderTrips(){
   var L=$("#tlist");if(!L)return;
   var trips=S.docs.filter(function(d){return d.cat==="Trip"}).sort(function(a,b){return String(b.start||"").localeCompare(String(a.start||""))});
@@ -3314,11 +3442,11 @@ $("#signout").onclick=function(){try{localStorage.removeItem("hubFid")}catch(e){
 $("#signout2").onclick=$("#signout").onclick;
 
 function subscribeAll(){
-  db.collection("documents").orderBy("ts","desc").limit(300).onSnapshot(function(s){S.docs=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderDocs();renderTrips()},function(e){fail(e)});
+  db.collection("documents").orderBy("ts","desc").limit(300).onSnapshot(function(s){S.docs=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderDocs();renderTrips();safe(renderShop)();if(SHOPV&&!SHOPV.hidden)safe(shopDraw)()},function(e){fail(e)});
   var err=function(e){fail(e)};
   db.collection("schedule").onSnapshot(function(s){S.sched={};s.docs.forEach(function(d){S.sched[d.id]=d.data()});renderCal();openEditor()},err);
   db.collection("expenses").orderBy("date","desc").limit(500).onSnapshot(function(s){S.exp=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderExp()},err);
-  db.collection("profiles").limit(300).onSnapshot(function(s){S.prof={};s.docs.forEach(function(d){S.prof[d.id]=d.data()});S.profLoaded=true;renderProf();safe(renderNsppd)();if(window.waRender)waRender()},err);
+  db.collection("profiles").limit(300).onSnapshot(function(s){S.prof={};s.docs.forEach(function(d){S.prof[d.id]=d.data()});S.profLoaded=true;renderProf();safe(renderNsppd)();safe(renderShop)();if(window.waRender)waRender()},err);
   db.collection("highlights").limit(500).onSnapshot(function(s){S.hl=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderProf()},err);
   db.collection("meetingnotes").limit(300).onSnapshot(function(s){S.mnotes=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderMeet()},err);
   db.collection("notes").orderBy("ts","desc").limit(200).onSnapshot(function(s){S.notes=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderNotes()},err);
@@ -3881,10 +4009,11 @@ function ytOpen(vid){
 }
 var feedAt=0;
 function feedRefresh(){
-  if(Date.now()-feedAt<10*60*1000)return;feedAt=Date.now();
+  var nn=new Date(Date.now()+3600000),wd2=nn.getUTCDay(),hr2=nn.getUTCHours(),gap=(wd2>=1&&wd2<=5&&hr2>=7&&hr2<12)?2*60*1000:10*60*1000;
+  if(Date.now()-feedAt<gap)return;feedAt=Date.now();
   try{fetch("/.netlify/functions/feed").then(function(r){return r.json().then(function(j){if(!r.ok&&isOwner)toast("NSPPD link problem: "+(j.error||r.status))})}).catch(function(){})}catch(e){}
 }
-window.ytOpen=ytOpen;
+window.ytOpen=ytOpen;window.feedRefresh=feedRefresh;
 (function(){var n=0,iv=setInterval(function(){if(++n>20){clearInterval(iv);return}if(S.profLoaded){clearInterval(iv);feedRefresh()}},3000)})();
 function aiAsk(t){
   if(AIPEND||!t)return;
@@ -3908,7 +4037,7 @@ function botMsgs(){
   if(!lp.botSince){lp.botSince=Date.now();saveLP(true)}
   var bs=lp.botSince,day=new Date();day.setHours(8,0,0,0);
   if(AIH===null)AIH=aiLoad();
-  var yd0=S.prof&&S.prof.cordial_daily;var key=bs+"|"+day.getTime()+"|"+(new Date().getHours()>=8?1:0)+"|"+AIH.length+(AIPEND?"p":"")+"|"+(yd0?yd0.vid+(yd0.seen||""):"")+"|"+((S.prof&&S.prof.cordial_recap&&S.prof.cordial_recap.items||[]).map(function(x){return x.ts}).join(","));
+  var yd0=S.prof&&S.prof.cordial_daily;var key=bs+"|"+day.getTime()+"|"+(new Date().getHours()>=8?1:0)+"|"+AIH.length+(AIPEND?"p":"")+"|"+(yd0?yd0.vid+(yd0.seen||"")+(nsppdLive(yd0)?"L":""):"")+"|"+((S.prof&&S.prof.cordial_recap&&S.prof.cordial_recap.items||[]).map(function(x){return x.ts}).join(","));
   if(botCache.key===key)return botCache.list;
   var L=[{id:"bot_w",by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs,text:"Hi, I’m Cordial 👋\n\nI’m the AI agent for this hub, and I’m not a real person. I send co-parenting tips and help with the hub, and you can ask me questions here.\n\nI can make mistakes, and I’m not a lawyer, doctor or counsellor. I can’t see your private messages, files or calendar."}];
   BOT_HELP.forEach(function(t,i){L.push({id:"bot_h"+i,by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs+1000*(i+1),text:t})});
@@ -3917,7 +4046,7 @@ function botMsgs(){
     if(t>bs+5000&&t<=Date.now()){var n=Math.floor(t/86400000);L.push({id:"bot_t"+n,by:BOT_ID,chat:BOT_ID,kind:"text",ts:t,text:"💡 Tip of the day\n\n"+BOT_TIPS[n%BOT_TIPS.length]})}
   }
   var yd=S.prof&&S.prof.cordial_daily;
-  if(yd&&yd.vid)L.push({id:"bot_yt_"+yd.vid,by:BOT_ID,chat:BOT_ID,kind:"ytcard",ts:Math.max(yd.seen||0,bs+1500),vid:yd.vid,title:yd.title||"",channel:yd.channel||"YouTube",live:yd.live||"",url:yd.url||""});
+  if(yd&&yd.vid)L.push({id:"bot_yt_"+yd.vid+(nsppdLive(yd)?"L":""),by:BOT_ID,chat:BOT_ID,kind:"ytcard",ts:Math.max(yd.seen||0,bs+1500),vid:(nsppdLive(yd)&&yd.liveVid)?yd.liveVid:yd.vid,title:yd.title||"",channel:yd.channel||"YouTube",live:nsppdLive(yd)?(yd.live||""):"",url:yd.url||""});
   var rc=S.prof&&S.prof.cordial_recap;
   if(rc&&rc.items)rc.items.forEach(function(x){if(x&&x.text)L.push({id:"bot_rc_"+x.day,by:BOT_ID,chat:BOT_ID,kind:"text",ts:Math.max(x.ts||0,bs+1500),text:x.text})});
   AIH.forEach(function(x,i){L.push({id:"ai_"+x.ts+"_"+i,by:x.by==="bot"?BOT_ID:myId,chat:BOT_ID,kind:"text",ts:x.ts,text:x.text})});
