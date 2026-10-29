@@ -1206,7 +1206,16 @@ $("#xadd").onclick=async function(){
 })();
 function renderExp(){
   var pa=0,pb=0;S.exp.forEach(function(x){if(x.by==="a")pa+=x.amount;else pb+=x.amount});
-  $("#bal").textContent=S.exp.length?nm("a")+" has contributed "+money(pa)+" · "+nm("b")+" has contributed "+money(pb):"No expenses yet";
+  (function(){var b=$("#bal");b.textContent="";if(!S.exp.length){b.textContent="No expenses yet";return}
+    var tot=pa+pb,wa=tot>0?Math.round(pa/tot*1000)/10:50,wb=tot>0?100-wa:50;
+    var bar=document.createElement("div");bar.style.cssText="display:flex;height:26px;border-radius:13px;overflow:hidden;background:rgba(0,0,0,.08);margin:6px 0 8px";
+    [[wa,"#2f7de1"],[wb,"#e8833a"]].forEach(function(x){var d=document.createElement("div");d.style.cssText="width:"+x[0]+"%;background:"+x[1]+";transition:width .4s";bar.appendChild(d)});
+    b.appendChild(bar);
+    var lg=document.createElement("div");lg.style.cssText="display:flex;justify-content:space-between;gap:10px;font-size:.95rem;font-weight:600";
+    [[nm("a"),pa,wa,"#2f7de1"],[nm("b"),pb,wb,"#e8833a"]].forEach(function(x,i){var d=document.createElement("div");if(i)d.style.textAlign="right";
+      var dot=document.createElement("span");dot.style.cssText="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:"+x[3];
+      d.appendChild(dot);d.appendChild(document.createTextNode(x[0]+": "+money(x[1])));var sm=document.createElement("div");sm.className="meta";sm.style.fontWeight="400";sm.textContent=Math.round(x[2])+"% contributed";d.appendChild(sm);lg.appendChild(d)});
+    b.appendChild(lg)})();
   $("#bal2").textContent=S.exp.length?"Total spent "+money(pa+pb):"";
   var L=$("#xl");L.textContent="";
   if(!S.exp.length)L.appendChild(h("p","empty","No expenses yet. Add the first one above."));
@@ -3448,6 +3457,13 @@ function igThumbCard(o,big){
     ov.appendChild(h("div",null,"📷 Newest from "+shopName()));var s2=h("div",null,"Tap to open on Instagram");s2.style.cssText="font-weight:400;font-size:.85rem;opacity:.9";ov.appendChild(s2);w.appendChild(ov)}
   return w;
 }
+function igProfileCard(hn){
+  var w=h("a");w.href="https://www.instagram.com/"+encodeURIComponent(hn)+"/";w.target="_blank";w.rel="noopener";
+  w.style.cssText="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;aspect-ratio:16/10;border-radius:14px;background:linear-gradient(135deg,#feda75,#d62976,#4f5bd5);color:#fff;text-decoration:none;padding:16px";
+  w.appendChild(h("div",null,"📷"));w.firstChild.style.fontSize="2.4rem";
+  var t=h("b",null,"@"+hn);t.style.fontSize="1.2rem";w.appendChild(t);
+  w.appendChild(h("div",null,"Tap to see the latest posts"));return w;
+}
 function igGrid(list){
   var g=h("div");g.style.cssText="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-top:6px;border-radius:12px;overflow:hidden";
   list.forEach(function(o){g.appendChild(igThumbCard(o,false))});return g;
@@ -3464,6 +3480,7 @@ function shopEl(){
     if(nl.recent&&nl.recent.length>1)bw.appendChild(igGrid(nl.recent.filter(function(x){return x.code!==nl.code}).slice(0,3)));
     el.appendChild(bw);
   }
+  if(!(nl&&nl.code&&nl.handle===shopHandle())){var fb=h("div");fb.style.marginTop="8px";fb.appendChild(igProfileCard(shopHandle()));el.appendChild(fb);shopLatestRefresh()}
   var lp0=h("button","go sm","📷 More from "+shopName());lp0.type="button";lp0.style.marginTop="8px";lp0.onclick=function(){shopOpen("latest")};el.appendChild(lp0);
   if(!items.length)return el;
   var soon=mine.filter(function(i){var n=daysTo(i.date);return n!==null&&n>=0&&n<=3}).sort(function(a,b){return String(a.date).localeCompare(String(b.date))});
