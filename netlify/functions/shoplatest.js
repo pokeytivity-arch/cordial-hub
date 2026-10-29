@@ -12,25 +12,49 @@ async function readDoc(key) {
   return ((r.ok ? await r.json() : [])[0] || {}).data || {};
 }
 
-exports.handler = async () => {
+exports.handler = async (event) => {
+  const debug = !!(event && event.queryStringParameters && event.queryStringParameters.debug);
   if (!URL_ || !KEY) return out(501, { error: "not_configured" });
   const shop = await readDoc("profiles/cordial_shop");
   const handle = String(shop.handle || "one_stop_baby_shop").replace(/[^\w.]/g, "").slice(0, 40);
   const saved = await readDoc("profiles/cordial_shoplatest");
   const now = Date.now();
-  if (saved.handle === handle && saved.checked && now - saved.checked < 20 * 60 * 1000) return out(200, { ok: true, cached: true, code: saved.code });
+  if (!debug && saved.handle === handle && saved.checked && now - saved.checked < 20 * 60 * 1000) return out(200, { ok: true, cached: true, code: saved.code });
 
-  let html = "";
+  const log = {};
+  let first = null;
+
+  // Way 1: Instagram's public profile data (newest by date, ignoring pinned posts)
   try {
-    const r = await fetch(`https://www.instagram.com/${handle}/embed/`, { headers: UA });
-    if (!r.ok) return out(502, { error: "instagram_blocked", status: r.status });
-    html = await r.text();
-  } catch (e) { return out(502, { error: "instagram_failed" }); }
+    const r = await fetch(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(handle)}`, {
+      headers: { ...UA, "X-IG-App-ID": "936619743392459", "X-Requested-With": "XMLHttpRequest", Accept: "*/*", Referer: `https://www.instagram.com/${handle}/` },
+    });
+    log.api = r.status;
+    if (r.ok) {
+      const j = await r.json();
+      const edges = (((j.data || {}).user || {}).edge_owner_to_timeline_media || {}).edges || [];
+      const nodes = edges.map((e) => e.node).filter((n) => n && n.shortcode);
+      nodes.sort((a, b) => (b.taken_at_timestamp || 0) - (a.taken_at_timestamp || 0));
+      if (nodes[0]) first = { kind: "p", code: nodes[0].shortcode, ts: (nodes[0].taken_at_timestamp || 0) * 1000 };
+    }
+  } catch (e) { log.api = "error"; }
 
-  const re = /(?:\\?\/)(p|reel|tv)(?:\\?\/)([A-Za-z0-9_-]{8,14})(?=[\\\/"?&'])/g;
-  let m, first = null;
-  while ((m = re.exec(html))) { if (m[2] !== "embed") { first = { kind: m[1], code: m[2] }; break; } }
-  if (!first) return out(502, { error: "no_post_found" });
+  // Way 2: the profile's embed page (first post listed; may be a pinned one)
+  if (!first) {
+    try {
+      const r = await fetch(`https://www.instagram.com/${handle}/embed/`, { headers: UA });
+      log.embed = r.status;
+      if (r.ok) {
+        const html = await r.text();
+        log.len = html.length;
+        const re = /(?:\\?\/)(p|reel|tv)(?:\\?\/)([A-Za-z0-9_-]{8,14})(?=[\\\/"?&'])/g;
+        let m;
+        while ((m = re.exec(html))) { if (m[2] !== "embed") { first = { kind: m[1], code: m[2] }; break; } }
+      }
+    } catch (e) { log.embed = "error"; }
+  }
+  if (!first) return out(502, { error: "no_post_found", log });
+  if (debug) return out(200, { ok: true, debug: true, log, first });
 
   const data = { handle, kind: first.kind, code: first.code, checked: now, seen: saved.code === first.code ? (saved.seen || now) : now };
   await fetch(`${URL_}/rest/v1/docs?on_conflict=key`, {
