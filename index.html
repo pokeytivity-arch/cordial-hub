@@ -1579,14 +1579,34 @@ function alertStatus(){
   var t=$("#alsts"),b=$("#alon");if(!t)return;
   if(!("Notification" in window)){t.textContent="This browser can’t show alerts. On an iPhone, open the hub from its Home Screen icon.";b.hidden=true;return}
   var p=Notification.permission;
-  if(p==="granted"){t.textContent="Alerts are on. The icon number is active.";b.hidden=true}
+  if(p==="granted"){t.textContent="Alerts are on. The icon number is active, and calls can ring this phone even when the app is closed.";b.hidden=true}
   else if(p==="denied"){t.textContent="Alerts are blocked. Allow them in your phone’s Settings for this app.";b.hidden=true}
   else{t.textContent="Alerts are off.";b.hidden=false}
 }
 $("#alon").onclick=function(){
   if(!("Notification" in window))return;
-  Notification.requestPermission().then(function(){alertStatus();if(typeof window.__badgeNow==="function")window.__badgeNow()});
+  Notification.requestPermission().then(function(){alertStatus();if(typeof window.__badgeNow==="function")window.__badgeNow();if(Notification.permission==="granted")window.pushSubscribe()});
 };
+function b64k(s){var p="=".repeat((4-s.length%4)%4),b=(s+p).replace(/-/g,"+").replace(/_/g,"/"),r=atob(b),o=new Uint8Array(r.length);for(var i=0;i<r.length;i++)o[i]=r.charCodeAt(i);return o}
+window.pushSubscribe=async function(){
+  try{
+    if(!("PushManager" in window)||!navigator.serviceWorker||!window.hubPref)return false;
+    var r=await fetch("/.netlify/functions/push");if(!r.ok)return false;var j=await r.json();
+    var reg=await navigator.serviceWorker.ready;
+    var sub=await reg.pushManager.getSubscription();
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64k(j.key)});
+    var o=sub.toJSON(),list=hubPref("push")||[];
+    if(list.some(function(x){return x.endpoint===o.endpoint}))return true;
+    list=list.concat([{endpoint:o.endpoint,keys:o.keys}]).slice(-5);hubPref("push",list);return true;
+  }catch(e){return false}
+};
+(function(){var n=0,iv=setInterval(function(){
+  if(++n>60){clearInterval(iv);return}
+  if(!("Notification" in window)||Notification.permission!=="granted"){return}
+  if(!window.hubPref||!S.profLoaded)return;
+  clearInterval(iv);window.pushSubscribe();
+},4000)})();
+try{if(location.search.indexOf("ring=")>=0)history.replaceState(null,"",location.pathname)}catch(e){}
 function previewText(m){
   switch(m.kind){
     case "image":return "📷 Photo";
@@ -1986,14 +2006,14 @@ function openCall(c){
       await loadJitsi(host,path);
       if(JCUR!==mine||JC.hidden)return;
       var opts={roomName:roomName,parentNode:mount,width:"100%",height:"100%",
-        configOverwrite:{prejoinPageEnabled:false,disableDeepLinking:true,startWithVideoMuted:!!c.audio,toolbarButtons:[],hideConferenceSubject:true,hideConferenceTimer:true,disableInviteFunctions:true,notifications:[],disableThirdPartyRequests:true},
+        configOverwrite:{prejoinPageEnabled:false,prejoinConfig:{enabled:false},requireDisplayName:false,disableDeepLinking:true,startWithVideoMuted:!!c.audio,toolbarButtons:[],hideConferenceSubject:true,hideConferenceTimer:true,disableInviteFunctions:true,notifications:[],disableThirdPartyRequests:true},
         interfaceConfigOverwrite:{TOOLBAR_BUTTONS:[],MOBILE_APP_PROMO:false,SHOW_JITSI_WATERMARK:false,SHOW_WATERMARK_FOR_GUESTS:false,DISABLE_JOIN_LEAVE_NOTIFICATIONS:true,HIDE_INVITE_MORE_HEADER:true},
         userInfo:{displayName:S.me||"Guest"}};
       if(jwt)opts.jwt=jwt;
       var api=new JitsiMeetExternalAPI(host,opts);JAPI=api;
       api.addListener("videoConferenceJoined",jcParts);
       api.addListener("participantJoined",jcParts);
-      api.addListener("participantLeft",jcParts);
+      api.addListener("participantLeft",function(){jcParts();var mc=JCUR;setTimeout(function(){if(JCUR!==mc||!mc||!mc.callId||!JSTART)return;var n=1;try{n=JAPI.getNumberOfParticipants()}catch(e){}if(n<=1)closeCall()},1500)});
       api.addListener("audioMuteStatusChanged",function(e){micb.innerHTML=e.muted?JI.micoff:JI.mic;micb.classList.toggle("off",!!e.muted)});
       api.addListener("videoMuteStatusChanged",function(e){camb.innerHTML=e.muted?JI.camoff:JI.cam;camb.classList.toggle("off",!!e.muted)});
       api.addListener("readyToClose",function(){if(JAPI===api)closeCall()});
@@ -4245,12 +4265,14 @@ function callChat(c,audio){
   var id=db.collection("calls").doc().id;
   var call={room:newRoom(),audio:!!audio,by:myId,name:S.me||"Someone",ts:Date.now(),chat:c.id,to:to,state:"ringing"};
   db.doc("calls/"+id).set(call).catch(function(){toast("Couldn’t start the call. Check your connection.");stopRing()});
+  sendPush("call",to,id,audio);
   S.calls=(S.calls||[]).concat([Object.assign({id:id},call)]);
   showRing({id:id,out:true,call:call,title:c.name});
   RING.timer=setTimeout(function(){
-    if(RING.cur&&RING.cur.id===id){db.doc("calls/"+id).update({state:"missed"}).catch(function(){});stopRing();logCall(call,"📞 Missed "+(call.audio?"voice":"video")+" call");toast("No answer.");setTimeout(function(){db.doc("calls/"+id).delete().catch(function(){})},4000)}
+    if(RING.cur&&RING.cur.id===id){db.doc("calls/"+id).update({state:"missed"}).catch(function(){});stopRing();sendPush("missed",to,id,audio);logCall(call,"📞 Missed "+(call.audio?"voice":"video")+" call");toast("No answer.");setTimeout(function(){db.doc("calls/"+id).delete().catch(function(){})},4000)}
   },45000);
 }
+function sendPush(kind,to,id,audio){try{sb.auth.getSession().then(function(ss){var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)return;fetch("/.netlify/functions/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:kind,to:to,callId:id,audio:!!audio})}).catch(function(){})})}catch(e){}}
 function logCall(call,text){try{db.collection("messages").add({kind:"sys",text:text,ts:Date.now(),by:myId,chat:call.chat})}catch(e){}}
 function showRing(r){
   RING.cur=r;ringEl.hidden=false;ringEl.textContent="";
@@ -4264,7 +4286,7 @@ function showRing(r){
   var no=E("button","rno",ic("phone",30,1.8));no.type="button";no.setAttribute("aria-label",r.out?"Cancel":"Decline");
   no.onclick=function(){
     var id=r.id;stopRing();
-    if(r.out){db.doc("calls/"+id).update({state:"cancelled"}).catch(function(){});logCall(r.call,"📞 Cancelled "+kind+" call");setTimeout(function(){db.doc("calls/"+id).delete().catch(function(){})},3000)}
+    if(r.out){sendPush("missed",r.call.to,id,r.call.audio);db.doc("calls/"+id).update({state:"cancelled"}).catch(function(){});logCall(r.call,"📞 Cancelled "+kind+" call");setTimeout(function(){db.doc("calls/"+id).delete().catch(function(){})},3000)}
     else{RING.handled[id]=1;db.doc("calls/"+id).update({state:"declined"}).catch(function(){})}
   };
   row.appendChild(no);
@@ -4338,7 +4360,7 @@ window.hubAddToCall=function(){
     b.onclick=function(){
       var id=db.collection("calls").doc().id;
       var call={room:cur.room,audio:!!cur.audio,by:myId,name:S.me||"Someone",ts:Date.now(),chat:cur.chat||"family",to:[u.user_id],state:"ringing",added:true};
-      db.doc("calls/"+id).set(call).catch(function(){toast("Couldn’t ring them.")});
+      db.doc("calls/"+id).set(call).catch(function(){toast("Couldn’t ring them.")});sendPush("call",[u.user_id],id,cur.audio);
       setTimeout(function(){db.doc("calls/"+id).delete().catch(function(){})},50000);
       b.lastChild.textContent="Ringing…";b.disabled=true;
     };
