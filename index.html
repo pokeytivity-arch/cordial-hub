@@ -2922,6 +2922,13 @@ function renderNsppd(){
   el.hidden=false;el.textContent="";
   var hd=h("div");hd.style.cssText="display:flex;align-items:center;gap:8px;margin-bottom:6px";
   hd.appendChild(h("b",null,"🔴 "+(d.channel||"Streams of Joy NSPPD")));el.appendChild(hd);
+  var live0=nsppdLive(d),tv=(live0&&d.liveVid)?d.liveVid:d.vid;
+  var th=h("button");th.type="button";th.setAttribute("aria-label","Play video");
+  th.style.cssText="position:relative;display:block;width:100%;aspect-ratio:16/9;border:0;padding:0;border-radius:12px;overflow:hidden;background:#000 center/cover no-repeat;cursor:pointer;margin-bottom:10px";
+  th.style.backgroundImage="url(https://i.ytimg.com/vi/"+encodeURIComponent(tv)+"/hqdefault.jpg)";
+  var pl=h("span");pl.innerHTML="<svg viewBox='0 0 24 24' width='30' height='30' fill='#fff'><path d='M8 5v14l11-7z'/></svg>";pl.style.cssText="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:64px;height:64px;border-radius:50%;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center";th.appendChild(pl);
+  if(live0){var lb=h("span",null,"● LIVE");lb.style.cssText="position:absolute;left:10px;top:10px;background:#d93025;color:#fff;font-weight:700;font-size:.75rem;padding:3px 9px;border-radius:6px";th.appendChild(lb)}
+  th.onclick=function(){if(window.ytOpen)ytOpen(tv)};el.appendChild(th);
   var t=h("div",null,d.title||"Today’s session");t.style.cssText="font-size:1.05rem;font-weight:600;margin-bottom:10px";el.appendChild(t);
   var row=h("div");row.style.cssText="display:flex;flex-wrap:wrap;gap:8px";
   function btn(txt,bg,fn,href){var b=h(href?"a":"button",null,txt);if(href){b.href=href;b.target="_blank";b.rel="noopener"}else b.type="button";b.style.cssText="border:0;border-radius:999px;padding:8px 16px;font:inherit;font-size:.9rem;font-weight:600;text-decoration:none;cursor:pointer;background:"+bg+";color:"+(bg==="rgba(0,0,0,.08)"?"inherit":"#fff");if(fn)b.onclick=fn;row.appendChild(b)}
@@ -2930,11 +2937,6 @@ function renderNsppd(){
   btn("Open in YouTube","rgba(0,0,0,.08)",null,d.url);
   if(live&&d.live)btn("🔴 Live now","#d93025",null,d.live);
   el.appendChild(row);
-  if(last&&last.text){
-    var rc=h("div");rc.style.cssText="margin-top:12px;padding-top:10px;border-top:1px solid rgba(0,0,0,.08);white-space:pre-wrap;line-height:1.4;font-size:.95rem";
-    rc.textContent=last.text;el.appendChild(rc);
-    var by=h("div","meta","Written by Cordial, an AI agent. It can make mistakes.");by.style.marginTop="6px";el.appendChild(by);
-  }
 }
 function renderFeed(){
   syncBar();safe(renderNsppd)();
@@ -3082,6 +3084,7 @@ var tsig="";
 function tdate(x){return x?new Date(x+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):""}
 
 /* ---------- Baby shop: shared finds + private saved list ---------- */
+function shopName(){var h0=shopHandle();return h0.replace(/[._]+/g," ").replace(/\b\w/g,function(c){return c.toUpperCase()})}
 function shopHandle(){var d=S.prof&&S.prof.cordial_shop;return (d&&d.handle)||"one_stop_baby_shop"}
 function shopItems(){return (S.docs||[]).filter(function(d){return d.cat==="ShopItem"}).sort(function(a,b){return (b.ts||0)-(a.ts||0)})}
 function savedIds(){var v=window.hubPref&&hubPref("saved");return Array.isArray(v)?v:[]}
@@ -3095,9 +3098,9 @@ function renderShop(){
   var items=shopItems(),saved=savedIds(),mine=items.filter(function(i){return saved.indexOf(i.id)>=0});
   el.textContent="";
   var hd=h("div");hd.style.cssText="display:flex;align-items:center;justify-content:space-between;gap:8px";
-  hd.appendChild(h("b",null,"🛍 Baby shop"));
+  hd.appendChild(h("b",null,"🛍 "+shopName()));
   var op=h("button","quiet","Open");op.type="button";op.onclick=function(){shopOpen("latest")};hd.appendChild(op);el.appendChild(hd);
-  var lp0=h("button","go sm","📷 See latest posts from @"+shopHandle());lp0.type="button";lp0.style.marginTop="8px";lp0.onclick=function(){shopOpen("latest")};el.appendChild(lp0);
+  var lp0=h("button","go sm","📷 See latest posts from "+shopName());lp0.type="button";lp0.style.marginTop="8px";lp0.onclick=function(){shopOpen("latest")};el.appendChild(lp0);
   if(!items.length)return;
   var soon=mine.filter(function(i){var n=daysTo(i.date);return n!==null&&n>=0&&n<=3}).sort(function(a,b){return String(a.date).localeCompare(String(b.date))});
   if(soon.length){var sb2=h("div",null,"⏰ "+soon.map(function(i){return i.title+" — "+dueText(i.date)}).join("  ·  "));sb2.style.cssText="background:#fff4d6;border-radius:10px;padding:8px 10px;margin:8px 0;font-size:.9rem";el.appendChild(sb2)}
@@ -3147,7 +3150,7 @@ function shopDraw(){
   var V=SHOPV;if(!V||V.hidden)return;V.textContent="";
   var top=h("div");top.style.cssText="display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;background:#fff;border-bottom:1px solid rgba(0,0,0,.08)";
   var bk=h("button","quiet","‹ Back");bk.type="button";bk.onclick=function(){V.hidden=true};top.appendChild(bk);
-  top.appendChild(h("b",null,"🛍 Baby shop"));V.appendChild(top);
+  top.appendChild(h("b",null,"🛍 "+shopName()));V.appendChild(top);
   var tabs=h("div");tabs.style.cssText="display:flex;gap:8px;padding:10px 14px 0";
   [["latest","Latest posts"],["feed","Saved finds"],["saved","♥ My list"]].forEach(function(x){var b=h("button",null,x[1]);b.type="button";b.style.cssText="border:0;border-radius:999px;padding:8px 16px;font:inherit;font-weight:600;cursor:pointer;background:"+(SHOPMODE===x[0]?"#1fa855":"rgba(0,0,0,.08)")+";color:"+(SHOPMODE===x[0]?"#fff":"inherit");b.onclick=function(){SHOPMODE=x[0];shopDraw()};tabs.appendChild(b)});
   V.appendChild(tabs);
@@ -3164,10 +3167,14 @@ function shopDraw(){
       var na=h("a","quiet","Open on Instagram");na.href="https://www.instagram.com/"+nl.kind+"/"+nl.code+"/";na.target="_blank";na.rel="noopener";nh.appendChild(na);body.appendChild(nh);
       var nw=h("div");nw.style.cssText="background:#fff;border-radius:14px;overflow:hidden;margin-bottom:12px";
       var nf=h("iframe");nf.src="https://www.instagram.com/"+nl.kind+"/"+nl.code+"/embed/captioned";nf.style.cssText="width:100%;height:620px;border:0";nf.setAttribute("loading","lazy");nw.appendChild(nf);body.appendChild(nw);
-      body.appendChild(h("b",null,"More from the page")).style.cssText="display:block;margin:6px 0";
-    }
+    }else{body.appendChild(h("p","meta","Looking for the newest post… If it doesn’t appear, the page’s recent posts are shown below."))}
     var lw=h("div");lw.style.cssText="background:#fff;border-radius:14px;overflow:hidden";
-    var fr=h("iframe");fr.src="https://www.instagram.com/"+encodeURIComponent(hn)+"/embed/";fr.style.cssText="width:100%;height:640px;border:0";fr.setAttribute("loading","lazy");lw.appendChild(fr);body.appendChild(lw);
+    var fr=h("iframe");fr.setAttribute("loading","lazy");fr.style.cssText="width:100%;height:640px;border:0";
+    var fsrc="https://www.instagram.com/"+encodeURIComponent(hn)+"/embed/";
+    if(nl&&nl.code&&nl.handle===hn){
+      var more=h("details");more.style.cssText="margin-bottom:10px";var sm=h("summary",null,"More from the page");sm.style.cssText="font-weight:600;padding:8px 2px";more.appendChild(sm);
+      more.addEventListener("toggle",function(){if(more.open&&!fr.src)fr.src=fsrc});lw.appendChild(fr);more.appendChild(lw);body.appendChild(more);
+    }else{fr.src=fsrc;lw.appendChild(fr);body.appendChild(lw)}
     var ig=h("a","go","Open @"+hn+" on Instagram");ig.href="https://www.instagram.com/"+encodeURIComponent(hn)+"/";ig.target="_blank";ig.rel="noopener";ig.style.cssText="display:block;text-align:center;margin-top:10px;text-decoration:none";body.appendChild(ig);
     body.appendChild(h("p","meta","If the posts above don’t load (Instagram sometimes asks for a login), use the button to open the page."));
     if(isOwner){var ch=h("button","quiet","Change the shop");ch.type="button";ch.onclick=function(){var v=prompt("Instagram username or page link of the shop",hn);if(!v)return;var m=String(v).match(/instagram\.com\/([\w.]+)/),u=(m?m[1]:String(v).replace(/^@/,"")).trim();if(!/^[\w.]{1,40}$/.test(u))return note("That doesn’t look like an Instagram username.");db.doc("profiles/cordial_shop").set({handle:u}).catch(fail)};body.appendChild(ch)}
