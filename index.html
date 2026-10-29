@@ -968,11 +968,6 @@ main{max-width:100%}
     <div id="ci" class="meta"></div>
     <p><a class="go" id="cjoin" href="#">Join call</a> <button class="quiet" id="cend">Mark call as ended</button></p>
   </div>
-  <div class="card" id="cstart">
-    <h2>Start a call</h2>
-    <p class="meta">Opens a private call inside the hub. Everyone else sees a green Join button on every page.</p>
-    <div class="row"><button class="go" id="cv">Start video call</button><button class="go" id="ca">Start audio call</button></div>
-  </div>
   <div class="card" id="zjanet">
     <h2>Janet Onyemachi Chuku</h2>
     <div class="zrow">
@@ -1528,7 +1523,7 @@ TILES.forEach(function(t){
   ic.style.background="linear-gradient(160deg,"+t[3]+")";if(t[4])ic.style.color=t[4];
   ic.innerHTML="<svg viewBox='0 0 24 24' width='34' height='34' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>"+t[2]+"</svg>";
   b.dataset.t=t[0];b.appendChild(ic);b.appendChild(h("span","tl",t[1]));b.onclick=function(){showTab(t[0])};$("#grid").appendChild(b)});
-$("#back").onclick=function(){showTab("home")};
+$("#back").onclick=function(){if(window.__callFrom&&window.waOpen){window.__callFrom=0;waOpen("calls");return}showTab("home")};
 var ADD=[["Post","feed","#ft"],["Message","msg","#mt"],["Expense","exp","#xd"],["Note","notes","#nt"],["Document","docs","#dt"],["Person","people","#pn"],["Calendar day","sched",null]];
 ADD.forEach(function(a){
   var b=h("button","quiet",a[0]);b.style.cssText="display:block;font-size:1rem;padding:8px 4px;text-decoration:none;color:var(--ink)";
@@ -2355,10 +2350,9 @@ function syncCbar(){var inCall=JC&&!JC.hidden,mn=inCall&&JC.classList.contains("
 function startCall(audio){
   var c={room:newRoom(),audio:audio,by:myId||"",ts:Date.now()};
   if(db)db.doc("calls/current").set(c).catch(fail);
+  try{if(window.hubFamilyCallLog)hubFamilyCallLog(c)}catch(e){}
   S.call=c;openCall(c);
 }
-$("#cv").onclick=function(){startCall(false)};
-$("#ca").onclick=function(){startCall(true)};
 $("#cend").onclick=function(){if(db)db.doc("calls/current").delete().catch(fail)};
 $("#zmeet").onclick=function(e){e.preventDefault();showTab("meet")};
 
@@ -3880,6 +3874,7 @@ function subscribeAll(){
   db.collection("plikes").limit(1000).onSnapshot(function(s){S.plikes=mergePending(s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})}));renderFeed()},err);
   db.collection("pcomments").limit(1000).onSnapshot(function(s){S.pcom=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderFeed()},err);
   db.doc("calls/current").onSnapshot(function(s){S.call=s.exists?s.data():null;renderCall()},err);
+  db.collection("calllog").limit(1000).onSnapshot(function(s){S.calllog=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});if(window.waRender)waRender()},function(){});
   db.collection("calls").limit(100).onSnapshot(function(s){S.calls=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});if(window.waCalls)waCalls()},err);
   db.doc("settings/callplan").onSnapshot(function(s){S.callplan=s.exists?s.data():null;renderZoomCard();renderCal()},err);
   db.doc("settings/calllink").onSnapshot(function(s){S.link=s.exists?(s.data().url||""):"";renderCall()},err);
@@ -4068,7 +4063,7 @@ async function start(session){
   var orig=showTab;
   showTab=function(id){
     if(look==="classic"&&id==="feed")id="home";
-    if(!window.WA_BYPASS&&window.waOpen&&(id==="msg"||id==="chats"||(look!=="classic"&&id==="call"))){setMenu(false);waOpen(id==="call"?"calls":"chats");return}
+    if(!window.WA_BYPASS&&window.waOpen&&(id==="msg"||id==="chats"||id==="call")){setMenu(false);waOpen(id==="call"?"calls":"chats");return}
     if(window.WA&&WA.open&&window.waClose)waClose();
     if(id==="msg"&&window.waMarkRead)waMarkRead("family");
     if(look!=="classic"){if(id==="home")id=look==="fb"?"feed":"chats";setMenu(false)}
@@ -5326,11 +5321,36 @@ function renderCalls(){
   if(S.call&&S.call.room&&Date.now()-S.call.ts<6*3600*1000){
     var lv=E("button","wlist","");var i=E("div","ic",ic("video",24));lv.appendChild(i);var t=E("div","t");t.appendChild(T("b",null,"Call in progress"));t.appendChild(T("small",null,"Tap to join"));lv.appendChild(t);lv.onclick=function(){openCall(S.call)};main.appendChild(lv);
   }
-  [["Start a family video call","video",function(){startCall(false)}],["Start a family voice call","phone",function(){startCall(true)}]].forEach(function(x){
-    var b=E("button","wlist","");b.appendChild(E("div","ic",ic(x[1],24)));var t=E("div","t");t.appendChild(T("b",null,x[0]));t.appendChild(T("small",null,"Shows a Join button to everyone in the hub"));b.appendChild(t);b.onclick=x[2];main.appendChild(b);
-  });
-  var z=E("button","wlist","");z.onclick=function(){openZoomInHub()};z.appendChild(E("div","ic",ic("phone",24)));var zt=E("div","t");zt.appendChild(T("b",null,"Family Zoom call"));zt.appendChild(T("small",null,"Join the scheduled Zoom meeting inside the hub"));z.appendChild(zt);main.appendChild(z);
   var zp=E("button","wlist","");zp.appendChild(E("div","ic",ic("info",24)));var zpt=E("div","t");zpt.appendChild(T("b",null,"Call schedule & Zoom in the hub"));zpt.appendChild(T("small",null,"Times, summaries and recordings"));zp.appendChild(zpt);zp.onclick=function(){go("call")};main.appendChild(zp);
+  main.appendChild(T("div","wsec","Call log"));
+  var note2=T("div",null,"🔒 Call records are permanent. They can’t be edited or deleted.");note2.style.cssText="font-size:.8rem;opacity:.7;padding:0 16px 8px";main.appendChild(note2);
+  var LG0=(S.calllog||[]).slice(),have={};LG0.forEach(function(r){have[r.id]=1});
+  (S.mnotes||[]).forEach(function(m){if(m.source!=="zoom"||have["z_"+String(m.id).slice(0,22)]||have[m.id])return;LG0.push({id:m.id,source:"zoom",outcome:"zoom",topic:m.topic,ts:m.start||m.ts,dur:0,note:1})});
+  var LG=LG0.sort(function(x,y){return (y.ts||0)-(x.ts||0)});
+  if(!LG.length)main.appendChild(T("div","wempty","No calls recorded yet."));
+  var lastDay="";
+  LG.forEach(function(r){
+    var d=new Date(r.ts||0),dk=d.toDateString(),td=new Date(),yd=new Date(Date.now()-864e5);
+    if(dk!==lastDay){lastDay=dk;main.appendChild(T("div","wsec",dk===td.toDateString()?"Today":dk===yd.toDateString()?"Yesterday":d.toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long",year:"numeric"})))}
+    if(r.source==="zoom"){
+      var zr=E("button","wlist","");var zi=E("div","ic",ic("video",22));zr.appendChild(zi);var zt2=E("div","t");zt2.appendChild(T("b",null,"Zoom · "+(r.topic||"Family call")));zt2.appendChild(T("small",null,"Zoom meeting"+(r.dur?" · "+fmt(r.dur):"")+" · tap for summary"));zr.appendChild(zt2);
+      var ztm=T("div",null,d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})+"\n"+d.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}));ztm.style.cssText="font-size:.75rem;opacity:.7;text-align:right;white-space:pre-line;flex:none";zr.appendChild(ztm);
+      zr.onclick=function(){go("meet")};main.appendChild(zr);return;
+    }
+    var mine=r.by===myId,bad=r.outcome==="missed"||r.outcome==="declined"||r.outcome==="cancelled";
+    var row=E("div","wlist","");
+    var i=E("div","ic",ic(r.audio?"phone":"video",22));i.style.background=bad?"#ea0038":"var(--wg)";row.appendChild(i);
+    var t=E("div","t");
+    var who=mine?("To "+(r.withNames||"Family")):("From "+(r.name||"Someone"));
+    if(r.outcome==="missed"&&mine)who="To "+(r.withNames||"Family");
+    t.appendChild(T("b",null,who));
+    var how={completed:"Answered",missed:mine?"No answer":"Missed",declined:"Declined",cancelled:"Cancelled",started:"Family call started"}[r.outcome]||r.outcome;
+    var sm=(mine?"↗ ":"↙ ")+(r.audio?"Voice":"Video")+" · "+how+(r.dur?" · "+fmt(r.dur):"");
+    t.appendChild(T("small",null,sm));row.appendChild(t);
+    var tm=T("div",null,d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})+"\n"+d.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}));
+    tm.style.cssText="font-size:.75rem;opacity:.7;text-align:right;white-space:pre-line;flex:none";row.appendChild(tm);
+    main.appendChild(row);
+  });
   main.appendChild(T("div","wsec","Call one person (rings only them)"));
   people().forEach(function(u){
     var b=E("div","wlist","");b.appendChild(avatar({type:"dm",id:"x",members:[myId,u.user_id]},""));var t=E("div","t");t.appendChild(T("b",null,u.name));b.appendChild(t);
@@ -5368,10 +5388,17 @@ function callChat(c,audio){
   S.calls=(S.calls||[]).concat([Object.assign({id:id},call)]);
   showRing({id:id,out:true,call:call,title:c.name});
   RING.timer=setTimeout(function(){
-    if(RING.cur&&RING.cur.id===id){db.doc("calls/"+id).update({state:"missed"}).catch(function(){});stopRing();sendPush("missed",to,id,audio);logCall(call,"📞 Missed "+(call.audio?"voice":"video")+" call");toast("No answer.");setTimeout(function(){db.doc("calls/"+id).delete().catch(function(){})},4000)}
+    if(RING.cur&&RING.cur.id===id){db.doc("calls/"+id).update({state:"missed"}).catch(function(){});stopRing();sendPush("missed",to,id,audio);logCall(call,"📞 Missed "+(call.audio?"voice":"video")+" call");permLog(Object.assign({id:id},call),"missed");toast("No answer.");setTimeout(function(){db.doc("calls/"+id).delete().catch(function(){})},4000)}
   },45000);
 }
 function sendPush(kind,to,id,audio){try{sb.auth.getSession().then(function(ss){var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)return;fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:kind,to:to,callId:id,audio:!!audio})}).catch(function(){})})}catch(e){}}
+function permLog(call,outcome,extra){
+  if(!db||!call)return;
+  var id=call.id||db.collection("calllog").doc().id;
+  var names=(call.to||[]).map(function(u){return memberName(u)}).filter(Boolean).join(", ");
+  var rec=Object.assign({by:call.by||myId,name:call.name||S.me||"",withNames:names||(call.chat&&call.chat!=="family"?"":"Family"),to:call.to||[],chat:call.chat||"family",audio:!!call.audio,ts:call.ts||Date.now(),outcome:outcome,logged:Date.now()},extra||{});
+  try{db.doc("calllog/"+id).set(rec).catch(function(){})}catch(e){}
+}
 function logCall(call,text){try{db.collection("messages").add({kind:"sys",text:text,ts:Date.now(),by:myId,chat:call.chat})}catch(e){}}
 function showRing(r){
   RING.cur=r;ringEl.hidden=false;ringEl.textContent="";
@@ -5385,7 +5412,7 @@ function showRing(r){
   var no=E("button","rno",ic("phone",30,1.8));no.type="button";no.setAttribute("aria-label",r.out?"Cancel":"Decline");
   no.onclick=function(){
     var id=r.id;stopRing();
-    if(r.out){sendPush("missed",r.call.to,id,r.call.audio);db.doc("calls/"+id).update({state:"cancelled"}).catch(function(){});logCall(r.call,"📞 Cancelled "+kind+" call");setTimeout(function(){db.doc("calls/"+id).delete().catch(function(){})},3000)}
+    if(r.out){sendPush("missed",r.call.to,id,r.call.audio);db.doc("calls/"+id).update({state:"cancelled"}).catch(function(){});logCall(r.call,"📞 Cancelled "+kind+" call");permLog(Object.assign({id:id},r.call),"cancelled");setTimeout(function(){db.doc("calls/"+id).delete().catch(function(){})},3000)}
     else{RING.handled[id]=1;db.doc("calls/"+id).update({state:"declined"}).catch(function(){})}
   };
   row.appendChild(no);
@@ -5400,13 +5427,14 @@ function showRing(r){
 }
 function stopRing(){clearTimeout(RING.timer);clearInterval(RING.iv);RING.cur=null;ringEl.hidden=true;ringEl.textContent=""}
 function joinCall(id,c,title,out){openCall({room:c.room,audio:c.audio,callId:id,title:title||"Call",chat:c.chat,calling:!!out})}
+window.hubFamilyCallLog=function(c){permLog({by:myId,name:S.me,audio:c.audio,ts:c.ts,chat:"family",to:[]},"started")};
 window.waCalls=function(){
   var list=S.calls||[],now=Date.now();
   if(RING.cur){
     var d=list.filter(function(x){return x.id===RING.cur.id})[0];
     if(RING.cur.out){
       if(d&&d.state==="active"){var r=RING.cur;stopRing();joinCall(r.id,d,r.title,true)}
-      else if(d&&d.state==="declined"){var r2=RING.cur;stopRing();logCall(r2.call,"📞 Declined "+(r2.call.audio?"voice":"video")+" call");toast("Declined.");setTimeout(function(){db.doc("calls/"+r2.id).delete().catch(function(){})},3000)}
+      else if(d&&d.state==="declined"){var r2=RING.cur;stopRing();logCall(r2.call,"📞 Declined "+(r2.call.audio?"voice":"video")+" call");permLog(Object.assign({id:r2.id},r2.call),"declined");toast("Declined.");setTimeout(function(){db.doc("calls/"+r2.id).delete().catch(function(){})},3000)}
     }else if(!d||(d.state!=="ringing"&&d.state!=="active")||now-d.ts>50000){stopRing()}
     return;
   }
@@ -5421,7 +5449,7 @@ window.hubCallEnd=function(cid){
   if(!c||c.by!==myId)return;
   var dur=c.at?Math.round((Date.now()-c.at)/1000):0;
   db.doc("calls/"+cid).update({state:"ended"}).catch(function(){});
-  if(dur>=3)logCall(c,"📞 "+(c.audio?"Voice":"Video")+" call · "+fmt(dur));
+  if(dur>=3){logCall(c,"📞 "+(c.audio?"Voice":"Video")+" call · "+fmt(dur));permLog(c,"completed",{dur:dur,at:c.at})}
   setTimeout(function(){db.doc("calls/"+cid).delete().catch(function(){})},4000);
 };
 
@@ -5442,7 +5470,7 @@ function close(){
   if(ST.chat)closeChat();
   WA.open=false;root.hidden=true;document.body.style.overflow="";
 }
-function go(tab){close();window.WA_BYPASS=true;try{showTab(tab)}finally{window.WA_BYPASS=false}}
+function go(tab){window.__callFrom=(tab==="call")?1:0;close();window.WA_BYPASS=true;try{showTab(tab)}finally{window.WA_BYPASS=false}}
 WA.chat=null;
 window.waOpen=function(tab){open(tab==="calls"?"calls":tab==="updates"?"updates":"chats")};
 window.waClose=close;
