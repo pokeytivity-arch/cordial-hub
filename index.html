@@ -1808,9 +1808,23 @@ function renderMeet(){
       srow.appendChild(ss);
     }
     l.appendChild(srow);
+    if(m.transcript&&canWrite&&m.id)db.doc("meetingnotes/"+m.id).update({transcript:null}).catch(function(){});
     if(m.summary)l.appendChild(h("div","pre",m.summary));
-    if(m.next_steps){l.appendChild(h("div","meta","Next steps")).style.marginTop="8px";l.appendChild(h("div","pre",m.next_steps))}
-    if(m.transcript){var d=h("details"),sm=h("summary",null,"Transcript");sm.style.cursor="pointer";sm.style.marginTop="8px";d.appendChild(sm);d.appendChild(h("div","pre",m.transcript));l.appendChild(d)}
+    function mlist(title,items,mark){if(!items||!items.length)return;var t=h("div","meta",title);t.style.cssText="margin-top:8px;font-weight:700";l.appendChild(t);items.forEach(function(x){l.appendChild(h("div","pre",mark+" "+x))})}
+    mlist("Key points",m.takeaways,"•");mlist("Agreed",m.agreed,"✅");
+    if(m.todos&&m.todos.length)mlist("To-do",m.todos.map(function(t){return t.task+(t.who?" — "+t.who:"")+(t.due?" (by "+t.due+")":"")}),"☐");
+    if(m.next_steps&&!(m.todos&&m.todos.length)){l.appendChild(h("div","meta","Next steps")).style.marginTop="8px";l.appendChild(h("div","pre",m.next_steps))}
+    if(m.shared)l.appendChild(h("div","meta","✅ Shared with both parents in the family chat")).style.marginTop="6px";
+    else if(canWrite&&(m.summary||m.takeaways)){var sh=h("button","quiet","Share in family chat");sh.type="button";sh.style.marginTop="6px";
+      sh.onclick=function(){
+        var L2=["📝 Meeting summary: "+(m.topic||"Meeting")+" ("+new Date(m.start||m.ts||Date.now()).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})+")",""];
+        if(m.summary)L2.push(m.summary,"");
+        var T=L2.join("\n");
+        if(m.takeaways&&m.takeaways.length)T+="\nKey points\n"+m.takeaways.map(function(x){return "• "+x}).join("\n")+"\n";
+        if(m.agreed&&m.agreed.length)T+="\nAgreed\n"+m.agreed.map(function(x){return "✅ "+x}).join("\n")+"\n";
+        if(m.todos&&m.todos.length)T+="\nTo-do\n"+m.todos.map(function(t){return "☐ "+t.task+(t.who?" — "+t.who:"")}).join("\n")+"\n";
+        db.collection("messages").add({kind:"text",text:T.slice(0,3800),ts:Date.now(),by:"cordial_ai"}).then(function(){return db.doc("meetingnotes/"+m.id).update({shared:Date.now()})}).then(function(){note("Shared in the family chat.");setTimeout(function(){note("")},1800)}).catch(fail)};
+      l.appendChild(sh)}
     r.appendChild(l);
     if(canWrite){var x=h("button","quiet","Delete");x.onclick=function(){if(confirm("Delete this meeting summary?"))db.doc("meetingnotes/"+m.id).delete().catch(fail)};r.appendChild(x)}
     L.appendChild(r);
