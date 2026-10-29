@@ -4321,7 +4321,7 @@ var BOT_HELP=[
 var botCache={key:"",list:[]},AIH=null,AIPEND=false;
 function aiLoad(){try{return JSON.parse(localStorage.getItem("hubAI_"+myId)||"[]")}catch(e){return []}}
 function aiSave(){try{localStorage.setItem("hubAI_"+myId,JSON.stringify(AIH.slice(-60).map(function(x){var o={};for(var k in x)if(k!=="img")o[k]=x[k];return o})))}catch(e){}}
-var AILAST=null;
+var AILAST=null,AITRIP=null;
 function ytOpen(vid){
   var old=document.getElementById("ytv");if(old)old.remove();
   var o=E("div");o.id="ytv";o.style.cssText="position:fixed;inset:0;z-index:260;background:#000;display:flex;flex-direction:column";
@@ -4364,6 +4364,9 @@ function aiActText(a){
   if(a.type==="request")return "📨 Post a request"+(a.to?" for "+a.to:"")+": “"+a.text+"”";
   if(a.type==="post")return "📝 Post on the timeline: “"+a.text+"”"+(a.image?" (with your photo)":"");
   if(a.type==="doc")return "📄 Save to Documents ("+a.cat+"): "+a.title;
+  if(a.type==="expense")return "💳 Add expense: "+a.desc+" · "+money(a.amount)+" · paid by "+nm(a.by||$("#xw").value||"a")+" · "+(a.date||key(new Date()));
+  if(a.type==="trip")return (a.kind==="Visit"?"🏠 Add visit: ":"✈️ Add trip: ")+a.title+(a.place?" · "+a.place:"")+" · "+tdate(a.start)+(a.end&&a.end!==a.start?" – "+tdate(a.end):"")+(a.who?" · with "+a.who:"");
+  if(a.type==="tripfile")return "📎 File under "+(a.trip||"the latest trip or visit")+" ("+a.cat+")"+(a.label?": "+a.label:"")+(a.amount?" · "+money(a.amount):"");
   return "";
 }
 async function aiRun(a){
@@ -4389,6 +4392,28 @@ async function aiRun(a){
     await db.collection("posts").add(p);
     return "Posted on the timeline.";
   }
+  if(a.type==="expense"){
+    await db.collection("expenses").add({desc:a.desc,amount:a.amount,by:a.by||$("#xw").value||"a",date:a.date||key(new Date())});
+    return "Expense added.";
+  }
+  if(a.type==="trip"){
+    var r0=await db.collection("documents").add({cat:"Trip",type:a.kind,title:a.title,place:a.place,who:a.who,start:a.start,end:a.end||"",notes:a.notes||"",by:myId||"",ts:Date.now()});
+    AITRIP={id:r0.id,title:a.title};
+    return (a.kind==="Visit"?"Visit":"Trip")+" added.";
+  }
+  if(a.type==="tripfile"){
+    if(!AILAST||!AILAST.file)throw new Error("nofile");
+    var trips=S.docs.filter(function(d){return d.cat==="Trip"}).sort(function(x,y){return (y.ts||0)-(x.ts||0)}),tr=null,q=(a.trip||"").toLowerCase();
+    if(q)tr=trips.filter(function(d){var t=(d.title||"").toLowerCase();return t.indexOf(q)>=0||q.indexOf(t)>=0})[0];
+    if(!tr&&AITRIP&&(!q||(AITRIP.title||"").toLowerCase().indexOf(q)>=0||q.indexOf((AITRIP.title||"").toLowerCase())>=0))tr={id:AITRIP.id};
+    if(!tr&&!q)tr=trips[0];
+    if(!tr)throw new Error("notrip");
+    var f2=AILAST.file,blob=f2,fname=f2.name,ft=f2.type||"application/octet-stream";
+    if(/^image\//.test(ft)){try{var sh=await shrinkBlob(f2);blob=sh.blob;ft="image/jpeg";fname=(f2.name||"photo").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
+    var pth=await upload("docs",blob,fname);
+    await db.collection("documents").add({cat:"TripFile",trip:tr.id,tcat:a.cat,title:a.label||fname,amount:a.amount||0,path:pth,name:fname,type:ft,size:blob.size||f2.size,by:myId||"",ts:Date.now()});
+    return "Filed under the trip.";
+  }
   if(a.type==="doc"){
     if(!AILAST||!AILAST.file)throw new Error("nofile");
     var f=AILAST.file,path=await upload("docs",f,f.name);
@@ -4402,7 +4427,7 @@ function aiAct(mi,ai,ok){
   function fin(st,txt){a.state=st;aiSave();botCache.key="";lastSig="";renderChat(true);if(txt)toast(txt)}
   if(!ok)return fin("no");
   a.state="busy";botCache.key="";lastSig="";renderChat(true);
-  aiRun(a).then(function(txt){fin("done",txt)},function(e){fin("pending",e&&e.message==="nofile"?"Attach the file again, then confirm.":"Couldn’t save that. You may not have permission, or check your connection.")});
+  aiRun(a).then(function(txt){fin("done",txt)},function(e){fin("pending",e&&e.message==="nofile"?"Attach the file again, then confirm.":e&&e.message==="notrip"?"I couldn’t find that trip. Add the trip first, then attach the file.":"Couldn’t save that. You may not have permission, or check your connection.")});
 }
 function aiPick(file,cb){
   if(!file)return;
