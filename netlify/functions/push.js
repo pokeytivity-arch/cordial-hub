@@ -65,7 +65,7 @@ exports.handler = async (event) => {
 
   let b = {};
   try { b = JSON.parse(event.body || "{}"); } catch {}
-  const kind = b.kind === "missed" ? "missed" : b.kind === "msg" ? "msg" : "call";
+  const kind = b.kind === "missed" ? "missed" : b.kind === "msg" ? "msg" : b.kind === "task" ? "task" : "call";
   const ids = (Array.isArray(b.to) ? b.to : []).map(String).filter((id) => id !== me.id && members.some((m) => m.user_id === id)).slice(0, 10);
   if (!ids.length) return out(200, { sent: 0 });
   const audio = !!b.audio;
@@ -73,7 +73,9 @@ exports.handler = async (event) => {
   const callId = String(b.callId || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60);
   const chat = String(b.chat || "family").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 80);
   const clip = (t, n) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
-  const payload = kind === "call"
+  const payload = kind === "task"
+    ? { kind: "task", title: clip(b.title, 80) || "Task update", body: clip(b.body, 160), tag: "task-" + String(b.tag || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40), url: "/?goto=meet" }
+    : kind === "call"
     ? { kind, title: sender.name || "Someone", body: `Incoming ${label} call`, tag: "call-" + callId, url: "/?ring=" + callId }
     : kind === "msg"
       ? { kind, title: clip(b.title, 80) || sender.name || "New message", body: clip(b.body, 160), tag: "chat-" + chat, url: "/?chat=" + chat }
