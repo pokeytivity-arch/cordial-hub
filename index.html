@@ -1194,6 +1194,14 @@ var pad=function(n){return String(n).padStart(2,"0")};
 var key=function(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
 function ownerM(){return (typeof MEMBERS!=="undefined"?MEMBERS:[]).filter(function(m){return m.is_owner})[0]||null}
 function mumM(){return (typeof MEMBERS!=="undefined"?MEMBERS:[]).filter(function(m){return m.grp==="parent"&&!m.is_owner})[0]||null}
+/* verified tick for the two parents: blue in the Facebook-style pages, green in the WhatsApp-style pages */
+window.vbadge=function(uid,wa){
+  var o=ownerM(),m=mumM();if(!uid||!((o&&uid===o.user_id)||(m&&uid===m.user_id)))return null;
+  var sp=document.createElement("span");sp.setAttribute("aria-label","Verified");sp.title="Verified";
+  sp.style.cssText="display:inline-flex;vertical-align:-3px;margin-left:4px;flex:none";
+  sp.innerHTML="<svg viewBox='0 0 24 24' width='"+(wa?16:17)+"' height='"+(wa?16:17)+"' aria-hidden='true'><path fill='"+(wa?"#1da851":"#1877f2")+"' d='M12 1.5l2.6 1.9 3.2-.1 1 3.1 2.6 1.9-1 3.1 1 3.1-2.6 1.9-1 3.1-3.2-.1L12 22.5l-2.6-1.9-3.2.1-1-3.1L2.6 15.7l1-3.1-1-3.1 2.6-1.9 1-3.1 3.2.1z'/><path fill='none' stroke='#fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' d='M8 12.3l2.8 2.8L16.3 9.5'/></svg>";
+  return sp;
+};
 window.roleTitle=function(uid){var o=ownerM(),m=mumM();return o&&uid===o.user_id?"Our Daddy":m&&uid===m.user_id?"Our Mummy":""};
 window.hubRoleColor=function(uid){var o=ownerM(),m=mumM();return o&&uid===o.user_id?"#2f7de1":m&&uid===m.user_id?"#2fa84f":null};
 var nm=function(w){return w==="a"?((ownerM()||{}).name||S.names.a):w==="b"?((mumM()||{}).name||S.names.b):"Other"};
@@ -2011,7 +2019,7 @@ function renderProf(force){
   av.onclick=function(){if(p.avatar)getMedia(p.avatar).then(function(d){if(d&&d.data)openViewer(d.data,nm0)})};
   var ab=h("button","pfcam sm","📷");ab.setAttribute("aria-label","Change profile photo");ab.onclick=function(e){e.stopPropagation();changeProfilePhoto("avatar")};
   var avw=h("div","pfavw");avw.appendChild(av);if(own)avw.appendChild(ab);box.appendChild(avw);
-  box.appendChild(h("div","pfname",nm0||"You"));
+  var pfn=h("div","pfname",nm0||"You"),vbp=vbadge(vid,false);if(vbp)pfn.appendChild(vbp);box.appendChild(pfn);
   var mm=own?MEMBER:MEMBERS.filter(function(x){return x.user_id===vid})[0];var g=(typeof GROUPS!=="undefined"&&mm)?(GROUPS.filter(function(x){return x[0]===mm.grp})[0]||[])[1]:"";
   box.appendChild(h("div","meta",(g||"Member")+(mm&&mm.is_owner?" · Owner":"")+" · "+myPosts.length+(myPosts.length===1?" post":" posts")));
   box.appendChild(h("div","pfbio",p.bio||(own?"Add a bio so everyone knows who you are.":"")));
@@ -3745,7 +3753,7 @@ function photoGrid(list,who,text){
 function buildPost(p,ps){
   var c=h("div","card post"),hd=h("div","phead"),who=pname(p.by,ps);
   hd.appendChild(avatarEl(p.by,"pav",who));
-  var hw=h("div");hw.style.flex="1";var wn=h("button","pwho linkish",who);wn.type="button";wn.onclick=function(){openProfile(p.by)};hw.appendChild(wn);hw.appendChild(h("div","meta",(p.pinned?"📌 Pinned to profile · ":"")+ago(p.ts)+(p.edited?" · Edited":"")));
+  var hw=h("div");hw.style.flex="1";var wn=h("button","pwho linkish",who);wn.type="button";wn.onclick=function(){openProfile(p.by)};var vb=vbadge(p.by,false);if(vb)wn.appendChild(vb);hw.appendChild(wn);hw.appendChild(h("div","meta",(p.pinned?"📌 Pinned to profile · ":"")+ago(p.ts)+(p.edited?" · Edited":"")));
   if(p.tags&&p.tags.length){wn.parentNode&&0;var tg=h("span","ptags"," — with "+p.tags.map(function(i){return i===myId?"you":memberName(i)}).join(", "));wn.appendChild(tg)}
   hd.appendChild(hw);
   var mb=h("button","pmore","•••");mb.setAttribute("aria-label","Post options");mb.onclick=function(){postMenu(p)};hd.appendChild(mb);
@@ -3758,7 +3766,7 @@ function buildPost(p,ps){
     var q=p.sh,sc=h("div","pshare");sc.style.cssText="border:1px solid var(--line);border-radius:12px;margin:8px 0;overflow:hidden";
     var sh0=h("div");sh0.style.cssText="display:flex;align-items:center;gap:10px;padding:10px 12px 4px";
     var sn=memberName(q.by);sh0.appendChild(avatarEl(q.by,"pav sm",sn));
-    var sw=h("div");sw.style.flex="1";var sb=h("button","pwho linkish",sn);sb.type="button";sb.onclick=function(){openProfile(q.by)};sw.appendChild(sb);sw.appendChild(h("div","meta",ago(q.ts)));sh0.appendChild(sw);sc.appendChild(sh0);
+    var sw=h("div");sw.style.flex="1";var sb=h("button","pwho linkish",sn);sb.type="button";sb.onclick=function(){openProfile(q.by)};var vbs=vbadge(q.by,false);if(vbs)sb.appendChild(vbs);sw.appendChild(sb);sw.appendChild(h("div","meta",ago(q.ts)));sh0.appendChild(sw);sc.appendChild(sh0);
     if(q.text){var stx=h("div","pbody",q.text);stx.style.padding="0 12px 8px";sc.appendChild(stx)}
     if(q.mid&&(q.more||[]).length)sc.appendChild(photoGrid([{mid:q.mid}].concat(q.more),sn,q.text));
     else if(q.mid){var x=q,im=h("img","pimg");im.alt="Photo";im.style.cssText="margin:0;border-radius:0";if(x.w>0&&x.h>0)im.style.aspectRatio=x.w+" / "+x.h;
@@ -3891,7 +3899,7 @@ function renderCS(toEnd){
         pb.appendChild(im);
       }
       var tx=h("div","cptx"),hd2=h("div");hd2.style.cssText="display:flex;gap:8px;align-items:baseline";
-      hd2.appendChild(h("b",null,who));hd2.appendChild(h("span","meta",ago(p.ts)));tx.appendChild(hd2);
+      var wbd=h("b",null,who),vb2=vbadge(p.by,false);if(vb2)wbd.appendChild(vb2);hd2.appendChild(wbd);hd2.appendChild(h("span","meta",ago(p.ts)));tx.appendChild(hd2);
       var ctd=h("div","t");linkFill(ctd,p.text||(p.mid?"Shared a photo":""));tx.appendChild(ctd);
       if((p.text||"").length>90){tx.appendChild(h("div","meta","Tap to read more"));tx.onclick=function(){tx.classList.toggle("open")};tx.style.cursor="pointer"}
       pb.appendChild(tx);
@@ -5957,7 +5965,7 @@ function rowEl(c,lp){
   Rr.appendChild(ab(ic("archive",26)+"<span>"+(isArch?"Unarchive":"Archive")+"</span>","#1fa855",function(){togArch(c.id)}));
   var row=E("div","wrow");row.appendChild(avatar(c));
   var bd=E("div","wbd"),l1=E("div","wl1"),l2=E("div","wl2");
-  if(c.type==="bot"){var bb=E("b");bb.appendChild(botName());l1.appendChild(bb)}else l1.appendChild(T("b",null,c.name));l1.appendChild(T("span",c.unread||c.mark?"un":"",wTime(c.ts)));
+  if(c.type==="bot"){var bb=E("b");bb.appendChild(botName());l1.appendChild(bb)}else{var cb=T("b",null,c.name);if(c.type==="dm"){var ou2=(c.members||[]).filter(function(x){return x!==myId})[0]||myId,vbl=vbadge(ou2,true);if(vbl)cb.appendChild(vbl)}l1.appendChild(cb)}l1.appendChild(T("span",c.unread||c.mark?"un":"",wTime(c.ts)));
   var last=c.last,tx=E("span","tx");
   if(last){
     var mine=last.by===myId;
@@ -6364,7 +6372,7 @@ function renderChat(force){
     var b=E("div","wb");
     var stkm=m.kind==="sticker",med=m.kind==="image";
     if(stkm)b.classList.add("stk");if(med)b.classList.add("media");
-    if(!me&&first&&c.type!=="dm"&&c.type!=="bot"){var nm=T("div","nm",mname(m.by));nm.style.color=colorOf(m.by);b.appendChild(nm)}
+    if(!me&&first&&c.type!=="dm"&&c.type!=="bot"){var nm=T("div","nm",mname(m.by));nm.style.color=colorOf(m.by);var vbw=vbadge(m.by,true);if(vbw)nm.appendChild(vbw);b.appendChild(nm)}
     if(m.rid){var q=E("div","wq");q.appendChild(T("b",null,m.rby===myId?"You":mname(m.rby)));q.appendChild(T("div",null,m.rtext||""));q.onclick=function(e){e.stopPropagation();jump(m.rid)};b.appendChild(q)}
     if(stkm)b.appendChild(T("div","st",m.emoji||"🙂"));
     else if(m.kind==="voice")b.appendChild(voiceEl(m));
@@ -6735,7 +6743,7 @@ function renderYou(){
   hero.appendChild(bub);
   var a=T("div","wav",inits(S.me));a.style.background=colorOf(myId);var p=PF(myId);if(p.avatar){a.textContent="";setBg(a,p.avatar)}
   a.onclick=function(){go("profile")};hero.appendChild(a);
-  var nm=E("div","yn");nm.appendChild(T("span",null,S.me||""));nm.insertAdjacentHTML("beforeend",ic("chevd",22,2.4)+"<i class='ydot'></i>");hero.appendChild(nm);
+  var nm=E("div","yn");var nsp=T("span",null,(S.me||"")+(roleTitle(myId)?" · "+roleTitle(myId):""));var vby=vbadge(myId,true);if(vby)nsp.appendChild(vby);nm.appendChild(nsp);nm.insertAdjacentHTML("beforeend",ic("chevd",22,2.4)+"<i class='ydot'></i>");hero.appendChild(nm);
   wrap.appendChild(hero);
   function grp(rows){
     var g=E("div","ygrp");
