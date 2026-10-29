@@ -3,7 +3,7 @@
 // The service key never goes in the web page. It lives only here, on the server.
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const GROUPS = ["parent", "guardian", "family", "lawyer"];
+const GROUPS = ["parent", "guardian", "family", "nanny", "lawyer", "mediator", "therapist", "gal"];
 
 const out = (code, body) => ({
   statusCode: code,

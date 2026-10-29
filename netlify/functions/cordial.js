@@ -21,7 +21,7 @@ Where things are: the hub has two looks (Account and settings > Interface). Soci
 Camera or microphone keeps asking on iPhone: Settings > Apps > Safari > Camera and Microphone set to Allow; in Safari tap "aA" > Website Settings > Allow both. Android Chrome: tap the lock icon by the address > Permissions > Allow.
 Be even-handed. Never take sides against the other parent, never help hide a child, harass, track or intimidate anyone. For legal questions, give general information and suggest a family lawyer or local family court services. For medical or mental-health worries, suggest a doctor or counsellor. If a child or anyone is in immediate danger, tell them to contact local emergency services right away.
 Stay strictly on co-parenting and using this hub: parenting, children's needs, schedules, hand-overs, expenses, school and health logistics, communication with the other parent, family support, and how the hub works. If asked about anything else (general knowledge, coding, homework, news, entertainment, politics, shopping, other businesses), reply in one or two kind sentences that you only help with co-parenting and the hub, and offer a co-parenting-related alternative. Do not answer the off-topic question even partly.
-You cannot see anyone's private messages or calendar. You CAN prepare actions with your tools when the person clearly asks: create_event (put an event on the shared calendar), create_expense (record an expense; read amounts from a receipt photo when attached), create_trip (add a trip or a visit), attach_to_trip (file the attached ticket, hotel booking, receipt or photo under a trip or visit), create_request (post a request to the other parent or a family member), create_post (a timeline post), save_document (file the document or photo they attached into Documents). The person always sees a Confirm button before anything is saved, so never say it is already done; say you have prepared it and ask them to tap Confirm. Only use a tool when asked; otherwise just answer. Resolve dates like "next Friday" from today's date (given below) and use YYYY-MM-DD. Ask a short question if the date, or what to write, is missing. Keep request and post text polite, neutral and in the person's own voice, without blame.
+You cannot see anyone's private messages or calendar. You CAN prepare actions with your tools when the person clearly asks: create_event (put an event on the shared calendar), create_expense (record an expense; read amounts from a receipt photo when attached), create_trip (add a trip or a visit), attach_to_trip (file the attached ticket, hotel booking, receipt or photo under a trip or visit), create_request (post a request to the other parent or a family member), create_post (a timeline post), save_document (file the document or photo they attached into Documents). Proof rule: never prepare create_expense, save_document or attach_to_trip unless the person has attached proof in this message (a receipt, invoice, ticket, booking or the document itself). If they ask for one of these without an attachment, do not use the tool; kindly ask them to attach the proof with the + button and say you will then prepare it. Check that amounts and dates you read from the proof really appear on it, and say if the proof is unclear. The person always sees a Confirm button before anything is saved, so never say it is already done; say you have prepared it and ask them to tap Confirm. Only use a tool when asked; otherwise just answer. Resolve dates like "next Friday" from today's date (given below) and use YYYY-MM-DD. Ask a short question if the date, or what to write, is missing. Keep request and post text polite, neutral and in the person's own voice, without blame.
 If a photo or PDF is attached, describe what is relevant to co-parenting (for example a school letter, receipt, medical note, schedule) and help with it. If the attachment is unrelated to co-parenting, say so kindly. If you don't know, say so.`;
 
 const TOOLS = [
@@ -89,6 +89,21 @@ exports.handler = async (event) => {
 
   let b = {};
   try { b = JSON.parse(event.body || "{}"); } catch {}
+  // Tone check: a quick review of one message before it is sent (does not use a daily question)
+  if (typeof b.tone === "string" && b.tone.trim()) {
+    try {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": AKEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({ model: MODEL, max_tokens: 300, system: "You review a message one separated parent is about to send to the other parent or family. Reply ONLY with JSON: {\"reason\":\"one short sentence on why it may sound heated, or empty\",\"rewrite\":\"a calmer version that keeps every fact, request and date, first person, no blame, no insults, similar length, same language\"}. If the message is already calm, return the same text as rewrite.", messages: [{ role: "user", content: b.tone.slice(0, 1200) }] }),
+      });
+      if (!r.ok) return out(502, { error: "ai_failed" });
+      const j = await r.json();
+      const txt = (j.content || []).filter((c) => c.type === "text").map((c) => c.text).join("");
+      let parsed = {}; try { parsed = JSON.parse((txt.match(/\{[\s\S]*\}/) || ["{}"])[0]); } catch {}
+      return out(200, { reason: String(parsed.reason || "").slice(0, 200), rewrite: String(parsed.rewrite || "").slice(0, 1500) });
+    } catch (e) { return out(502, { error: "ai_failed" }); }
+  }
   let msgs = (Array.isArray(b.messages) ? b.messages : [])
     .filter((x) => x && (x.role === "user" || x.role === "assistant") && typeof x.content === "string" && x.content.trim())
     .map((x) => ({ role: x.role, content: x.content.slice(0, 2000) }))
@@ -132,6 +147,12 @@ exports.handler = async (event) => {
     reply = (j.content || []).filter((c) => c.type === "text").map((c) => c.text).join("\n").trim();
     usage = j.usage || {};
     actions = (j.content || []).filter((c) => c.type === "tool_use").map((c, i) => cleanAction(c.name, i, c.input)).filter(Boolean).slice(0, 4);
+    const hasProof = !!(at && (at.data || at.name));
+    if (!hasProof) {
+      const dropped = actions.filter((a) => ["expense", "doc", "tripfile"].includes(a.type));
+      actions = actions.filter((a) => !["expense", "doc", "tripfile"].includes(a.type));
+      if (dropped.length) reply = (reply ? reply + "\n\n" : "") + "To add this I need proof first. Please attach the receipt, ticket or document with the + button and send it again.";
+    }
     if (!reply && actions.length) reply = "I’ve prepared this for you. Please check it and tap Confirm.";
   } catch (e) {
     return out(502, { error: "ai_failed", detail: String(e && e.message || e).slice(0, 120) });
