@@ -61,7 +61,28 @@ async function save(uuid, patch) {
   return r.ok;
 }
 
+async function markLast(ev, topic) {
+  try {
+    const h = { apikey: KEY, Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" };
+    await fetch(`${URL_}/rest/v1/docs?on_conflict=key`, {
+      method: "POST", headers: { ...h, Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ key: "profiles/cordial_zoomlast", collection: "profiles", id: "cordial_zoomlast", data: { ts: Date.now(), event: ev, topic } }),
+    });
+  } catch (e) {}
+}
+
 exports.handler = async (event) => {
+  if (event.httpMethod === "GET") {
+    // Connection check for the hub (shows only yes/no values and when Zoom last sent something)
+    let last = null;
+    if (URL_ && KEY) {
+      try {
+        const r = await fetch(`${URL_}/rest/v1/docs?key=eq.profiles%2Fcordial_zoomlast&select=data`, { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` } });
+        last = ((r.ok ? await r.json() : [])[0] || {}).data || null;
+      } catch (e) {}
+    }
+    return out(200, { configured: { webhook: !!SECRET, supabase: !!(URL_ && KEY), api: !!(ACC && CID && CSEC) }, last });
+  }
   if (event.httpMethod !== "POST") return out(405, { error: "post_only" });
   if (!SECRET || !URL_ || !KEY) return out(501, { error: "not_configured" });
   const raw = event.isBase64Encoded ? Buffer.from(event.body || "", "base64").toString("utf8") : event.body || "";
@@ -79,6 +100,7 @@ exports.handler = async (event) => {
   if (!okSig || Math.abs(Date.now() / 1000 - Number(ts)) > 600) return out(401, { error: "signature" });
 
   const o = (b.payload && b.payload.object) || {};
+  await markLast(b.event, o.meeting_topic || o.topic || "");
   const uuid = String(o.meeting_uuid || o.uuid || "");
   if (!uuid) return out(200, { ok: true, skipped: "no meeting" });
   const topic = o.meeting_topic || o.topic || "Zoom meeting";

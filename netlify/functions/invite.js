@@ -50,6 +50,21 @@ exports.handler = async (event) => {
   const name = String(b.name || "").trim().slice(0, 40);
   const data = { name, grp };
 
+  // Only one co-parent: the owner plus one more parent. Once both slots are used, nobody else can be a parent.
+  if (grp === "parent") {
+    const pr = await fetch(`${URL_}/rest/v1/members?grp=eq.parent&select=user_id`, { headers: admin });
+    const parents = pr.ok ? await pr.json() : [];
+    if (parents.length >= 2) {
+      let already = false;
+      if (b.action === "link") {
+        const er = await fetch(`${URL_}/rest/v1/member_private?email=eq.${encodeURIComponent(email)}&select=user_id`, { headers: admin });
+        const eu = er.ok ? await er.json() : [];
+        already = eu.some((x) => parents.some((p) => p.user_id === x.user_id));
+      }
+      if (!already) return out(409, { error: "slot", message: "The co-parent slot is already used. Only one co-parent can be in the hub." });
+    }
+  }
+
   if (b.action === "invite") {
     const r = await fetch(`${URL_}/auth/v1/invite${redirect ? `?redirect_to=${encodeURIComponent(redirect)}` : ""}`, {
       method: "POST", headers: admin, body: JSON.stringify({ email, data }),
