@@ -774,6 +774,7 @@ main{max-width:100%}
 </section>
 
 <section id="p-feed" hidden>
+  <div id="stories" hidden></div>
   <div class="fh2"><h2>All posts</h2><button class="flink" id="ffilt" type="button">Filters</button></div>
   <div id="ffmenu" class="prtabs" hidden></div>
   <button class="fbar" id="fbar" type="button"><span class="fbav" id="fbav"></span><span class="fbtx">What’s on your mind?</span><span class="fbim" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26"><rect x="3" y="3" width="18" height="18" rx="3.5" fill="currentColor"/><circle cx="9" cy="9" r="2" fill="#fff"/><path d="M4 18l5-5 3 3 3-4 5 6z" fill="#fff"/></svg></span></button>
@@ -3140,8 +3141,95 @@ function nsppdEl(){
   el.appendChild(row);
   return el;
 }
+
+/* stories: a person's photos from the last 7 days */
+var STORY_MS=7*24*3600*1000,STV=null;
+function storyItems(uid){
+  var now=Date.now(),out=[];
+  (S.posts||[]).forEach(function(p){
+    if(p.by!==uid||!p.mid||now-(p.ts||0)>STORY_MS||p.sh)return;
+    out.push({mid:p.mid,ts:p.ts,text:p.text||""});
+    (p.more||[]).forEach(function(q){out.push({mid:q.mid,ts:p.ts,text:p.text||""})});
+  });
+  return out.sort(function(a,b){return a.ts-b.ts});
+}
+function storyUsers(first){
+  var seen={},us=[];
+  (S.posts||[]).forEach(function(p){if(p.by&&p.mid&&!seen[p.by]){seen[p.by]=1;if(storyItems(p.by).length)us.push(p.by)}});
+  us.sort(function(a,b){var x=storyItems(a),y=storyItems(b);return y[y.length-1].ts-x[x.length-1].ts});
+  if(first&&us.indexOf(first)>0){us.splice(us.indexOf(first),1);us.unshift(first)}
+  return us;
+}
+window.hubStoryHas=function(uid){try{return !!uid&&storyItems(uid).length>0}catch(e){return false}};
+window.hubStoryOpen=function(uid){openStory(uid)};
+function closeStory(){if(STV){clearTimeout(STV.t);STV.el.remove();STV=null}}
+function openStory(uid){
+  closeStory();
+  var users=storyUsers(uid);if(!users.length)return;
+  var o=document.createElement("div");o.style.cssText="position:fixed;inset:0;z-index:10000;background:#000;color:#fff;display:flex;flex-direction:column;user-select:none;-webkit-user-select:none";
+  var bars=document.createElement("div");bars.style.cssText="display:flex;gap:4px;padding:calc(10px + env(safe-area-inset-top,0px)) 10px 6px";
+  var hd=document.createElement("div");hd.style.cssText="display:flex;align-items:center;gap:10px;padding:4px 12px 8px";
+  var stage=document.createElement("div");stage.style.cssText="flex:1;position:relative;display:flex;align-items:center;justify-content:center;min-height:0";
+  var img=document.createElement("img");img.alt="Story";img.style.cssText="max-width:100%;max-height:100%;object-fit:contain";stage.appendChild(img);
+  var cap=document.createElement("div");cap.style.cssText="padding:12px 18px calc(18px + env(safe-area-inset-bottom,0px));font-size:1rem;text-align:center;min-height:20px;background:linear-gradient(transparent,rgba(0,0,0,.6))";
+  var L=document.createElement("div"),R=document.createElement("div");L.style.cssText="position:absolute;left:0;top:0;bottom:0;width:35%";R.style.cssText="position:absolute;right:0;top:0;bottom:0;width:65%";stage.appendChild(L);stage.appendChild(R);
+  o.appendChild(bars);o.appendChild(hd);o.appendChild(stage);o.appendChild(cap);document.body.appendChild(o);
+  STV={el:o,t:null,ui:0,ii:0};
+  function show(){
+    clearTimeout(STV.t);
+    var u=users[STV.ui],items=storyItems(u);
+    if(!items.length){return next(true)}
+    if(STV.ii>=items.length)STV.ii=items.length-1;
+    var it=items[STV.ii];
+    bars.textContent="";
+    items.forEach(function(x,i){var b=document.createElement("div");b.style.cssText="flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.35);overflow:hidden";var f=document.createElement("i");f.style.cssText="display:block;height:100%;background:#fff;width:"+(i<STV.ii?"100%":"0");b.appendChild(f);bars.appendChild(b);if(i===STV.ii){setTimeout(function(){f.style.transition="width 5s linear";f.style.width="100%"},30)}});
+    hd.textContent="";
+    var av=document.createElement("span");av.style.cssText="width:36px;height:36px;border-radius:50%;background:#25d366;display:flex;align-items:center;justify-content:center;font-weight:700;background-size:cover;background-position:center;flex:none";av.textContent=(memberName(u)||"?").charAt(0).toUpperCase();var pa=PF(u).avatar;if(pa){av.textContent="";setBg(av,pa)}
+    var nm=document.createElement("div");nm.style.cssText="flex:1;min-width:0";var n1=document.createElement("b");n1.textContent=u===myId?"Your story":memberName(u);nm.appendChild(n1);var n2=document.createElement("div");n2.style.cssText="font-size:.8rem;opacity:.8";n2.textContent=ago(it.ts);nm.appendChild(n2);
+    var x=document.createElement("button");x.type="button";x.textContent="✕";x.setAttribute("aria-label","Close");x.style.cssText="border:0;background:none;color:#fff;font-size:1.5rem;padding:4px 8px;cursor:pointer";x.onclick=closeStory;
+    hd.appendChild(av);hd.appendChild(nm);hd.appendChild(x);
+    cap.textContent=it.text||"";img.removeAttribute("src");
+    getMedia(it.mid).then(function(d){if(STV&&d&&d.data)img.src=d.data}).catch(function(){});
+    STV.t=setTimeout(function(){next()},5000);
+  }
+  function next(skip){
+    var items=storyItems(users[STV.ui]);
+    if(!skip&&STV.ii<items.length-1){STV.ii++;return show()}
+    if(STV.ui<users.length-1){STV.ui++;STV.ii=0;return show()}
+    closeStory();
+  }
+  function prev(){
+    if(STV.ii>0){STV.ii--;return show()}
+    if(STV.ui>0){STV.ui--;STV.ii=Math.max(0,storyItems(users[STV.ui]).length-1);return show()}
+    show();
+  }
+  R.onclick=function(){next()};L.onclick=prev;
+  show();
+}
+function renderStories(){
+  var el=$("#stories");if(!el)return;
+  var us=storyUsers();
+  if(!us.length&&!canWrite){el.hidden=true;return}
+  var sg=JSON.stringify([us.map(function(u){var it=storyItems(u);return [u,it.length,it[it.length-1].mid]}),canWrite]);
+  if(sg===el._sg)return;el._sg=sg;
+  el.textContent="";el.hidden=false;
+  el.style.cssText="display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:none";
+  function card(bgMid,name,onclick,plus,mineAv){
+    var c=document.createElement("button");c.type="button";c.style.cssText="flex:none;width:104px;height:170px;border:0;border-radius:14px;position:relative;overflow:hidden;background:#3a3b3c center/cover no-repeat;color:#fff;cursor:pointer;font:inherit;text-align:left;padding:0";
+    if(bgMid)setBg(c,bgMid);
+    var sh=document.createElement("div");sh.style.cssText="position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,.25),transparent 40%,rgba(0,0,0,.65))";c.appendChild(sh);
+    var ring=document.createElement("span");ring.style.cssText="position:absolute;top:8px;left:8px;width:36px;height:36px;border-radius:50%;border:3px solid "+(plus?"#fff":"#1877f2")+";background:#fff;color:#1877f2;font-weight:700;font-size:1.3rem;display:flex;align-items:center;justify-content:center;background-size:cover;background-position:center;overflow:hidden";
+    if(plus)ring.textContent="+";else{ring.textContent="";}
+    if(mineAv!=null){ring.textContent=(memberName(mineAv)||"?").charAt(0).toUpperCase();var pa=PF(mineAv).avatar;if(pa){ring.textContent="";setBg(ring,pa)}}
+    c.appendChild(ring);
+    var t=document.createElement("div");t.style.cssText="position:absolute;left:8px;right:8px;bottom:8px;font-weight:700;font-size:.9rem;line-height:1.15;text-shadow:0 1px 3px rgba(0,0,0,.6);overflow:hidden;text-overflow:ellipsis";t.textContent=name;c.appendChild(t);
+    c.onclick=onclick;el.appendChild(c);
+  }
+  if(canWrite)card(null,"Add to story",function(){openComposer();setTimeout(function(){var f=document.getElementById("ffile");if(f)f.click()},150)},true);
+  us.forEach(function(u){var it=storyItems(u);card(it[it.length-1].mid,u===myId?"Your story":memberName(u),function(){openStory(u)},false,u)});
+}
 function renderFeed(){
-  syncBar();
+  syncBar();safe(renderStories)();
   renderFeedInto($("#fl"),feedFilter(S.posts.filter(function(p){return FFILT==="pinned"||!p.pinned}).sort(function(a,b){return (b.ts||0)-(a.ts||0)})),"No posts yet. Share an update, a photo, or a reminder with everyone.",true);
   var prl=$("#prl");if(prl)renderFeedInto(prl,pinFirst(S.posts).filter(function(p){return p.by&&p.by===(VIEW||myId)}),"You haven’t posted yet.",false);
   if(CS.post)renderCS(false);
@@ -4185,6 +4273,7 @@ function avatar(c,cls){
     var o=c.members.filter(function(x){return x!==myId})[0]||myId,p=PF(o);
     a.style.background=colorOf(o);a.textContent=inits(mname(o));
     if(p.avatar){a.textContent="";setBg(a,p.avatar)}
+    if(cls!=="xs"&&window.hubStoryHas&&hubStoryHas(o)){a.style.boxShadow="0 0 0 2px var(--wbg,#fff),0 0 0 4px #25d366";a.style.cursor="pointer";a.onclick=function(e){e.stopPropagation();hubStoryOpen(o)}}
     return a;
   }
   a.style.background=colorOf(c.id);a.innerHTML=ic("grp",cls==="sm"||cls==="xs"?18:30,1.7);return a;
@@ -4613,9 +4702,11 @@ function info(c){
     cl.onclick=function(){if(!confirm("Clear your questions and answers with Cordial on this device?"))return;AIH=[];aiSave();lastSig="";botCache.key="";renderChat(true)};B.appendChild(cl)});return}
   page(c.type==="group"?"Group info":c.type==="family"?"Family chat":"Contact info",function(B,hd,pg){
     var top=E("div");top.style.cssText="text-align:center;padding:14px 14px 6px";
-    var ring=E("div");ring.style.cssText="width:132px;height:132px;border-radius:50%;border:4px solid #25d366;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;box-sizing:border-box";
+    var sUid=c.type==="dm"?c.members.filter(function(x){return x!==myId})[0]:null,hasSt=!!(sUid&&window.hubStoryHas&&hubStoryHas(sUid));
+    var ring=E("div");ring.style.cssText="width:132px;height:132px;border-radius:50%;border:4px solid "+(hasSt?"#25d366":"transparent")+";margin:0 auto 12px;display:flex;align-items:center;justify-content:center;box-sizing:border-box"+(hasSt?";cursor:pointer":"");
+    if(hasSt)ring.onclick=function(){hubStoryOpen(sUid)};
     var a=avatar(c);a.style.cssText="width:116px;height:116px;font-size:2.8rem;display:flex;align-items:center;justify-content:center;border-radius:50%;background-size:cover;background-position:center;"+(a.style.background?"background:"+a.style.background+";":"");
-    ring.appendChild(a);top.appendChild(ring);
+    a.style.boxShadow="none";a.onclick=null;ring.appendChild(a);top.appendChild(ring);
     var n=T("div",null,c.name);n.style.cssText="font-size:1.6rem;font-weight:700";top.appendChild(n);
     var sub="";
     if(c.type==="dm"){var ou=c.members.filter(function(x){return x!==myId})[0],mu=MEMBERS.filter(function(x){return x.user_id===ou})[0];sub=mu?(mu.is_owner?"Hub owner":(mu.grp||"Member")):"Member"}
@@ -4697,13 +4788,40 @@ function chatMedia(c,imgs,docs,links){
   });
 }
 function chatExport(c){
-  var ms=msgsOf(c.id).filter(function(m){return m.kind!=="sys"});
+  var ms=msgsOf(c.id);
   if(!ms.length)return toast("There are no messages to export yet.");
-  var rows=ms.map(function(m){var t=m.kind==="image"?"[Photo]":m.kind==="voice"?"[Voice note]":m.kind==="file"?"[File] "+(m.name||""):m.kind==="reminder"?"Reminder: "+(m.title||""):m.kind==="location"?"[Location] "+(m.place||""):m.kind==="contact"?"[Contact] "+(m.cname||""):(m.text||"");return "<tr><td>"+rpEsc(new Date(m.ts).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}))+"</td><td>"+rpEsc(mname(m.by).replace(/^You$/,S.me||"You"))+"</td><td>"+rpEsc(t+(m.edited?" (edited)":""))+"</td></tr>"}).join("");
+  function dlong(ts){return new Date(ts).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
+  function dshort(ts){return new Date(ts).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}
+  function tsec(ts){return new Date(ts).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",second:"2-digit"})}
+  function who(id){return mname(id).replace(/^You$/,S.me||"You")}
+  var COLS=["#b3261e","#1a73e8","#0b7a4b","#a24fb5","#c25e00","#00838f","#6d4c41","#3949ab"];
+  function colr(id){var n=0;String(id).split("").forEach(function(ch){n+=ch.charCodeAt(0)});return COLS[n%COLS.length]}
+  function body(m){
+    var k=m.kind||"text";
+    if(k==="image")return "<i>📷 Photo (not included)</i>";
+    if(k==="voice")return "<i>🎤 Voice note"+(m.dur?" ("+Math.round(m.dur)+" sec)":"")+" (not included)</i>";
+    if(k==="file")return "<i>📄 "+rpEsc(m.name||"Document")+" (file not included)</i>";
+    if(k==="sticker")return "<span style='font-size:34px'>"+rpEsc(m.emoji||"🙂")+"</span>";
+    if(k==="location")return "<i>📍 "+rpEsc(m.place||"Shared location")+"</i>";
+    if(k==="contact")return "<i>👤 Contact: "+rpEsc(m.cname||"")+"</i>";
+    if(k==="reminder")return "<b>⏰ Reminder: "+rpEsc(m.title||"")+"</b>"+(isFinite(m.when)?"<br><small>"+rpEsc(new Date(m.when).toLocaleString("en-GB",{dateStyle:"medium",timeStyle:"short"}))+"</small>":"");
+    if(k==="announce")return "<b>📢 Announcement</b><br>"+rpEsc(m.text||"");
+    return rpEsc(m.text||"").replace(/\n/g,"<br>");
+  }
+  var out=[],lastDay="",lastBy="";
+  ms.forEach(function(m){
+    var day=new Date(m.ts).toDateString();
+    if(day!==lastDay){out.push("<div class='day'><span>"+rpEsc(dlong(m.ts))+"</span></div>");lastDay=day;lastBy=""}
+    if(m.kind==="sys"){out.push("<div class='sys'><span>"+rpEsc(m.text||"")+" · "+rpEsc(tsec(m.ts))+"</span></div>");lastBy="";return}
+    var mine=m.by===myId,rep="";
+    if(m.rid)rep="<div class='q'><b>"+rpEsc(who(m.rby||""))+"</b><br>"+rpEsc(String(m.rtext||"").slice(0,160))+"</div>";
+    out.push("<div class='row "+(mine?"me":"them")+"'><div class='b'><div class='nm' style='color:"+colr(m.by)+"'>"+rpEsc(who(m.by))+"</div>"+rep+"<div class='tx'>"+body(m)+"</div><div class='tm'>"+(m.edited?"Edited · ":"")+rpEsc(tsec(m.ts))+"</div></div></div>");
+    lastBy=m.by;
+  });
   var gen=new Date().toLocaleString("en-GB",{day:"2-digit",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"});
-  var css="body{font:14px/1.45 Georgia,'Times New Roman',serif;color:#111;margin:0;padding:24px;max-width:820px;margin:auto}h1{font-size:22px;margin:0 0 4px}table{border-collapse:collapse;width:100%;font-size:12.5px}th,td{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top;white-space:pre-wrap;word-break:break-word}th{background:#eee}tr{page-break-inside:avoid}.meta{font-size:12.5px;color:#333}.box{border:1px solid #999;padding:8px 10px;margin:10px 0;font-size:12px;background:#fafafa}@media print{body{padding:0}}";
-  var names=c.members.map(function(id){return mname(id).replace(/^You$/,S.me||"You")}).join(", ");
-  var html="<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Chat record</title><style>"+css+"</style></head><body><h1>Chat record: "+rpEsc(c.name)+"</h1><div class='meta'>Participants: "+rpEsc(names)+"<br>Messages: "+ms.length+" · From "+rpEsc(new Date(ms[0].ts).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}))+" to "+rpEsc(new Date(ms[ms.length-1].ts).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}))+"<br>Exported by: "+rpEsc(S.me||"A hub member")+" on "+rpEsc(gen)+"</div><div class='box'>Messages are shown as saved by the Cordial Co-Parenting hub, with the time each was sent. Photos, voice notes and files are listed but their content is not included. This is not legal advice.</div><table><thead><tr><th>Date and time</th><th>From</th><th>Message</th></tr></thead><tbody>"+rows+"</tbody></table></body></html>";
+  var css="*{box-sizing:border-box}html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0;background:#efeae2;color:#111b21;font:14.5px/1.35 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif}.wrap{max-width:640px;margin:auto;padding:14px 12px 30px}.hd{background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 1px rgba(0,0,0,.12)}.hd h1{font-size:19px;margin:0 0 4px}.hd .m{font-size:12.5px;color:#54656f}.notice{background:#fff3c4;border-radius:10px;padding:8px 12px;font-size:12px;text-align:center;color:#54656f;margin:10px 0}.day{text-align:center;margin:14px 0 8px}.day span{background:#fff;color:#54656f;font-size:12px;padding:4px 12px;border-radius:8px;box-shadow:0 1px 1px rgba(0,0,0,.12)}.sys{text-align:center;margin:6px 0}.sys span{background:#fff3c4;color:#54656f;font-size:12px;padding:4px 10px;border-radius:8px;display:inline-block}.row{display:flex;margin:3px 0;page-break-inside:avoid;break-inside:avoid}.row.me{justify-content:flex-end}.b{max-width:82%;padding:5px 8px 4px;border-radius:9px;box-shadow:0 1px 1px rgba(0,0,0,.14);word-break:break-word}.them .b{background:#fff;border-top-left-radius:2px}.me .b{background:#d9fdd3;border-top-right-radius:2px}.nm{font-size:12px;font-weight:700;margin-bottom:1px}.q{border-left:4px solid #06cf9c;background:rgba(0,0,0,.06);border-radius:6px;padding:4px 8px;margin:2px 0 4px;font-size:12.5px;color:#54656f}.tx{white-space:pre-wrap}.tm{text-align:right;font-size:11px;color:#667781;margin-top:1px;margin-left:24px}@media print{body{background:#efeae2}.wrap{max-width:none;padding:0}}";
+  var names=c.members.map(who).join(", ");
+  var html="<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Chat record</title><style>"+css+"</style></head><body><div class='wrap'><div class='hd'><h1>"+rpEsc(c.name)+"</h1><div class='m'>Participants: "+rpEsc(names)+"<br>Messages: "+ms.length+" · "+rpEsc(dshort(ms[0].ts))+" to "+rpEsc(dshort(ms[ms.length-1].ts))+"<br>Exported by "+rpEsc(S.me||"a hub member")+" on "+rpEsc(gen)+"</div></div><div class='notice'>Messages are shown as saved by the Cordial Co-Parenting hub, with the time each was sent. Photos, voice notes and files are listed but their content is not included. This is not legal advice.</div>"+out.join("")+"</div></body></html>";
   rpShow(html,"chat-"+String(c.name).replace(/[^\w]+/g,"-").toLowerCase()+"-"+new Date().toISOString().slice(0,10)+".html");
 }
 
