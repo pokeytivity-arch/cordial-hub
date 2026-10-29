@@ -17,7 +17,8 @@
 <meta name="apple-mobile-web-app-title" content="Cordial Co-Parenting App">
 <meta name="application-name" content="Cordial Co-Parenting App">
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;700&display=swap" rel="stylesheet">
-<style>
+<style>html,body{overscroll-behavior-y:none}
+
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
 --bg:#f2f5f8;--surface:#fff;--ink:#1c2631;--muted:#59687a;--line:#d6dee7;--a:#3a6fb5;--a-bg:#d9e7f8;--b:#27876a;--b-bg:#d6eee4;--x:#8a6a14;--x-bg:#f3ead0;--btn:#1c2631;--btn-ink:#fff}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10171e;--surface:#18222c;--ink:#e8eef4;--muted:#9aaabb;--line:#2c3947;--a:#7fb0ee;--a-bg:#1f3550;--b:#6fd0ae;--b-bg:#1b3d31;--x:#e6c872;--x-bg:#3e3416;--btn:#e8eef4;--btn-ink:#10171e}}
@@ -729,6 +730,7 @@ main{max-width:100%}
     <div class="arow"><span>Face ID lock</span><button id="fidon" class="go sm" type="button" hidden>Turn on</button></div>
     <p class="meta" id="fidsts" style="margin:0 0 6px" hidden></p>
     <div class="arow"><span>Sound for messages and alerts</span><button id="sndbtn" class="go sm" type="button">On</button></div>
+    <div class="arow"><span>Tone check<br><small class="meta" id="tonelbl"></small></span><input id="tonesl" type="range" min="0" max="10" step="1" style="width:46%" aria-label="Tone check sensitivity"></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
@@ -1581,9 +1583,55 @@ function post(extra){
   if(rp){msg.rid=rp.id;msg.rtext=rp.text;msg.rby=rp.by||""}
   return db.collection("messages").add(msg).then(function(){try{if(window.hubNotifyMsg)hubNotifyMsg(msg)}catch(e){}if(inWA){if(WA.setReply)WA.setReply(null)}else setReply(null);note("")});
 }
+/* ---------- tone check ---------- */
+function toneSens(){try{var v=localStorage.getItem("hubTone");return v==null?5:Math.max(0,Math.min(10,parseInt(v,10)||0))}catch(e){return 5}}
+var TONEW=[
+ [/\b(stupid|idiot|moron|useless|worthless|pathetic|disgusting|trash|loser|dumb|crazy|psycho|liar)\b/i,4,"name-calling"],
+ [/\b(shut up|piss off|screw you|go to hell|f+u+c+k|bitch|bastard|asshole|damn you)\b/i,5,"harsh language"],
+ [/\b(i hate you|hate you|sick of you|fed up|can't stand you|cannot stand you)\b/i,4,"strong anger"],
+ [/\b(you never|you always|you'?re always|you'?re never|every single time)\b/i,2,"blaming words like “always” or “never”"],
+ [/\b(your fault|you ruined|you caused|blame you|because of you)\b/i,3,"blame"],
+ [/\b(you'?ll regret|i will make sure|you will pay|see you in court|take (the )?(kids|children|him|her) away|never see (the )?(kids|children|them) again|i'?ll take you)\b/i,5,"a threat"],
+ [/\b(whatever|i don'?t care|do what you want|not my problem|so what)\b/i,1,"a dismissive tone"],
+ [/\b(bad (mother|father|parent)|terrible (mother|father|parent)|unfit)\b/i,4,"an attack on parenting"]
+];
+function toneScore(t){
+  var sc=0,why=[];t=String(t||"");
+  TONEW.forEach(function(w){if(w[0].test(t)){sc+=w[1];why.push(w[2])}});
+  var letters=t.replace(/[^A-Za-z]/g,"");
+  if(letters.length>=12&&t.replace(/[^A-Z]/g,"").length/letters.length>.6){sc+=2;why.push("ALL CAPS")}
+  if(/[!?]{3,}/.test(t)){sc+=1;why.push("lots of ! or ?")}
+  else if((t.match(/!/g)||[]).length>=3){sc+=1;why.push("lots of !")}
+  return {score:Math.min(10,sc),why:why};
+}
+function toneGate(text,send){
+  var sens=toneSens();
+  if(!sens||!text){send(text);return}
+  var r=toneScore(text);
+  if(!r.score||r.score<11-sens){send(text);return}
+  var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;padding:12px";
+  var box=h("div");box.style.cssText="background:var(--surface,#fff);color:var(--ink,#111);border-radius:18px;max-width:480px;width:100%;padding:18px;max-height:85vh;overflow:auto;font:inherit";
+  box.appendChild(h("h3",null,"🕊 Take a moment"));box.firstChild.style.margin="0 0 6px";
+  var why=h("p",null,"This message may come across as heated"+(r.why.length?" ("+r.why.slice(0,3).join(", ")+")":"")+". Messages can’t be edited after sending and may be seen by a court.");why.style.cssText="margin:0 0 10px";box.appendChild(why);
+  var sug=h("div");sug.style.cssText="background:rgba(127,127,127,.12);border-radius:12px;padding:10px;margin-bottom:12px;display:none;white-space:pre-wrap";box.appendChild(sug);
+  var wait=h("p","meta","Cordial is thinking of a calmer way to say it…");box.appendChild(wait);
+  function btn(label,cls,fn){var b=h("button",cls,label);b.type="button";b.style.cssText="display:block;width:100%;margin-top:8px;padding:12px;font:inherit;font-weight:600";b.onclick=function(){ov.remove();fn()};box.appendChild(b);return b}
+  var useB=null,rewrite="";
+  function showUse(){if(useB||!rewrite)return;useB=btn("Use Cordial’s suggestion","go",function(){send(rewrite)});box.insertBefore(useB,wait)}
+  btn("Edit my message","quiet",function(){});
+  btn("Send anyway","quiet",function(){send(text)});
+  ov.appendChild(box);document.body.appendChild(ov);
+  try{
+    sb.auth.getSession().then(function(ss){var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)throw 0;
+      var ctl=new AbortController(),to=setTimeout(function(){ctl.abort()},9000);
+      return fetch("/api/cordial",{method:"POST",signal:ctl.signal,headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({tone:text})}).then(function(x){clearTimeout(to);return x.json()})})
+    .then(function(j){wait.remove();if(j&&j.rewrite){rewrite=String(j.rewrite);sug.textContent="Cordial suggests:\n\n“"+rewrite+"”";sug.style.display="block";if(j.reason)why.textContent=j.reason+" Messages can’t be edited after sending.";showUse()}})
+    .catch(function(){wait.remove()});
+  }catch(e){wait.remove()}
+}
 $("#msend").onclick=function(){
   var t=$("#mt").value.trim();if(!db||!t)return;
-  post({text:t}).then(function(){$("#mt").value="";$("#mt").style.height=""},fail)};
+  toneGate(t,function(v){post({text:v}).then(function(){$("#mt").value="";$("#mt").style.height=""},fail)})};
 $("#mt").addEventListener("input",function(){this.style.height="auto";this.style.height=Math.min(this.scrollHeight,120)+"px"});
 $("#mt").addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey&&window.matchMedia("(pointer:fine)").matches){e.preventDefault();$("#msend").click()}});
 function renderMsgs(){
@@ -1668,7 +1716,7 @@ function gesture(row,m,col){
 
 /* people */
 S.people=[];
-var PCATS=[["Parent","Parents"],["Guardian","Guardians"],["Family member","Family members"],["Lawyer","Lawyers"]];
+var PCATS=[["Parent","Parents"],["Guardian","Guardians"],["Family member","Family members"],["Nanny","Nannies"],["Lawyer","Lawyers"],["Mediator","Mediators"],["Counsellor or therapist","Counsellors and therapists"],["Guardian ad litem / social worker","Guardians ad litem and social workers"]];
 PCATS.forEach(function(c){var o=h("option",null,c[0]);o.value=c[0];$("#pc").appendChild(o)});
 $("#padd").onclick=function(){
   var n=$("#pn").value.trim();if(!db||!n)return note("Add the person’s name first.");
@@ -2223,7 +2271,6 @@ function openPick(m,row){
   EMOJI.forEach(function(e0){var e=tone(e0);var b=h("button",null,e);b.setAttribute("aria-label","React "+e);b.onclick=function(){closePick();toggleReact(m.id,e)};r1.appendChild(b)});
   var r2=h("div","prow");
   var rp=h("button","pt","Reply");rp.onclick=function(){closePick();setReply(m)};r2.appendChild(rp);
-  if(m.by===myId&&(!m.kind||m.kind==="text")&&Date.now()-m.ts<3600000){var ed=h("button","pt","Edit");ed.onclick=function(){closePick();var t=prompt("Edit your message (allowed for 1 hour)",m.text||"");if(t===null||!t.trim()||t.trim()===m.text)return;if(Date.now()-m.ts>=3600000)return note("Messages can only be edited within 1 hour.");db.doc("messages/"+m.id).update({text:t.trim(),edited:Date.now()}).catch(fail)};r2.appendChild(ed)}
   var ct=copyText(m);
   if(ct){var cp=h("button","pt","Copy");cp.onclick=function(){closePick();if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(ct).catch(function(){note("Couldn’t copy. Select the text instead.")})};r2.appendChild(cp)}
   if(pinned(m.id)){var up=h("button","pt","Unpin");up.onclick=function(){closePick();unpin(m.id)};r2.appendChild(up)}
@@ -3331,7 +3378,7 @@ renderAll();
 /* ---------- Supabase connection, sign-in and access control ---------- */
 var CFG=window.HUB_CONFIG||{};
 var sb=null,MEMBERS=[],EMAILS={},PERMROWS=[],MEMBER=null,OPENG=null,SIGSIG="";
-var GROUPS=[["parent","Parent","Parents"],["guardian","Guardian","Guardians"],["family","Family member","Family members"],["lawyer","Lawyer","Lawyers"]];
+var GROUPS=[["parent","Parent","Parents"],["guardian","Guardian","Guardians"],["family","Family member","Family members"],["nanny","Nanny","Nannies"],["lawyer","Lawyer","Lawyers"],["mediator","Mediator","Mediators"],["therapist","Counsellor or therapist","Counsellors and therapists"],["gal","Guardian ad litem / social worker","Guardians ad litem and social workers"]];
 var FLAB=[["calendar","Calendar"],["messages","Messages"],["calls","Calls"],["documents","Documents"],["notes","Notes"],["expenses","Expenses"],["children","Children and family"],["people","People"]];
 function glabel(g){var x=GROUPS.filter(function(r){return r[0]===g})[0];return x?x[1]:g}
 
@@ -3633,7 +3680,7 @@ function renderTrips(){
   var L=$("#tlist");if(!L)return;
   var trips=S.docs.filter(function(d){return d.cat==="Trip"}).sort(function(a,b){return String(b.start||"").localeCompare(String(a.start||""))});
   var files=S.docs.filter(function(d){return d.cat==="TripFile"});
-  var sg=JSON.stringify([trips.map(function(t){return [t.id,t.title,t.start,t.end]}),files.map(function(f){return f.id}),canWrite]);
+  var sg=JSON.stringify([trips.map(function(t){return [t.id,t.title,t.start,t.end]}),files.map(function(f){return f.id}),canWrite,(S.checkins||[]).length]);
   if(sg===tsig)return;tsig=sg;
   L.textContent="";
   if(!trips.length)L.appendChild(h("div","card")).appendChild(h("p","empty","No trips or visits yet. Add one above, then attach flight tickets, hotel reservations and receipts."));
@@ -3646,6 +3693,34 @@ function renderTrips(){
     if(t.notes)c.appendChild(h("div","pre",t.notes));
     var total=fs.reduce(function(n,f){return n+(f.tcat==="Expense"?(Number(f.amount)||0):0)},0);
     if(total)c.appendChild(h("div",null,"Expenses so far: "+money(total))).style.cssText="font-weight:700;margin:6px 0";
+    if(t.type==="Visit"||true){
+      var cks=(S.checkins||[]).filter(function(k){return k.trip===t.id}).sort(function(a,b){return a.ts-b.ts});
+      var cb=h("div");cb.style.cssText="margin:10px 0;padding:10px;border-radius:12px;background:rgba(127,127,127,.1)";
+      cb.appendChild(h("div",null,"📍 Check-ins")).style.fontWeight="700";
+      if(!cks.length)cb.appendChild(h("div","meta","No one has checked in yet."));
+      cks.forEach(function(k){
+        var r=h("div");r.style.cssText="margin-top:6px;font-size:.92rem";
+        var when=new Date(k.ts).toLocaleString(undefined,{weekday:"short",day:"numeric",month:"short",year:"numeric",hour:"numeric",minute:"2-digit"});
+        r.appendChild(document.createTextNode((k.type==="out"?"Checked out":"Checked in")+" · "+memberName(k.by)+" · "+when+(k.acc?" · ±"+Math.round(k.acc)+" m":"")+" "));
+        if(k.lat!=null){var a=h("a","meta","View on map");a.href="https://www.openstreetmap.org/?mlat="+k.lat+"&mlon="+k.lng+"#map=18/"+k.lat+"/"+k.lng;a.target="_blank";a.rel="noopener";r.appendChild(a)}
+        else r.appendChild(h("span","meta","(location not shared)"));
+        cb.appendChild(r)});
+      if(canWrite){
+        var row=h("div");row.style.cssText="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap";
+        [["in","📍 Check in here"],["out","Check out"]].forEach(function(x){
+          var b=h("button",x[0]==="in"?"go sm":"quiet",x[1]);b.type="button";
+          b.onclick=function(){
+            if(!navigator.geolocation)return note("This phone can’t share its location.");
+            b.disabled=true;var old=b.textContent;b.textContent="Finding you…";
+            navigator.geolocation.getCurrentPosition(function(p){
+              var id=db.collection("checkins").doc().id;
+              db.doc("checkins/"+id).set({trip:t.id,tripTitle:t.title||"",type:x[0],by:myId||"",lat:Math.round(p.coords.latitude*1e6)/1e6,lng:Math.round(p.coords.longitude*1e6)/1e6,acc:Math.round(p.coords.accuracy||0),ts:Date.now()}).then(function(){note("Checked "+(x[0]==="in"?"in":"out")+". This record can’t be edited.");setTimeout(function(){note("")},2500)},fail);
+              b.disabled=false;b.textContent=old},function(e){b.disabled=false;b.textContent=old;note(e&&e.code===1?"Location is blocked. Allow location for this app in your phone settings, then try again.":"Couldn’t get your location. Go outside or near a window and try again.")},{enableHighAccuracy:true,timeout:20000,maximumAge:0})};
+          row.appendChild(b)});
+        cb.appendChild(row);cb.appendChild(h("div","meta","Check-ins record your phone’s location and time. They can’t be edited or deleted.")).style.marginTop="6px";
+      }
+      c.appendChild(cb);
+    }
     TCATS.forEach(function(cat){
       var items=fs.filter(function(f){return (f.tcat||"Other")===cat[0]});if(!items.length)return;
       c.appendChild(h("div","meta",cat[1])).style.marginTop="8px";
@@ -3704,6 +3779,13 @@ $("#tadd").onclick=function(){
 
 /* settings: sound and skin tone */
 function syncSnd(){$("#sndbtn").textContent=soundOn()?"On":"Off";$("#sndbtn").style.background=soundOn()?"":"var(--muted)"}
+(function(){
+  var sl=$("#tonesl"),lb=$("#tonelbl");if(sl){
+    function tl(){var v=toneSens();lb.textContent=v===0?"Off":"Sensitivity "+v+" of 10"+(v<=3?" (only very harsh)":v>=8?" (flags most heated wording)":"")}
+    sl.value=toneSens();tl();
+    sl.oninput=function(){try{localStorage.setItem("hubTone",sl.value)}catch(e){}tl()};
+  }
+})();
 (function(){
   var sel=$("#ringsel");if(!sel)return;
   function fill(){sel.textContent="";Object.keys(RINGS).forEach(function(k){var o=h("option",null,RINGS[k][0]);o.value=k;sel.appendChild(o)});
@@ -3913,6 +3995,7 @@ function subscribeAll(){
   db.collection("plikes").limit(1000).onSnapshot(function(s){S.plikes=mergePending(s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})}));renderFeed()},err);
   db.collection("pcomments").limit(1000).onSnapshot(function(s){S.pcom=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderFeed()},err);
   db.doc("calls/current").onSnapshot(function(s){S.call=s.exists?s.data():null;renderCall()},err);
+  db.collection("checkins").limit(2000).onSnapshot(function(s){S.checkins=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});tsig="";renderTrips()},function(){});
   db.collection("calllog").limit(1000).onSnapshot(function(s){S.calllog=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});if(window.waRender)waRender()},function(){});
   db.collection("calls").limit(100).onSnapshot(function(s){S.calls=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});if(window.waCalls)waCalls()},err);
   db.doc("settings/callplan").onSnapshot(function(s){S.callplan=s.exists?s.data():null;renderZoomCard();renderCal()},err);
@@ -3969,6 +4052,14 @@ async function start(session){
     if(ev==="SIGNED_OUT"&&STARTED)setTimeout(function(){location.reload()},0);
   });
   var r=await sb.auth.getSession();
+  if(!r.data.session){
+    /* a saved login exists but couldn't be read yet (slow network on refresh): try again before showing sign-in */
+    var saved=false;try{for(var ki=0;ki<localStorage.length;ki++){var kk=localStorage.key(ki)||"";if(/^sb-.*auth-token/.test(kk)&&localStorage.getItem(kk)){saved=true;break}}}catch(e){}
+    for(var tr=0;saved&&tr<4&&!r.data.session;tr++){
+      await new Promise(function(ok){setTimeout(ok,900)});
+      try{r=await sb.auth.getSession();if(!r.data.session){var rf=await sb.auth.refreshSession();if(rf&&rf.data&&rf.data.session)r={data:{session:rf.data.session}}}}catch(e){}
+    }
+  }
   if(r.data.session){
     if(setMode)showSet(false);else start(r.data.session);
   }else if(!$("#gmsg").textContent)showSignin();
@@ -4272,7 +4363,7 @@ async function start(session){
       var hd=h("div","chead","People");L.appendChild(hd);
       S.people.forEach(function(p){
         var a=h("div","cav cini",(p.name||"?").charAt(0).toUpperCase());
-        row(a,p.name||"Someone",p.role||({parent:"Parent",guardian:"Guardian",family:"Family member",lawyer:"Lawyer"}[p.cat]||""),"",0,function(){showTab("people")});
+        row(a,p.name||"Someone",p.role||({parent:"Parent",guardian:"Guardian",family:"Family member",lawyer:"Lawyer"}[p.cat]||p.cat||""),"",0,function(){showTab("people")});
       });
     }
   }
@@ -4629,7 +4720,7 @@ function allMsgs(){return (S.allmsgs||S.msgs||[]).concat(botMsgs())}
 function LPf(){
   var d=S.prof&&S.prof["cp_"+myId];
   if(!d){d={cp:true,pin:[],arch:[],read:{},unr:[],since:Date.now()};if(!S.profLoaded||!S.prof)return d;S.prof["cp_"+myId]=d;saveLP(true)}
-  d.pin=d.pin||[];d.arch=d.arch||[];d.read=d.read||{};d.unr=d.unr||[];d.since=d.since||0;return d;
+  d.pin=d.pin||[];d.arch=d.arch||[];d.read=d.read||{};d.readAt=d.readAt||{};d.unr=d.unr||[];d.since=d.since||0;return d;
 }
 var saveT=null;
 function saveLP(now){
@@ -5027,7 +5118,7 @@ function closeChat(){
 function markRead(id){
   var lp=LPf(),ms=msgsOf(id),lt=ms.length?ms[ms.length-1].ts:0,i=lp.unr.indexOf(id);
   if(lp.read[id]&&lt<=lp.read[id]&&i<0)return;
-  lp.read[id]=Math.max(Date.now(),lt);if(i>=0)lp.unr.splice(i,1);saveLP();
+  lp.read[id]=Math.max(Date.now(),lt);lp.readAt[id]=Date.now();if(i>=0)lp.unr.splice(i,1);saveLP();
 }
 window.waMarkRead=function(id){try{markRead(id)}catch(e){}};
 window.hubPref=function(k,v){var lp=LPf();if(v===undefined)return lp[k];lp[k]=v;if(S.profLoaded)saveLP(true)};
@@ -5142,15 +5233,13 @@ function startEdit(m){
 }
 function sendOrEdit(){
   var ta=CH.ta,t=ta.value.trim();if(!t)return;
-  if(WA.edit){
-    var e=WA.edit;WA.edit=null;CH.reply.hidden=true;ta.value="";CH.fit();
-    if(Date.now()-e.ts>=3600000){toast("Messages can only be edited within 1 hour.");return}
-    if(t!==e.text)db.doc("messages/"+e.id).update({text:t,edited:Date.now()}).catch(fail);
-    return;
-  }
-  ta.value="";CH.fit();
-  var cc=chatById(ST.chat),tg=cc?mentionIds(t,cc.members.filter(function(id){return id!==myId}).map(function(id){return {user_id:id,name:mname(id)}})):[];
-  post(tg.length?{text:t,tags:tg}:{text:t}).catch(fail);
+  var cc=chatById(ST.chat);
+  if(cc&&cc.type==="bot"){ta.value="";CH.fit();var tg0=[];post({text:t}).catch(fail);return}
+  toneGate(t,function(v){
+    ta.value="";CH.fit();
+    var tg=cc?mentionIds(v,cc.members.filter(function(id){return id!==myId}).map(function(id){return {user_id:id,name:mname(id)}})):[];
+    post(tg.length?{text:v,tags:tg}:{text:v}).catch(fail);
+  });
 }
 /* messages */
 var lastSig="";
@@ -5273,12 +5362,26 @@ function msgMenu(m){
   var act=E("div","act");
   function item(label,icon,fn,red){var b=E("button",red?"red":"",label+(icon?ic(icon,20):""));b.type="button";b.onclick=function(){closeMenu();fn()};act.appendChild(b)}
   item("Reply","back",function(){WA.setReply(m)});
-  if(m.by===myId&&(!m.kind||m.kind==="text")&&Date.now()-m.ts<3600000)item("Edit","info",function(){startEdit(m)});
+  if(m.by===myId&&m.kind!=="sys")item("Message info","info",function(){msgInfo(m)});
   var ct=copyText(m);if(ct||m.kind==="text"||!m.kind)item("Copy","info",function(){var t=ct||m.text||"";if(navigator.clipboard)navigator.clipboard.writeText(t).catch(function(){})});
   if(wpinned(m.id))item("Unpin","pin",function(){unpin(m.id)});else item("Pin","pin",function(){pinFlow(m)});
   item(starred(m.id)?"★ Unstar":"☆ Star","",function(){togStar(m.id)});
-  if(m.by===myId)item("Delete","trash",function(){if(confirm("Delete this message for everyone?"))db.doc("messages/"+m.id).delete().catch(function(){toast("You can’t delete this message.")})},true);
   menuEl.appendChild(emo);menuEl.appendChild(act);menuEl.onclick=function(e){if(e.target===menuEl)closeMenu()};root.appendChild(menuEl);
+}
+function msgInfo(m){
+  closeMenu();
+  var c=chatById(m.chat||"family"),who=(c.members||[]).filter(function(id){return id!==m.by});
+  menuEl=E("div");menuEl.id="wamenu";var act=E("div","act");
+  function line(txt,sub){var d=E("div");d.style.cssText="padding:10px 18px;text-align:left";d.appendChild(T("b",null,txt));if(sub){var x=T("div",null,sub);x.style.cssText="font-size:.85rem;opacity:.7";d.appendChild(x)}act.appendChild(d)}
+  var full=function(t){return new Date(t).toLocaleString(undefined,{day:"numeric",month:"short",year:"numeric",hour:"numeric",minute:"2-digit"})};
+  line("Message info","Sent "+full(m.ts));
+  var seen=[],not=[];
+  who.forEach(function(id){var d=S.prof&&S.prof["cp_"+id],rd=d&&d.read&&d.read[c.id]>=m.ts;
+    if(rd){var at=d.readAt&&d.readAt[c.id];seen.push([id,at&&at>=m.ts?"Read · "+full(at):"Read"])}else not.push(id)});
+  if(seen.length){var h1=T("div","wsec","Read by");act.appendChild(h1);seen.forEach(function(x){line(mname(x[0]),x[1])})}
+  if(not.length){act.appendChild(T("div","wsec","Delivered, not read yet"));not.forEach(function(id){line(mname(id),"")})}
+  if(!who.length)line("No one else is in this chat","");
+  menuEl.appendChild(act);menuEl.onclick=function(e){if(e.target===menuEl)closeMenu()};root.appendChild(menuEl);
 }
 function pinFlow(m){
   if(wpins(ST.chat).length>=3){toast("You can pin up to 3 messages in a chat. Unpin one first.");return}

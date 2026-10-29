@@ -9,6 +9,7 @@ self.addEventListener("push", function (e) {
     await self.registration.showNotification(d.title || "Cordial Co-Parenting", {
       body: d.body || "", icon: "/icons/icon-192.png", badge: "/icons/icon-192.png",
       tag: d.tag || undefined, renotify: !!d.tag, requireInteraction: call,
+      silent: false,
       vibrate: call ? [400, 200, 400, 200, 400, 200, 400] : undefined,
       data: { url: d.url || "/" },
     });
@@ -21,7 +22,7 @@ self.addEventListener("notificationclick", function (e) {
   e.notification.close();
   var url = (e.notification.data && e.notification.data.url) || "/";
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (cs) {
-    for (var i = 0; i < cs.length; i++) { if ("focus" in cs[i]) return cs[i].focus(); }
+    for (var i = 0; i < cs.length; i++) { if ("focus" in cs[i]) { try { cs[i].postMessage({ type: "open", url: url }); } catch (x) {} return cs[i].focus(); } }
     return self.clients.openWindow(url);
   }));
 });
