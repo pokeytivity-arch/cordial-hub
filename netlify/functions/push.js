@@ -37,6 +37,7 @@ function encrypt(sub, text) {
   return Buffer.concat([salt, rs, Buffer.from([asPub.length]), asPub, ct]);
 }
 exports._encrypt = encrypt;
+exports._sendOne = (...a) => sendOne(...a);
 
 async function sendOne(sub, payload) {
   const r = await fetch(sub.endpoint, {
