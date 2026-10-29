@@ -892,6 +892,7 @@ main{max-width:100%}
 
 <section id="p-meet" hidden>
   <div class="card" id="zoomcard"><h2>Zoom connection</h2><div id="zoomsts" class="meta">Checking…</div><button class="quiet" id="zoomchk" type="button" style="padding:4px 0;text-decoration:underline">Check again</button></div>
+  <div id="todocard"></div>
   <div class="card"><h2>Virtual meetings</h2>
     <p class="meta">Summaries and transcripts from Zoom appear here by themselves once Zoom is connected. You can also add one by hand.</p>
     <div id="mnl"></div>
@@ -1786,6 +1787,49 @@ mountShare("#xadd","exp");mountShare("#dup","docs");mountShare("#nadd","notes");
 $("#nadd").onclick=function(){
   var t=$("#nt").value.trim();if(!db||!t)return;
   db.collection("notes").add(withShare({text:t,ts:Date.now(),by:myId||""},"notes")).then(function(){$("#nt").value="";note("")},fail)};
+
+/* ---------- Agreed tasks from meetings: one parent marks it done, the other parent confirms, then it is archived ---------- */
+function myRole(){var o=ownerM(),m=mumM();return o&&o.user_id===myId?"daddy":m&&m.user_id===myId?"mummy":""}
+function todoWho(x){return x.who==="daddy"?"Our Daddy":x.who==="mummy"?"Our Mummy":x.who==="both"?"Both parents":"Not assigned"}
+function todoCanDo(x){var r=myRole();return canWrite&&r&&(x.who==="both"||!x.who||x.who===r)}
+function renderTodos(){
+  var box=$("#todocard");if(!box)return;box.textContent="";
+  var all=(S.xo||[]).filter(function(x){return x.kind==="todo"}).sort(function(a,b){return (b.ts||0)-(a.ts||0)});
+  var c=h("div","card");c.appendChild(h("h2",null,"Agreed tasks"));
+  c.appendChild(h("p","meta","Tasks from meetings. The person responsible marks it done, the other parent confirms, and it moves to the archive."));
+  var open=all.filter(function(x){return x.status==="open"||!x.status}),done=all.filter(function(x){return x.status==="done"}),arch=all.filter(function(x){return x.status==="confirmed"});
+  if(!all.length){c.appendChild(h("p","empty","No tasks yet. Tasks from meeting summaries appear here."));box.appendChild(c);return}
+  function when(ts){return ts?new Date(ts).toLocaleDateString(undefined,{day:"numeric",month:"short"}):""}
+  function sect(title,list,draw,collapsed){
+    if(!list.length)return;var d=h("details");d.open=!collapsed;var sm=h("summary",null,title+" ("+list.length+")");sm.style.cssText="font-weight:700;margin:10px 0 4px;cursor:pointer";d.appendChild(sm);
+    list.forEach(function(x){
+      var r=h("div","item");r.style.cssText+=";flex-direction:column;gap:2px;align-items:stretch";
+      var t=h("div");t.appendChild(h("b",null,x.title));r.appendChild(t);
+      var mt=todoWho(x)+(x.due?" · by "+x.due:"")+(x.topic?" · from “"+x.topic+"”":"");r.appendChild(h("div","meta",mt));
+      draw(x,r);d.appendChild(r)});
+    c.appendChild(d);
+  }
+  sect("To do",open,function(x,r){
+    var a=h("div");
+    if(todoCanDo(x))a.appendChild(xtBtn("✅ Mark as done",function(){db.doc("expenses/"+x.id).update({status:"done",doneBy:myId,doneAt:Date.now(),_selfie:"fulfilled"}).catch(fail)}));
+    if(canWrite&&myRole()){var sel=h("select");sel.setAttribute("aria-label","Who is responsible");sel.style.cssText="width:auto;padding:4px 8px;font-size:.85rem;margin:6px 8px 0 0";
+      [["","Not assigned"],["daddy","Our Daddy"],["mummy","Our Mummy"],["both","Both parents"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sel.appendChild(op)});sel.value=x.who||"";
+      sel.onchange=function(){db.doc("expenses/"+x.id).update({who:sel.value}).catch(fail)};a.appendChild(sel);
+      a.appendChild(xtBtn("Remove",function(){if(confirm("Remove this task?"))db.doc("expenses/"+x.id).delete().catch(fail)},"quiet"))}
+    r.appendChild(a)});
+  sect("Done, waiting for confirmation",done,function(x,r){
+    r.appendChild(h("div","meta","Marked done by "+xtName(x.doneBy)+" · "+when(x.doneAt)));
+    var a=h("div");
+    if(canWrite&&myRole()&&x.doneBy!==myId){
+      a.appendChild(xtBtn("✅ Confirm it was done",function(){db.doc("expenses/"+x.id).update({status:"confirmed",confirmedBy:myId,confirmedAt:Date.now(),_selfie:"confirmed"}).catch(fail)}));
+      a.appendChild(xtBtn("Not done yet",function(){db.doc("expenses/"+x.id).update({status:"open",doneBy:null,doneAt:null,selfie_fulfilled:null}).catch(fail)},"quiet"));
+    }else a.appendChild(h("div","meta","Waiting for the other parent to confirm."));
+    r.appendChild(a)});
+  sect("Archive",arch,function(x,r){
+    r.appendChild(h("div","meta","Done by "+xtName(x.doneBy)+" · confirmed by "+xtName(x.confirmedBy)+" · "+when(x.confirmedAt)));
+    var sl=selfieLinks(x,[["selfie_fulfilled","Done"],["selfie_confirmed","Confirmed"]]);if(sl)r.appendChild(sl)},true);
+  box.appendChild(c);
+}
 function renderMeet(){
   var L=$("#mnl");if(!L)return;L.textContent="";
   var rows=S.mnotes.slice().sort(function(a,b){return (b.start||b.ts||0)-(a.start||a.ts||0)});
@@ -2498,7 +2542,7 @@ function selfieRecords(f0,t0){
   (S.docs||[]).forEach(function(x){add(x,"selfie",(x.cat==="Trip"?"Actual meeting: ":"Document: ")+(x.title||""))});
   (S.checkins||[]).forEach(function(x){add(x,"selfie","Check-in / check-out")});
   (S.xo||[]).forEach(function(x){
-    var t=x.kind==="shop"?"Request: "+(x.title||""):x.kind==="sup"?"Monthly support "+(x.date||"").slice(0,7):x.kind==="fee"?"School fee "+(x.year||"")+" term "+(x.term||""):"Entry";
+    var t=x.kind==="shop"?"Request: "+(x.title||""):x.kind==="todo"?"Task: "+(x.title||""):x.kind==="sup"?"Monthly support "+(x.date||"").slice(0,7):x.kind==="fee"?"School fee "+(x.year||"")+" term "+(x.term||""):"Entry";
     add(x,"selfie",t+" (made)");add(x,"selfie_fulfilled",t+" (fulfilled)");add(x,"selfie_confirmed",t+" (confirmed)");add(x,"selfie_paid",t+" (paid)");add(x,"selfie_received",t+" (received)")});
   L.sort(function(a,b){return a.ts-b.ts});return L;
 }
@@ -4054,7 +4098,7 @@ function renderFeed(){
   if(CS.post)renderCS(false);
 }
 
-function renderAll(){safe(renderLegend)();safe(renderCal)();safe(openEditor)();safe(renderExp)();safe(renderNotes)();safe(renderMeet)();safe(renderProf)();safe(renderKids)();safe(renderDocs)();safe(renderTrips)();safe(renderMsgs)();safe(renderFeed)();safe(renderCall)();safe(renderPeople)();safe(renderHome)()}
+function renderAll(){safe(renderTodos)();safe(renderLegend)();safe(renderCal)();safe(openEditor)();safe(renderExp)();safe(renderNotes)();safe(renderMeet)();safe(renderProf)();safe(renderKids)();safe(renderDocs)();safe(renderTrips)();safe(renderMsgs)();safe(renderFeed)();safe(renderCall)();safe(renderPeople)();safe(renderHome)()}
 function lockForms(){["#fbar","#exform","#nform","#mnform","#editor","#mform","#fform","#cstart","#pform","#dform","#tform"].forEach(function(s){var e=$(s);if(e)e.style.display=canWrite?"":"none"});var kf=$("#kform");if(kf)kf.style.display=tabEdit("kids")?"":"none";var kh=$("#kidhint");if(kh){var kb=$("#kgo");if(kb)kb.style.display=tabOk("people")?"":"none"}}
 
 READY=true;
@@ -4890,7 +4934,7 @@ function subscribeAll(){
   db.collection("documents").orderBy("ts","desc").limit(300).onSnapshot(function(s){S.docs=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderDocs();renderTrips();safe(renderShop)();if(SHOPV&&!SHOPV.hidden)safe(shopDraw)()},function(e){fail(e)});
   var err=function(e){fail(e)};
   db.collection("schedule").onSnapshot(function(s){S.sched={};S.events=[];s.docs.forEach(function(d){if(/^ev_/.test(d.id))S.events.push(Object.assign({},d.data(),{id:d.id}));else S.sched[d.id]=d.data()});renderCal();openEditor();safe(renderEvents)()},err);
-  db.collection("expenses").orderBy("date","desc").limit(1000).onSnapshot(function(s){var all=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});S.exp=all.filter(function(x){return !x.kind});S.xo=all.filter(function(x){return !!x.kind});renderExp();safe(renderXtra)()},err);
+  db.collection("expenses").orderBy("date","desc").limit(1000).onSnapshot(function(s){var all=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});S.exp=all.filter(function(x){return !x.kind});S.xo=all.filter(function(x){return !!x.kind});renderExp();safe(renderXtra)();safe(renderTodos)()},err);
   db.collection("profiles").limit(300).onSnapshot(function(s){S.prof={};s.docs.forEach(function(d){S.prof[d.id]=d.data()});S.profLoaded=true;renderProf();safe(renderNsppd)();safe(renderShop)();var nlc=S.prof.cordial_shoplatest&&S.prof.cordial_shoplatest.code;if(nlc!==SHOPLC){SHOPLC=nlc;if(SHOPV&&!SHOPV.hidden&&SHOPMODE==="latest")safe(shopDraw)()}if(window.waRender)waRender()},err);
   db.collection("highlights").limit(500).onSnapshot(function(s){S.hl=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderProf()},err);
   db.collection("meetingnotes").limit(300).onSnapshot(function(s){S.mnotes=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderMeet()},err);
