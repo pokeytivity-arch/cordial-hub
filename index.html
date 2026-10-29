@@ -4022,7 +4022,7 @@ var feedAt=0;
 function feedRefresh(){
   var nn=new Date(Date.now()+3600000),wd2=nn.getUTCDay(),hr2=nn.getUTCHours(),gap=(wd2>=1&&wd2<=5&&hr2>=7&&hr2<12)?2*60*1000:10*60*1000;
   if(Date.now()-feedAt<gap)return;feedAt=Date.now();
-  try{fetch("/.netlify/functions/feed").then(function(r){return r.json().then(function(j){if(!r.ok&&isOwner)toast("NSPPD link problem: "+(j.error||r.status))})}).catch(function(){})}catch(e){}
+  try{fetch("/.netlify/functions/feed").then(function(r){return r.json().then(function(j){if(!r.ok&&isOwner&&!(S.prof&&S.prof.cordial_daily))toast("NSPPD link problem: "+(j.error||r.status)+(j.why?" ("+j.why+")":""))})}).catch(function(){})}catch(e){}
 }
 window.ytOpen=ytOpen;window.feedRefresh=feedRefresh;
 (function(){var n=0,iv=setInterval(function(){if(++n>20){clearInterval(iv);return}if(S.profLoaded){clearInterval(iv);feedRefresh()}},3000)})();
