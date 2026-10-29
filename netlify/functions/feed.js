@@ -60,19 +60,33 @@ exports.handler = async (event) => {
   try { if (!ch) ch = await channelFromHandle(SEED); } catch {}
   if (!ch) return out(502, { error: "channel_not_found" });
 
-  let xml = "";
-  try {
-    const r = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${ch}`, { headers: UA });
-    if (!r.ok) return out(502, { error: "feed_failed", status: r.status });
-    xml = await r.text();
-  } catch (e) { return out(502, { error: "feed_failed", detail: String(e && e.message || e).slice(0, 100) }); }
-
-  const entry = (xml.match(/<entry>[\s\S]*?<\/entry>/) || [""])[0];
-  const vid = (entry.match(/<yt:videoId>([\w-]{6,20})<\/yt:videoId>/) || [])[1];
-  if (!vid) return out(502, { error: "no_videos" });
-  const title = dec((entry.match(/<title>([\s\S]*?)<\/title>/) || [])[1]).trim().slice(0, 200);
-  const pub = Date.parse((entry.match(/<published>([^<]+)<\/published>/) || [])[1] || "") || now;
-  const chName = dec((xml.match(/<author>\s*<name>([\s\S]*?)<\/name>/) || [])[1]).trim().slice(0, 80);
+  // 1) the channel's public video feed (two tries), 2) the channel's Videos page as a backup
+  let vid = "", title = "", pub = now, chName = "", why = "";
+  for (let i = 0; i < 2 && !vid; i++) {
+    try {
+      const r = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${ch}`, { headers: UA });
+      if (!r.ok) { why = "feed_" + r.status; continue; }
+      const xml = await r.text();
+      const entry = (xml.match(/<entry>[\s\S]*?<\/entry>/) || [""])[0];
+      vid = (entry.match(/<yt:videoId>([\w-]{6,20})<\/yt:videoId>/) || [])[1] || "";
+      title = dec((entry.match(/<title>([\s\S]*?)<\/title>/) || [])[1]).trim().slice(0, 200);
+      pub = Date.parse((entry.match(/<published>([^<]+)<\/published>/) || [])[1] || "") || now;
+      chName = dec((xml.match(/<author>\s*<name>([\s\S]*?)<\/name>/) || [])[1]).trim().slice(0, 80);
+    } catch (e) { why = "feed_error"; }
+  }
+  if (!vid) {
+    try {
+      const t = await (await fetch(`https://www.youtube.com/channel/${ch}/videos`, { headers: UA })).text();
+      const v = t.match(/"videoId":"([\w-]{11})"/);
+      const tt = t.match(/"title":\{"runs":\[\{"text":"([^"]+)"/);
+      if (v) { vid = v[1]; title = tt ? JSON.parse('"' + tt[1] + '"') : ""; }
+    } catch { why = why || "videos_page_failed"; }
+  }
+  if (!vid) {
+    // nothing worked this time: keep showing what we already have instead of an error
+    if (saved.vid) { await fetch(`${URL_}/rest/v1/docs?on_conflict=key`, { method: "POST", headers: { ...H, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ key: KEYNAME, collection: "profiles", id: "cordial_daily", data: { ...saved, checked: now - 5 * 60 * 1000 } }) }); return out(200, { ok: true, stale: true, why }); }
+    return out(502, { error: "feed_failed", why });
+  }
   const liveVid = await liveVideo(ch);
   const data = {
     liveNow: !!liveVid, liveVid,

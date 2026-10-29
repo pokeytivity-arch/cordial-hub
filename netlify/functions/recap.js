@@ -23,7 +23,33 @@ async function writeDoc(key, data) {
 }
 
 // Public captions (best effort). Returns "" when none are available.
+async function captionTracksViaApp(vid) {
+  // YouTube's own app interface usually still hands out captions to servers
+  try {
+    const page = await (await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(vid)}`, { headers: UA })).text();
+    const k = (page.match(/"INNERTUBE_API_KEY":"([\w-]+)"/) || [])[1];
+    const r = await fetch(`https://www.youtube.com/youtubei/v1/player${k ? "?key=" + k : ""}`, {
+      method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip" },
+      body: JSON.stringify({ context: { client: { clientName: "ANDROID", clientVersion: "20.10.38", androidSdkVersion: 34, hl: "en", gl: "US" } }, videoId: vid }),
+    });
+    if (!r.ok) return [];
+    const j = await r.json();
+    return (j.captions && j.captions.playerCaptionsTracklistRenderer && j.captions.playerCaptionsTracklistRenderer.captionTracks) || [];
+  } catch { return []; }
+}
+
 async function transcript(vid) {
+  try {
+    let tracks = await captionTracksViaApp(vid);
+    if (tracks.length) {
+      const tr0 = tracks.find((x) => x.languageCode === "en" && x.kind !== "asr") || tracks.find((x) => String(x.languageCode || "").startsWith("en")) || tracks[0];
+      try {
+        const j0 = await (await fetch(tr0.baseUrl + "&fmt=json3", { headers: UA })).json();
+        const t0 = (j0.events || []).map((e) => (e.segs || []).map((s) => s.utf8).join("")).join(" ").replace(/\s+/g, " ").trim();
+        if (t0.length > 200) return shrink(t0);
+      } catch {}
+    }
+  } catch {}
   try {
     const t = await (await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(vid)}`, { headers: UA })).text();
     const m = t.match(/"captionTracks":(\[.*?\]),"(?:audioTracks|translationLanguages|defaultAudioTrackIndex)"/);
@@ -33,10 +59,13 @@ async function transcript(vid) {
     if (!tr || !tr.baseUrl) return "";
     const j = await (await fetch(tr.baseUrl + "&fmt=json3", { headers: UA })).json();
     const text = (j.events || []).map((e) => (e.segs || []).map((s) => s.utf8).join("")).join(" ").replace(/\s+/g, " ").trim();
-    if (text.length <= 60000) return text;
-    const third = 20000, mid = Math.floor(text.length / 2);
-    return text.slice(0, third) + " […] " + text.slice(mid - third / 2, mid + third / 2) + " […] " + text.slice(-third);
+    return shrink(text);
   } catch { return ""; }
+}
+function shrink(text) {
+  if (text.length <= 60000) return text;
+  const third = 20000, mid = Math.floor(text.length / 2);
+  return text.slice(0, third) + " […] " + text.slice(mid - third / 2, mid + third / 2) + " […] " + text.slice(-third);
 }
 
 const SYSTEM = `You are Cordial, the friendly AI agent in a private family co-parenting hub. Write the evening recap that the whole family reads at 8:00 pm.
