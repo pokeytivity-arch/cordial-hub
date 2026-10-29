@@ -47,7 +47,7 @@ exports.handler = async (event) => {
   const email = String(b.email || "").trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return out(400, { error: "bad", message: "That email doesn’t look right." });
   const grp = GROUPS.includes(b.grp) ? b.grp : "family";
-  const name = String(b.name || "").trim().slice(0, 40);
+  const name = grp === "parent" ? "Glory Edward Mngutyo" : String(b.name || "").trim().slice(0, 40);
   const data = { name, grp };
 
   // Only one co-parent: the owner plus one more parent. Once both slots are used, nobody else can be a parent.
