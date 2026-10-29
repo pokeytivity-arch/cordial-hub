@@ -926,6 +926,8 @@ main{max-width:100%}
     <label>Place<input id="tpl" maxlength="80" placeholder="City, hotel or address"></label>
     <div class="row"><label>From<input id="tfr" type="date"></label><label>To<input id="tto" type="date"></label></div>
     <label>Notes<textarea id="tnt" maxlength="800"></textarea></label>
+    <label>Attach tickets, reservations or receipts (optional, pick several)<input id="tfiles" type="file" multiple accept="image/*,application/pdf"></label>
+    <label>These files are<select id="tfcat"><option value="Flight">✈️ Flight tickets</option><option value="Hotel">🏨 Hotel reservations</option><option value="Expense">💳 Expenses</option><option value="Document">📄 Documents</option><option value="Other">📎 Other</option></select></label>
     <button class="go" id="tadd">Add</button>
   </div>
   <div id="tlist"></div>
@@ -1276,7 +1278,9 @@ $("#xadd").onclick=async function(){
     var blob=f,name=f.name,type=f.type||"application/octet-stream";
     if(/^image\//.test(type)){try{var sh=await shrinkBlob(f);blob=sh.blob;type="image/jpeg";name=(f.name||"receipt").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
     var path=await upload("docs",blob,name);
-    await db.collection("expenses").add({desc:d,amount:a,by:$("#xw").value,date:$("#xt").value||key(new Date()),proof:{path:path,name:name,type:type,size:blob.size||f.size}});
+    var chk=await aiVerify(f,{kind:"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
+    var xrec={desc:d,amount:a,by:$("#xw").value,date:$("#xt").value||key(new Date()),proof:{path:path,name:name,type:type,size:blob.size||f.size},aicheck:chk};if(chk.status==="review")xrec.review={state:"pending"};
+    await db.collection("expenses").add(xrec);
     $("#xd").value="";$("#xa").value="";$("#xf").value="";note("");
   }catch(e){note(attachErr(e))}
   btn.disabled=false;btn.textContent="Add expense";
@@ -1298,7 +1302,7 @@ $("#xadd").onclick=async function(){
   });
 })();
 function renderExp(){
-  var pa=0,pb=0;S.exp.forEach(function(x){if(x.by==="a")pa+=x.amount;else pb+=x.amount});
+  var pa=0,pb=0;S.exp.forEach(function(x){if(x.review&&x.review.state==="rejected")return;if(x.by==="a")pa+=x.amount;else pb+=x.amount});
   (function(){var b=$("#bal");b.textContent="";if(!S.exp.length){b.textContent="No expenses yet";return}
     var tot=pa+pb,wa=tot>0?Math.round(pa/tot*1000)/10:50,wb=tot>0?100-wa:50;
     var bar=document.createElement("div");bar.style.cssText="display:flex;height:26px;border-radius:13px;overflow:hidden;background:rgba(0,0,0,.08);margin:6px 0 8px";
@@ -1317,6 +1321,8 @@ function renderExp(){
     l.appendChild(h("div",null,x.desc));l.appendChild(h("div","meta",x.date+" – paid by "+nm(x.by)));
     if(x.proof&&x.proof.path){var rc=h("button","quiet","🧾 View receipt");rc.type="button";rc.style.cssText="padding:2px 0;text-decoration:underline";rc.onclick=function(){signed(x.proof.path).then(function(u){preview(Object.assign({},x.proof,{url:u}))}).catch(function(){note("That receipt isn’t available.")})};l.appendChild(rc)}
     var sl=selfieLinks(x,[["selfie","Selfie"]]);if(sl)l.appendChild(sl);
+    var bg=aiBadge(x,"expenses");if(bg)l.appendChild(bg);
+    if(x.review&&x.review.state==="rejected")l.style.opacity=".55";
     var rt=h("div");rt.style.textAlign="right";rt.appendChild(h("div","amt",money(x.amount)));
     var rm=h("button","quiet","Remove");rm.onclick=function(){db.doc("expenses/"+x.id).delete().catch(fail)};
     if(canWrite)rt.appendChild(rm);r.appendChild(l);r.appendChild(rt);L.appendChild(r)});
@@ -1355,6 +1361,55 @@ function xtRc(list,label){
     if(!rc||!rc.path)return;if(!w){w=h("div");w.style.cssText="display:flex;gap:12px;flex-wrap:wrap;margin-top:2px"}
     var b=h("button","quiet","🧾 "+(label||"Receipt")+(list.length>1?" "+(i+1):""));b.type="button";b.style.cssText="padding:2px 0;text-decoration:underline;font-size:.9rem";
     b.onclick=function(){signed(rc.path).then(function(u){preview(Object.assign({},rc,{url:u}))}).catch(function(){note("That file isn’t available.")})};w.appendChild(b)});
+  return w;
+}
+
+/* ---------- Cordial checks uploads and flags anything that looks wrong; the owner approves or rejects flagged ones ---------- */
+function blobB64(blob){return new Promise(function(res){var fr=new FileReader();fr.onload=function(){res(String(fr.result).split(",")[1]||"")};fr.onerror=function(){res("")};fr.readAsDataURL(blob)})}
+async function aiVerify(file,ctx){
+  var unchecked={status:"unchecked",reasons:[],ts:Date.now()};
+  try{
+    note("Cordial is checking this file…");
+    var type=file.type||"",att=null;
+    if(/^image\//.test(type)){var sh=await shrinkBlob(file);att={kind:"image",media:"image/jpeg",data:await blobB64(sh.blob)}}
+    else if(type==="application/pdf"&&file.size<3400000)att={kind:"pdf",media:"application/pdf",data:await blobB64(file)};
+    if(!att||!att.data){note("");return unchecked}
+    var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;
+    if(!tk){note("");return unchecked}
+    var ctl=new AbortController();var to=setTimeout(function(){ctl.abort()},30000);
+    var r=await fetch("/api/cordial",{method:"POST",signal:ctl.signal,headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({verify:ctx,attachment:att})});
+    clearTimeout(to);note("");
+    if(!r.ok)return unchecked;
+    var j=await r.json();
+    return {status:j.status||"unchecked",reasons:j.reasons||[],read:j.read||{},ts:Date.now()};
+  }catch(e){note("");return unchecked}
+}
+function aiFlag(list){return (list||[]).some(function(c){return c&&c.status==="review"})}
+function aiBadge(rec,coll){
+  if(!rec)return null;
+  var checks=[];if(rec.aicheck)checks.push(rec.aicheck);
+  (rec.receipts||[]).forEach(function(x){if(x&&x.aicheck)checks.push(x.aicheck)});if(rec.receipt&&rec.receipt.aicheck)checks.push(rec.receipt.aicheck);
+  var rv=rec.review,flagged=checks.filter(function(c){return c.status==="review"});
+  if(!checks.length&&!rv)return null;
+  var w=h("div");w.style.cssText="margin-top:4px;font-size:.88rem";
+  var line=h("div");
+  if(rv&&rv.state==="approved"){line.textContent="✅ Approved by owner";line.style.color="#1f8a4c"}
+  else if(rv&&rv.state==="rejected"){line.textContent="❌ Rejected by owner";line.style.color="#d93025"}
+  else if(flagged.length||(rv&&rv.state==="pending")){line.textContent="⚠️ Needs review";line.style.color="#c07a00";line.style.fontWeight="700"}
+  else if(checks.some(function(c){return c.status==="pass"})){line.textContent="✅ Checked by Cordial";line.style.color="#1f8a4c"}
+  else return null;
+  w.appendChild(line);
+  var why=[];flagged.forEach(function(c){(c.reasons||[]).forEach(function(x){if(why.indexOf(x)<0)why.push(x)})});
+  if(why.length&&!(rv&&rv.state==="approved")){var d=h("div","meta",why.join(" "));w.appendChild(d)}
+  if(rv&&rv.state==="pending"||(flagged.length&&!rv)){
+    if(isOwner&&rec.id){
+      var row=h("div");row.style.cssText="display:flex;gap:8px;margin-top:4px";
+      [["Approve","approved","#1fa855"],["Reject","rejected","#d93025"]].forEach(function(a){
+        var b=h("button",null,a[0]);b.type="button";b.style.cssText="border:0;border-radius:999px;padding:6px 14px;font:inherit;font-weight:700;font-size:.85rem;color:#fff;background:"+a[2];
+        b.onclick=function(){if(a[1]==="rejected"&&!confirm("Reject this entry? It stays in the record, marked as rejected."))return;db.doc(coll+"/"+rec.id).update({review:{state:a[1],by:myId,ts:Date.now()}}).catch(fail)};row.appendChild(b)});
+      w.appendChild(row);
+    }else w.appendChild(h("div","meta","Waiting for the owner to review."));
+  }
   return w;
 }
 /* shopping list */
@@ -1457,6 +1512,7 @@ function xtSup(){
     row.appendChild(top);
     row.appendChild(h("div","meta",money(r.amount||cfg.amount)+(r.paidAt?" · paid "+new Date(r.paidAt).toLocaleDateString(undefined,{day:"numeric",month:"short"}):"")+(r.receivedAt?" · received "+new Date(r.receivedAt).toLocaleDateString(undefined,{day:"numeric",month:"short"})+" by "+xtName(r.receivedBy):"")));
     var rcl=xtRc(r.receipt?[r.receipt]:[],"Transaction receipt");if(rcl)row.appendChild(rcl);
+    var sbg=aiBadge(r,"expenses");if(sbg)row.appendChild(sbg);
     var ssl=selfieLinks(r,[["selfie_paid","Paid"],["selfie_received","Received"]]);if(ssl)row.appendChild(ssl);
     var acts=h("div");
     if(!r.paidAt&&canSet&&!future){
@@ -1464,7 +1520,9 @@ function xtSup(){
       var lb=h("div","meta","Attach the transaction receipt (required)");lb.style.marginTop="6px";acts.appendChild(lb);acts.appendChild(fl);
       var pb=xtBtn("Mark as paid",async function(){
         if(!fl.files||!fl.files[0])return note("Attach the transaction receipt first.");note("");pb.disabled=true;
-        try{var rc=await xtUp(fl.files[0]);await xtDoc(id,{kind:"sup",date:mm.y+"-"+pad(mm.m)+"-01",amount:cfg.amount,paidAt:Date.now(),paidBy:myId,receipt:rc,_selfie:"paid"})}catch(e){fail(e)}
+        try{var rc=await xtUp(fl.files[0]);rc.aicheck=await aiVerify(fl.files[0],{kind:"support",title:"Monthly support "+mn[mm.m-1]+" "+mm.y,amount:cfg.amount,date:key(new Date())});
+          var pt={kind:"sup",date:mm.y+"-"+pad(mm.m)+"-01",amount:cfg.amount,paidAt:Date.now(),paidBy:myId,receipt:rc,_selfie:"paid"};if(rc.aicheck.status==="review")pt.review={state:"pending"};
+          await xtDoc(id,pt)}catch(e){fail(e)}
         pb.disabled=false});acts.appendChild(pb);
     }
     if(r.paidAt&&!r.receivedAt){
@@ -1511,13 +1569,15 @@ function xtFee(){
       }
       var fsl=selfieLinks(r,[["selfie_paid","Paid"]]);if(fsl)row.appendChild(fsl);
       var rl=xtRc(r.receipts,"Receipt");if(rl)row.appendChild(rl);
+      var fbg=aiBadge(r,"expenses");if(fbg)row.appendChild(fbg);
       if(canWrite){
         var rw=h("div");rw.style.cssText="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px";
         var rf=h("input");rf.type="file";rf.accept="image/*,application/pdf";rf.multiple=true;rf.style.cssText="flex:1;min-width:150px";
         var rb=xtBtn("Add receipts",async function(){
           if(!rf.files||!rf.files.length)return note("Choose one or more receipts first.");note("");rb.disabled=true;
-          try{var add=[];for(var i=0;i<rf.files.length;i++)add.push(await xtUp(rf.files[i]));
-            await xtDoc(id,{kind:"fee",date:yr+"-"+pad(t===0?9:t===1?1:5)+"-01",year:y,term:t+1,receipts:(r.receipts||[]).concat(add)});rf.value=""}catch(e){fail(e)}
+          try{var add=[];for(var i=0;i<rf.files.length;i++){var rc2=await xtUp(rf.files[i]);rc2.aicheck=await aiVerify(rf.files[i],{kind:"fee",title:"School fee "+y+"/"+(y+1)+" term "+(t+1),amount:r.amount||null,date:key(new Date())});add.push(rc2)}
+            var ft={kind:"fee",date:yr+"-"+pad(t===0?9:t===1?1:5)+"-01",year:y,term:t+1,receipts:(r.receipts||[]).concat(add)};if(aiFlag(add.map(function(x){return x.aicheck}))&&!(r.review&&r.review.state==="approved"&&false))ft.review={state:"pending"};
+            await xtDoc(id,ft);rf.value=""}catch(e){fail(e)}
           rb.disabled=false});
         rw.appendChild(rf);rw.appendChild(rb);row.appendChild(rw);
         if(isOwner&&r.receipts&&r.receipts.length){var rr=xtBtn("Remove last receipt",function(){if(confirm("Remove the last receipt from this term?"))xtDoc(id,{receipts:r.receipts.slice(0,-1)})},"quiet");row.appendChild(rr)}
@@ -3183,7 +3243,9 @@ $("#dup").onclick=async function(){
   var btn=$("#dup");btn.disabled=true;btn.textContent="Uploading…";
   try{
     var nn=stdName($("#dcat").value,t,f.name),path=await upload("docs",f,nn);
-    await db.collection("documents").add({title:t||nn,cat:$("#dcat").value,path:path,name:nn,orig:f.name,type:f.type||"application/octet-stream",size:f.size,by:myId||"",ts:Date.now()});
+    var chk=await aiVerify(f,{kind:"document",title:t||nn,category:$("#dcat").value,date:key(new Date())});
+    var drec={title:t||nn,cat:$("#dcat").value,path:path,name:nn,orig:f.name,type:f.type||"application/octet-stream",size:f.size,by:myId||"",ts:Date.now(),aicheck:chk};if(chk.status==="review")drec.review={state:"pending"};
+    await db.collection("documents").add(drec);
     $("#df").value="";$("#dt").value="";note("");
   }catch(e){note(attachErr(e))}
   btn.disabled=false;btn.textContent="Upload document";
@@ -3202,6 +3264,7 @@ function renderDocs(){
       var mb=d.size/1048576;
       l.appendChild(h("div","meta",d.name+(d.orig&&d.orig!==d.name?" (was “"+d.orig+"”)":"")+" – "+(mb>=1?mb.toFixed(1)+" MB":Math.max(1,Math.round(d.size/1024))+" KB")+" – "+new Date(d.ts).toLocaleDateString("en-US",{dateStyle:"medium"})));
       var dsl=selfieLinks(d,[["selfie","Selfie"]]);if(dsl)l.appendChild(dsl);
+      var dbg=aiBadge(d,"documents");if(dbg)l.appendChild(dbg);
       r.appendChild(l);
       if(canWrite){var rm=h("button","quiet","Remove");rm.onclick=function(){sb.storage.from("files").remove([d.path]).then(function(){return db.doc("documents/"+d.id).delete()}).catch(function(e){note(e&&e.code==="not_uploader"?"Only the person who uploaded this file, or an Editor, can remove it.":"That didn’t delete. Try again.")})};r.appendChild(rm)}
       L.appendChild(r)});
@@ -4271,11 +4334,19 @@ function shopDraw(){
   items.forEach(function(i){body.appendChild(shopRow(i,false))});
 }
 
+function geoDist(a,b,c,d){var R=6371000,r=Math.PI/180,x=(c-a)*r,y=(d-b)*r,q=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)*Math.sin(y/2);return 2*R*Math.asin(Math.sqrt(q))}
+function geoVerdict(t,lat,lng,acc){
+  if(!t||!t.geo||t.geo.lat==null)return {v:"noplace"};
+  var d=Math.round(geoDist(lat,lng,t.geo.lat,t.geo.lng)),rad=t.geo.r||200;
+  if(acc>150)return {v:"weak",dist:d};
+  return {v:d<=rad+Math.min(acc,100)?"ok":"far",dist:d};
+}
+function fmtDist(m){return m<1000?m+" m":(m/1000).toFixed(1)+" km"}
 function renderTrips(){
   var L=$("#tlist");if(!L)return;
   var trips=S.docs.filter(function(d){return d.cat==="Trip"}).sort(function(a,b){return String(b.start||"").localeCompare(String(a.start||""))});
   var files=S.docs.filter(function(d){return d.cat==="TripFile"});
-  var sg=JSON.stringify([trips.map(function(t){return [t.id,t.title,t.start,t.end]}),files.map(function(f){return f.id}),canWrite,(S.checkins||[]).length]);
+  var sg=JSON.stringify([trips.map(function(t){return [t.id,t.title,t.start,t.end,t.geo&&t.geo.ts]}),files.map(function(f){return f.id+(f.review?f.review.state:"")}),canWrite,(S.checkins||[]).length]);
   if(sg===tsig)return;tsig=sg;
   L.textContent="";
   if(!trips.length)L.appendChild(h("div","card")).appendChild(h("p","empty","No trips or visits yet. Add one above, then attach flight tickets, hotel reservations and receipts."));
@@ -4286,17 +4357,40 @@ function renderTrips(){
     var when=t.start?tdate(t.start)+(t.end&&t.end!==t.start?" – "+tdate(t.end):""):"";
     c.appendChild(h("div","meta",[t.place,when,t.who?"With "+t.who:""].filter(Boolean).join(" · ")));
     if(t.notes)c.appendChild(h("div","pre",t.notes));
-    var total=fs.reduce(function(n,f){return n+(f.tcat==="Expense"?(Number(f.amount)||0):0)},0);
+    var total=fs.reduce(function(n,f){return n+(f.tcat==="Expense"&&!(f.review&&f.review.state==="rejected")?(Number(f.amount)||0):0)},0);
     if(total)c.appendChild(h("div",null,"Expenses so far: "+money(total))).style.cssText="font-weight:700;margin:6px 0";
     if(t.type==="Visit"||true){
       var cks=(S.checkins||[]).filter(function(k){return k.trip===t.id}).sort(function(a,b){return a.ts-b.ts});
       var cb=h("div");cb.style.cssText="margin:10px 0;padding:10px;border-radius:12px;background:rgba(127,127,127,.1)";
       cb.appendChild(h("div",null,"📍 Check-ins")).style.fontWeight="700";
+      var gw=h("div","meta");gw.style.margin="4px 0";
+      if(t.geo&&t.geo.lat!=null){
+        var ga=h("a",null,"Meeting place set");ga.href="https://www.openstreetmap.org/?mlat="+t.geo.lat+"&mlon="+t.geo.lng+"#map=17/"+t.geo.lat+"/"+t.geo.lng;ga.target="_blank";ga.rel="noopener";
+        gw.appendChild(document.createTextNode("📌 "));gw.appendChild(ga);gw.appendChild(document.createTextNode(" · check-ins within "+(t.geo.r||200)+" m are marked verified. "));
+      }else gw.textContent="No meeting place set yet. Set it so check-ins can be marked “verified at location”. ";
+      if(canWrite&&(isOwner||!(t.geo&&t.geo.lat!=null))){
+        var gb=h("button","quiet sm",t.geo&&t.geo.lat!=null?"Change place":"📌 Set meeting place here");gb.type="button";
+        gb.onclick=function(){
+          if(!navigator.geolocation)return note("This phone can’t share its location.");
+          if(t.geo&&t.geo.lat!=null&&!confirm("Replace the saved meeting place with where you are now?"))return;
+          if(!confirm("Stand at the meeting place, then press OK. The hub will save this spot."))return;
+          gb.disabled=true;gb.textContent="Finding you…";
+          navigator.geolocation.getCurrentPosition(function(p){
+            db.doc("documents/"+t.id).update({geo:{lat:Math.round(p.coords.latitude*1e6)/1e6,lng:Math.round(p.coords.longitude*1e6)/1e6,r:200,by:myId||"",ts:Date.now()}}).then(function(){note("Meeting place saved.");setTimeout(function(){note("")},2000)},fail);
+          },function(e){gb.disabled=false;gb.textContent="📌 Set meeting place here";note(e&&e.code===1?"Location is blocked. Allow location for this app in your phone settings, then try again.":"Couldn’t get your location. Go outside or near a window and try again.")},{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+        };gw.appendChild(gb);
+      }
+      cb.appendChild(gw);
       if(!cks.length)cb.appendChild(h("div","meta","No one has checked in yet."));
       cks.forEach(function(k){
         var r=h("div");r.style.cssText="margin-top:6px;font-size:.92rem";
         var when=new Date(k.ts).toLocaleString(undefined,{weekday:"short",day:"numeric",month:"short",year:"numeric",hour:"numeric",minute:"2-digit"});
         r.appendChild(document.createTextNode((k.type==="out"?"Checked out":"Checked in")+" · "+memberName(k.by)+" · "+when+(k.acc?" · ±"+Math.round(k.acc)+" m":"")+" "));
+        if(k.gv&&k.gv!=="noplace"){var gp=k.gv.split("|"),gl=h("div");gl.style.cssText="font-weight:700;margin-top:2px";
+          if(gp[0]==="ok"){gl.textContent="✅ Verified at the meeting place ("+fmtDist(+gp[1])+" away)";gl.style.color="#1f8a4c"}
+          else if(gp[0]==="far"){gl.textContent="❌ Not at the meeting place ("+fmtDist(+gp[1])+" away)";gl.style.color="#d93025"}
+          else{gl.textContent="⚠️ Location too imprecise to verify";gl.style.color="#c07a00"}
+          r.appendChild(gl)}
         var ksl=selfieLinks(k,[["selfie","Selfie"]]);if(ksl){ksl.style.display="inline-flex";ksl.style.marginLeft="8px";r.appendChild(ksl)}
         if(k.lat!=null){var a=h("a","meta","View on map");a.href="https://www.openstreetmap.org/?mlat="+k.lat+"&mlon="+k.lng+"#map=18/"+k.lat+"/"+k.lng;a.target="_blank";a.rel="noopener";r.appendChild(a)}
         else r.appendChild(h("span","meta","(location not shared)"));
@@ -4310,7 +4404,7 @@ function renderTrips(){
             b.disabled=true;var old=b.textContent;b.textContent="Finding you…";
             navigator.geolocation.getCurrentPosition(function(p){
               var id=db.collection("checkins").doc().id;
-              db.doc("checkins/"+id).set({trip:t.id,tripTitle:t.title||"",type:x[0],by:myId||"",lat:Math.round(p.coords.latitude*1e6)/1e6,lng:Math.round(p.coords.longitude*1e6)/1e6,acc:Math.round(p.coords.accuracy||0),ts:Date.now()}).then(function(){note("Checked "+(x[0]==="in"?"in":"out")+". This record can’t be edited.");setTimeout(function(){note("")},2500)},fail);
+              db.doc("checkins/"+id).set({trip:t.id,tripTitle:t.title||"",type:x[0],by:myId||"",lat:Math.round(p.coords.latitude*1e6)/1e6,lng:Math.round(p.coords.longitude*1e6)/1e6,acc:Math.round(p.coords.accuracy||0),ts:Date.now(),gv:(function(){var g=geoVerdict(t,p.coords.latitude,p.coords.longitude,p.coords.accuracy||0);return g.v+(g.dist!=null?"|"+g.dist:"")})()}).then(function(){note("Checked "+(x[0]==="in"?"in":"out")+". This record can’t be edited.");setTimeout(function(){note("")},2500)},fail);
               b.disabled=false;b.textContent=old},function(e){b.disabled=false;b.textContent=old;note(e&&e.code===1?"Location is blocked. Allow location for this app in your phone settings, then try again.":"Couldn’t get your location. Go outside or near a window and try again.")},{enableHighAccuracy:true,timeout:20000,maximumAge:0})};
           row.appendChild(b)});
         cb.appendChild(row);cb.appendChild(h("div","meta","Check-ins record your phone’s location and time. They can’t be edited or deleted.")).style.marginTop="6px";
@@ -4324,7 +4418,7 @@ function renderTrips(){
         var r=h("div","tfile"),l=h("div");l.style.cssText="flex:1;min-width:0";
         if(/^image\//.test(f.type||"")){var th=h("img");th.alt=f.title||"Photo";th.style.cssText="width:56px;height:56px;object-fit:cover;border-radius:8px;flex:none;cursor:pointer;background:rgba(127,127,127,.2)";th._load=function(){signed(f.path).then(function(u){th.src=u;th.onclick=function(){openViewer(u,"",f.title||"")}}).catch(function(){})};r.appendChild(th);if(io)io.observe(th);else th._load()}
         var a=h("a",null,f.title||f.name);a.href="#";a.onclick=function(e){e.preventDefault();signed(f.path).then(function(u){preview(Object.assign({},f,{url:u}))}).catch(function(){note("That file isn’t available.")})};l.appendChild(a);
-        l.appendChild(h("div","meta",(f.amount?money(f.amount)+" · ":"")+fmtSize(f.size)));r.appendChild(l);
+        l.appendChild(h("div","meta",(f.amount?money(f.amount)+" · ":"")+fmtSize(f.size)));var tbg=aiBadge(f,"documents");if(tbg)l.appendChild(tbg);r.appendChild(l);
         if(canWrite){var rm=h("button","quiet","Remove");rm.onclick=function(){if(!confirm("Remove this file?"))return;sb.storage.from("files").remove([f.path]).then(function(){return db.doc("documents/"+f.id).delete()}).catch(fail)};r.appendChild(rm)}
         c.appendChild(r);
       });
@@ -4347,7 +4441,9 @@ function renderTrips(){
             var f=fl[k],blob=f,fname=f.name,ftype=f.type||"application/octet-stream",cat=sel.value;
             if(/^image\//.test(ftype)){try{var sh=await shrinkBlob(f);blob=sh.blob;ftype="image/jpeg";fname=(f.name||"photo").replace(/\.[^.]*$/,"")+".jpg";if(cat==="Other"||cat==="Document")cat="Photo"}catch(e){}}
             var path=await upload("docs",blob,fname);
-            await db.collection("documents").add({cat:"TripFile",trip:t.id,tcat:cat,title:(fl.length===1&&ti.value.trim())||fname,amount:fl.length===1?(parseFloat(am.value)||0):0,path:path,name:fname,type:ftype,size:blob.size||f.size,by:myId||"",ts:Date.now()+k});
+            var chk=await aiVerify(f,{kind:"trip "+cat,title:(t.title||"Trip")+" – "+fname,amount:fl.length===1?(parseFloat(am.value)||null):null,date:t.start||key(new Date())});
+            var trec={cat:"TripFile",trip:t.id,tcat:cat,title:(fl.length===1&&ti.value.trim())||fname,amount:fl.length===1?(parseFloat(am.value)||0):0,path:path,name:fname,type:ftype,size:blob.size||f.size,by:myId||"",ts:Date.now()+k,aicheck:chk};if(chk.status==="review")trec.review={state:"pending"};
+            await db.collection("documents").add(trec);
           }
           note("");
         }catch(e){note(attachErr(e))}
@@ -4370,8 +4466,20 @@ function renderTrips(){
 }
 $("#tadd").onclick=function(){
   var ti=$("#ttl").value.trim();if(!db||!ti)return note("Give it a title.");
-  db.collection("documents").add({cat:"Trip",type:$("#ttype").value,title:ti,place:$("#tpl").value.trim(),who:$("#twho").value.trim(),start:$("#tfr").value,end:$("#tto").value,notes:$("#tnt").value.trim(),by:myId||"",ts:Date.now()})
-   .then(function(){["#ttl","#tpl","#twho","#tfr","#tto","#tnt"].forEach(function(x){$(x).value=""});note("")},fail)};
+  var tid=db.collection("documents").doc().id,fl=Array.prototype.slice.call($("#tfiles").files||[]),fc=$("#tfcat").value,btn=$("#tadd");btn.disabled=true;
+  db.doc("documents/"+tid).set({cat:"Trip",type:$("#ttype").value,title:ti,place:$("#tpl").value.trim(),who:$("#twho").value.trim(),start:$("#tfr").value,end:$("#tto").value,notes:$("#tnt").value.trim(),by:myId||"",ts:Date.now()})
+   .then(async function(){
+     for(var k=0;k<fl.length;k++){
+       btn.textContent="Uploading "+(k+1)+" of "+fl.length+"…";
+       var f=fl[k],blob=f,fname=f.name,ftype=f.type||"application/octet-stream",cat=fc;
+       if(/^image\//.test(ftype)){try{var sh=await shrinkBlob(f);blob=sh.blob;ftype="image/jpeg";fname=(f.name||"photo").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
+       var path=await upload("docs",blob,fname);
+       var chk=await aiVerify(f,{kind:"trip "+cat,title:ti+" – "+fname,date:$("#tfr").value||key(new Date())});
+       var rec={cat:"TripFile",trip:tid,tcat:cat,title:fname,amount:0,path:path,name:fname,type:ftype,size:blob.size||f.size,by:myId||"",ts:Date.now()+k,aicheck:chk};if(chk.status==="review")rec.review={state:"pending"};
+       await db.collection("documents").add(rec);
+     }
+     ["#ttl","#tpl","#twho","#tfr","#tto","#tnt","#tfiles"].forEach(function(x){$(x).value=""});note("");btn.disabled=false;btn.textContent="Add";
+   }).catch(function(e){btn.disabled=false;btn.textContent="Add";fail(e)})};
 
 /* settings: sound and skin tone */
 function syncSnd(){$("#sndbtn").textContent=soundOn()?"On":"Off";$("#sndbtn").style.background=soundOn()?"":"var(--muted)"}
