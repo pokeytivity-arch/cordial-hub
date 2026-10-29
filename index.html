@@ -1850,7 +1850,7 @@ function openPick(m,row){
 
 /* calls */
 function newRoom(){var a=new Uint8Array(9);crypto.getRandomValues(a);return "CoParentHub"+Array.prototype.map.call(a,function(x){return x.toString(16).padStart(2,"0")}).join("")}
-function roomUrl(c){return "https://meet.jit.si/"+c.room+(c.audio?"#config.startWithVideoMuted=true":"")}
+function roomUrl(c){return "https://meet.jit.si/"+c.room+"#config.disableDeepLinking=true"+(c.audio?"&config.startWithVideoMuted=true":"")}
 
 var JC=null,JCUR=null;
 function openCall(c){
@@ -1866,9 +1866,10 @@ function openCall(c){
   }
   JCUR=c;
   var nm=(S.me||"").replace(/["\\]/g,"");
-  var cfg="#config.prejoinPageEnabled=false"+(c.audio?"&config.startWithVideoMuted=true":"");
+  var cfg="#config.prejoinPageEnabled=false&config.disableDeepLinking=true"+(c.audio?"&config.startWithVideoMuted=true":"");
   var pub="https://meet.jit.si/"+c.room+cfg+(nm?"&userInfo.displayName=%22"+encodeURIComponent(nm)+"%22":"");
-  var fr=JC.querySelector("#jcf"),nt=JC.querySelector("#jcn");
+  var fr=JC.querySelector("#jcf"),nt=JC.querySelector("#jcn"),ttl=JC.querySelector("#jch strong");
+  if(ttl)ttl.textContent="Family call";
   JC.hidden=false;syncCbar();nt.href=roomUrl(c);fr.src="about:blank";
   var mine=c;
   (async function(){
@@ -1877,7 +1878,8 @@ function openCall(c){
       var ss=await sb.auth.getSession();var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;
       if(tk){
         var r=await fetch("/.netlify/functions/jaas-token",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({room:c.room})});
-        if(r.ok){var j=await r.json();if(j&&j.jwt&&j.appId){u="https://8x8.vc/"+j.appId+"/"+c.room+"?jwt="+j.jwt+cfg;nt.href=u}}
+        if(r.ok){var j=await r.json();if(j&&j.jwt&&j.appId){u="https://8x8.vc/"+j.appId+"/"+c.room+"?jwt="+j.jwt+cfg;nt.href=u;if(ttl)ttl.textContent="Family call · private"}}
+        else{var je={};try{je=await r.json()}catch(x){}if(ttl)ttl.textContent="Family call · basic ("+(je.error||r.status)+")"}
       }
     }catch(e){}
     if(JCUR===mine&&!JC.hidden)fr.src=u;
