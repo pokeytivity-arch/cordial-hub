@@ -774,8 +774,6 @@ main{max-width:100%}
 </section>
 
 <section id="p-feed" hidden>
-  <div class="card" id="nsppd" hidden></div>
-  <div class="card" id="shopcard"></div>
   <div class="fh2"><h2>All posts</h2><button class="flink" id="ffilt" type="button">Filters</button></div>
   <div id="ffmenu" class="prtabs" hidden></div>
   <button class="fbar" id="fbar" type="button"><span class="fbav" id="fbav"></span><span class="fbtx">What’s on your mind?</span><span class="fbim" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26"><rect x="3" y="3" width="18" height="18" rx="3.5" fill="currentColor"/><circle cx="9" cy="9" r="2" fill="#fff"/><path d="M4 18l5-5 3 3 3-4 5 6z" fill="#fff"/></svg></span></button>
@@ -893,6 +891,12 @@ main{max-width:100%}
       <li>Use People to keep contact details for parents, guardians, family members, and lawyers. Adding someone there does not give them access. The owner invites people from the Access page.</li>
       <li>Tap + Add on the home screen to jump straight to writing a message, expense, or note.</li>
     </ul>
+  </div>
+  <div class="card" id="aicard" hidden><h2>Cordial AI credit</h2>
+    <div style="height:12px;border-radius:6px;background:rgba(127,127,127,.25);overflow:hidden"><div id="aifill" style="height:100%;width:0;background:#1fa855"></div></div>
+    <p id="aitxt" class="meta" style="margin:8px 0">Loading…</p>
+    <p class="meta" style="margin:0 0 10px">This is an estimate, not your live Anthropic balance (Anthropic doesn’t share that with apps). Enter the amount of credit you loaded in the Anthropic Console, and the bar counts down from it using each message’s real token use. The exact balance is always at console.anthropic.com under Billing.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="aibud" type="number" min="0" step="1" placeholder="Credit loaded, $" style="max-width:170px"><button id="aiset">Set / top up</button><button id="airef" class="quiet">Refresh</button></div>
   </div>
   <div class="card"><h2>Storage and backup</h2>
     <div id="stbar" style="height:12px;border-radius:6px;background:rgba(127,127,127,.25);overflow:hidden"><div id="stfill" style="height:100%;width:0;background:var(--accent,#2f80ed)"></div></div>
@@ -1084,7 +1088,7 @@ function showTab(id){
   var tt=(TILES||[]).filter(function(t){return t[0]===id})[0];$("#apptitle").textContent=home?"Home":(tt?tt[1]:"");
   window.scrollTo(0,0);note("");
   if(READY){if(chg)safe(renderAll)();lockForms();if(!cw&&FEAT[id])note("You can view this section but not change it. Ask the owner if you need to.");if(id==="access")safe(renderAccess)()}
-  if(id==="help"&&typeof measure==="function"){measure();alertStatus()}
+  if(id==="help"&&typeof measure==="function"){measure();alertStatus();aiMeter()}
   if(home&&typeof renderHome==="function"&&S.kids)safe(renderHome)();
   if(home&&typeof alertStatus==="function")safe(alertStatus)();
 }
@@ -1642,6 +1646,24 @@ async function measure(){
   }catch(e){t.textContent="Couldn’t measure storage right now."}
 }
 $("#stref").onclick=measure;
+async function aiMeter(post){
+  var c=$("#aicard");if(!c)return;c.hidden=!isOwner;if(!isOwner)return;
+  var t=$("#aitxt");t.textContent="Loading…";
+  try{
+    var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;
+    var o={headers:{Authorization:"Bearer "+tk}};if(post!=null){o.method="POST";o.body=JSON.stringify({setBudget:post});o.headers["Content-Type"]="application/json"}
+    var r=await fetch("/api/cordial",o),j=await r.json();
+    if(!r.ok)throw new Error(j.error||r.status);
+    var money=function(n){return "$"+(n<10?n.toFixed(2):n.toFixed(0))};
+    var tok=(j.tokensIn+j.tokensOut).toLocaleString();
+    if(j.budget==null){$("#aifill").style.width="0";t.textContent="No credit amount set yet. Used so far: about "+money(j.spentAll)+" ("+j.n+" replies, "+tok+" tokens). Enter what you loaded to start the meter."}
+    else{var pc=j.budget>0?Math.max(0,Math.min(100,j.left/j.budget*100)):0;var f=$("#aifill");f.style.width=Math.max(pc,1)+"%";f.style.background=pc<15?"#ea0038":pc<35?"#e0a100":"#1fa855";
+      t.textContent="About "+money(j.left)+" left of "+money(j.budget)+" ("+pc.toFixed(0)+"%). Used since top-up: about "+money(j.spent)+". All time: "+j.n+" replies, "+tok+" tokens."}
+  }catch(e){t.textContent="Couldn’t load. Make sure the new cordial.js is uploaded."}
+}
+$("#airef").onclick=function(){aiMeter()};
+$("#aiset").onclick=function(){var v=parseFloat($("#aibud").value);if(!(v>=0))return toast("Enter the amount in dollars.");aiMeter(v).then(function(){$("#aibud").value=""})};
+
 $("#stexp").onclick=async function(){
   var b=$("#stexp");b.disabled=true;b.textContent="Preparing…";
   try{var all=await readAll();await saveFile("cordial-backup-"+new Date().toISOString().slice(0,10)+".json",JSON.stringify(all,null,1),"application/json")}
@@ -1671,7 +1693,7 @@ function b64k(s){var p="=".repeat((4-s.length%4)%4),b=(s+p).replace(/-/g,"+").re
 window.pushSubscribe=async function(){
   try{
     if(!("PushManager" in window)||!navigator.serviceWorker||!window.hubPref)return false;
-    var r=await fetch("/.netlify/functions/push");if(!r.ok)return false;var j=await r.json();
+    var r=await fetch("/api/push");if(!r.ok)return false;var j=await r.json();
     var reg=await navigator.serviceWorker.ready;
     var sub=await reg.pushManager.getSubscription();
     if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64k(j.key)});
@@ -2108,7 +2130,7 @@ function openCall(c){
     try{
       var ss=await sb.auth.getSession();var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;
       if(tk){
-        var r=await fetch("/.netlify/functions/jaas-token",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({room:c.room})});
+        var r=await fetch("/api/jaas-token",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({room:c.room})});
         if(r.ok){var j=await r.json();if(j&&j.jwt&&j.appId){host="8x8.vc";path="/"+j.appId+"/";roomName=j.appId+"/"+c.room;jwt=j.jwt;priv=true;nt.href="https://8x8.vc/"+j.appId+"/"+c.room+"?jwt="+j.jwt+"#config.disableDeepLinking=true"}}
         else{var je={};try{je=await r.json()}catch(x){}why=" · basic ("+(je.error||r.status)+")"}
       }
@@ -2242,7 +2264,7 @@ async function openZoomInHub(){
   try{
     var ss=await sb.auth.getSession();var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;
     if(!tk)return zoomFallback("Please sign in again.");
-    var r=await fetch("/.netlify/functions/zoom-signature",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:"{}"});
+    var r=await fetch("/api/zoom-signature",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:"{}"});
     if(r.status===501)return zoomFallback("In-hub Zoom isn’t set up yet.");
     if(!r.ok){var er="";try{er=(await r.json()).error||""}catch(x){}return zoomFallback("Couldn’t start Zoom here ("+r.status+(er?" "+er:"")+").")}
     var j=await r.json();
@@ -2567,7 +2589,7 @@ function postMenu(p){
     b.onclick=function(){close();fn()};c.appendChild(b);
   }
   var hd=h("div","pfsh");hd.appendChild(h("strong",null,"Post options"));var x=h("button","quiet","✕");x.onclick=close;hd.appendChild(x);c.appendChild(hd);
-  if(can)item("📌",p.pinned?"Unpin post":"Pin post",p.pinned?"":"Keep it at the top of the Timeline",function(){db.doc("posts/"+p.id).update({pinned:!p.pinned,pinTs:Date.now()}).catch(fail)});
+  if(can)item("📌",p.pinned?"Unpin from profile":"Pin to my profile",p.pinned?"":"Moves it from the Timeline to the top of your profile",function(){db.doc("posts/"+p.id).update({pinned:!p.pinned,pinTs:Date.now()}).catch(fail)});
   if(canWrite&&mine&&p.text!==undefined)item("✏️","Edit post","",function(){
     pSheet("Edit post",[{id:"text",label:"Text",type:"textarea",value:p.text||"",max:1000}],async function(v){
       if(!v.text&&!p.mid)throw new Error("empty");
@@ -2705,7 +2727,7 @@ function evIcs(e){
 function buildPost(p,ps){
   var c=h("div","card post"),hd=h("div","phead"),who=pname(p.by,ps);
   hd.appendChild(avatarEl(p.by,"pav",who));
-  var hw=h("div");hw.style.flex="1";var wn=h("button","pwho linkish",who);wn.type="button";wn.onclick=function(){openProfile(p.by)};hw.appendChild(wn);hw.appendChild(h("div","meta",(p.pinned?"📌 Pinned · ":"")+ago(p.ts)+(p.edited?" · Edited":"")));
+  var hw=h("div");hw.style.flex="1";var wn=h("button","pwho linkish",who);wn.type="button";wn.onclick=function(){openProfile(p.by)};hw.appendChild(wn);hw.appendChild(h("div","meta",(p.pinned?"📌 Pinned to profile · ":"")+ago(p.ts)+(p.edited?" · Edited":"")));
   if(p.tags&&p.tags.length){wn.parentNode&&0;var tg=h("span","ptags"," — with "+p.tags.map(function(i){return i===myId?"you":memberName(i)}).join(", "));wn.appendChild(tg)}
   hd.appendChild(hw);
   var mb=h("button","pmore","•••");mb.setAttribute("aria-label","Post options");mb.onclick=function(){postMenu(p)};hd.appendChild(mb);
@@ -2871,12 +2893,26 @@ function renderFeedInto(L,posts,emptyText,keepFocus){
   var go=function(ps){
     L.textContent="";
     if(!posts.length)L.appendChild(h("p","empty",emptyText));
-    posts.forEach(function(p){L.appendChild(buildPost(p,ps))});
+    posts.forEach(function(p){var pe=buildPost(p,ps);pe.dataset.pts=p.ts||0;pe.dataset.pin=p.pinned?"1":"0";L.appendChild(pe)});
+    if(L.id==="fl"&&FFILT==="all")safe(mixCards)(L);
     if(fp){var el=Array.prototype.filter.call(L.querySelectorAll("[data-cin]"),function(e){return e.dataset.cin===fp})[0];if(el){el.focus();try{el.setSelectionRange(el.value.length,el.value.length)}catch(e){}}}
   };
   if(userCap&&ids.length)Promise.resolve(userCap.profiles(ids)).then(go,function(){go(null)});else go(null);
 }
 
+function mixCards(L){
+  var cards=[],d=S.prof&&S.prof.cordial_daily;
+  if(d&&d.vid){var ne=nsppdEl();if(ne)cards.push({ts:d.seen||d.published||0,el:ne})}
+  var nl=S.prof&&S.prof.cordial_shoplatest,it=shopItems()[0];
+  cards.push({ts:(nl&&(nl.postTs||nl.seen))||(it&&it.ts)||0,el:shopEl()});
+  cards.sort(function(a,b){return b.ts-a.ts}).forEach(function(c){
+    var kids=Array.prototype.slice.call(L.children).filter(function(k){return k.dataset&&k.dataset.pts!==undefined});
+    var ref=null;
+    if(c.ts){for(var i=0;i<kids.length;i++){if(Number(kids[i].dataset.pts)<c.ts){ref=kids[i];break}}}
+    else ref=kids[2]||null;
+    L.insertBefore(c.el,ref);
+  });
+}
 function openComposer(){
   if(!canWrite)return note("You can view this section but not post. Ask the owner to change your access.");
   var p=PF(myId);
@@ -2914,12 +2950,12 @@ function nsppdLive(d){
   var hr=n.getUTCHours();return wd>=1&&wd<=5&&hr>=7&&hr<12;
 }
 window.nsppdLive=nsppdLive;
-setInterval(function(){try{renderNsppd();var n=new Date(Date.now()+3600000),wd=n.getUTCDay(),hr=n.getUTCHours();if(!document.hidden&&wd>=1&&wd<=5&&hr>=7&&hr<12&&window.feedRefresh)feedRefresh()}catch(e){}},60000);
-function renderNsppd(){
-  var el=$("#nsppd");if(!el)return;
-  var d=S.prof&&S.prof.cordial_daily,r=S.prof&&S.prof.cordial_recap,items=(r&&r.items)||[],last=items[items.length-1];
-  if(!d||!d.vid){el.hidden=true;return}
-  el.hidden=false;el.textContent="";
+setInterval(function(){try{var lv=nsppdLive(S.prof&&S.prof.cordial_daily);if(lv!==window.__nl){window.__nl=lv;renderNsppd()}var n=new Date(Date.now()+3600000),wd=n.getUTCDay(),hr=n.getUTCHours();if(!document.hidden&&wd>=1&&wd<=5&&hr>=7&&hr<12&&window.feedRefresh)feedRefresh()}catch(e){}},60000);
+function renderNsppd(){safe(renderFeed)()}
+function nsppdEl(){
+  var el=h("div","card");
+  var d=S.prof&&S.prof.cordial_daily;
+  if(!d||!d.vid)return null;
   var hd=h("div");hd.style.cssText="display:flex;align-items:center;gap:8px;margin-bottom:6px";
   hd.appendChild(h("b",null,"🔴 "+(d.channel||"Streams of Joy NSPPD")));el.appendChild(hd);
   var live0=nsppdLive(d),tv=(live0&&d.liveVid)?d.liveVid:d.vid;
@@ -2937,10 +2973,11 @@ function renderNsppd(){
   btn("Open in YouTube","rgba(0,0,0,.08)",null,d.url);
   if(live&&d.live)btn("🔴 Live now","#d93025",null,d.live);
   el.appendChild(row);
+  return el;
 }
 function renderFeed(){
-  syncBar();safe(renderNsppd)();
-  renderFeedInto($("#fl"),feedFilter(pinFirst(S.posts)),"No posts yet. Share an update, a photo, or a reminder with everyone.",true);
+  syncBar();
+  renderFeedInto($("#fl"),feedFilter(S.posts.filter(function(p){return FFILT==="pinned"||!p.pinned}).sort(function(a,b){return (b.ts||0)-(a.ts||0)})),"No posts yet. Share an update, a photo, or a reminder with everyone.",true);
   var prl=$("#prl");if(prl)renderFeedInto(prl,pinFirst(S.posts).filter(function(p){return p.by&&p.by===(VIEW||myId)}),"You haven’t posted yet.",false);
   if(CS.post)renderCS(false);
 }
@@ -3093,15 +3130,20 @@ function toggleSave(id){var a=savedIds(),i=a.indexOf(id);if(i>=0)a.splice(i,1);e
 function igCode(u){try{var x=new URL(u);if(!/(^|\.)instagram\.com$/.test(x.hostname))return null;var m=x.pathname.match(/\/(p|reel|tv)\/([\w-]+)/);return m?{kind:m[1],code:m[2],url:"https://www.instagram.com/"+m[1]+"/"+m[2]+"/"}:{kind:"profile",code:"",url:x.origin+x.pathname}}catch(e){return null}}
 function daysTo(d){if(!d)return null;var t=new Date(d+"T00:00:00"),n=new Date();n.setHours(0,0,0,0);return Math.round((t-n)/86400000)}
 function dueText(d){var n=daysTo(d);if(n===null)return "";var dt=tdate(d);return n<0?"Shopping day was "+dt:n===0?"Shopping day is today":n===1?"Shopping day is tomorrow ("+dt+")":"Shopping day "+dt+" · in "+n+" days"}
-function renderShop(){
-  var el=$("#shopcard");if(!el)return;
+function renderShop(){safe(renderFeed)()}
+function shopEl(){
+  var el=h("div","card");
   var items=shopItems(),saved=savedIds(),mine=items.filter(function(i){return saved.indexOf(i.id)>=0});
-  el.textContent="";
   var hd=h("div");hd.style.cssText="display:flex;align-items:center;justify-content:space-between;gap:8px";
   hd.appendChild(h("b",null,"🛍 "+shopName()));
   var op=h("button","quiet","Open");op.type="button";op.onclick=function(){shopOpen("latest")};hd.appendChild(op);el.appendChild(hd);
-  var lp0=h("button","go sm","📷 See latest posts from "+shopName());lp0.type="button";lp0.style.marginTop="8px";lp0.onclick=function(){shopOpen("latest")};el.appendChild(lp0);
-  if(!items.length)return;
+  var nl=S.prof&&S.prof.cordial_shoplatest;
+  if(nl&&nl.code&&nl.handle===shopHandle()){
+    var nw=h("div");nw.style.cssText="background:#fff;border-radius:12px;overflow:hidden;margin-top:8px;border:1px solid rgba(0,0,0,.06)";
+    var nf=h("iframe");nf.src="https://www.instagram.com/"+nl.kind+"/"+nl.code+"/embed/captioned";nf.style.cssText="width:100%;height:560px;border:0;display:block";nf.setAttribute("loading","lazy");nw.appendChild(nf);el.appendChild(nw);
+  }
+  var lp0=h("button","go sm","📷 More from "+shopName());lp0.type="button";lp0.style.marginTop="8px";lp0.onclick=function(){shopOpen("latest")};el.appendChild(lp0);
+  if(!items.length)return el;
   var soon=mine.filter(function(i){var n=daysTo(i.date);return n!==null&&n>=0&&n<=3}).sort(function(a,b){return String(a.date).localeCompare(String(b.date))});
   if(soon.length){var sb2=h("div",null,"⏰ "+soon.map(function(i){return i.title+" — "+dueText(i.date)}).join("  ·  "));sb2.style.cssText="background:#fff4d6;border-radius:10px;padding:8px 10px;margin:8px 0;font-size:.9rem";el.appendChild(sb2)}
   items.slice(0,2).forEach(function(i){el.appendChild(shopRow(i,true))});
@@ -3109,6 +3151,7 @@ function renderShop(){
   var a1=h("button","go sm","See all ("+items.length+")");a1.type="button";a1.onclick=function(){shopOpen("feed")};
   var a2=h("button","quiet","♥ Saved ("+mine.length+")");a2.type="button";a2.onclick=function(){shopOpen("saved")};
   more.appendChild(a1);more.appendChild(a2);el.appendChild(more);
+  return el;
 }
 function shopRow(i,compact){
   var saved=savedIds().indexOf(i.id)>=0;
@@ -3137,7 +3180,7 @@ function shopRow(i,compact){
   return c;
 }
 var SHOPV=null,SHOPMODE="feed",SHOPAT=0,SHOPLC;
-function shopLatestRefresh(){if(Date.now()-SHOPAT<20*60*1000)return;SHOPAT=Date.now();try{fetch("/.netlify/functions/shoplatest").catch(function(){})}catch(e){}}
+function shopLatestRefresh(){if(Date.now()-SHOPAT<20*60*1000)return;SHOPAT=Date.now();try{fetch("/api/shoplatest").catch(function(){})}catch(e){}}
 function shopOpen(mode){
   SHOPMODE=mode||"feed";
   if(!SHOPV){
@@ -3415,7 +3458,7 @@ async function adminCall(body){
   var s=await sb.auth.getSession();
   var res;
   try{
-    res=await fetch("/.netlify/functions/invite",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+s.data.session.access_token},body:JSON.stringify(Object.assign({redirectTo:location.origin+location.pathname},body))});
+    res=await fetch("/api/invite",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+s.data.session.access_token},body:JSON.stringify(Object.assign({redirectTo:location.origin+location.pathname},body))});
   }catch(e){throw {message:"Couldn’t reach the invite service. Check your connection."}}
   var j={};try{j=await res.json()}catch(e){}
   if(res.status===404)throw {message:"The invite service isn’t set up yet. Invite them from your Supabase dashboard instead (see SETUP.md)."};
@@ -4016,7 +4059,8 @@ var BOT_HELP=[
 ];
 var botCache={key:"",list:[]},AIH=null,AIPEND=false;
 function aiLoad(){try{return JSON.parse(localStorage.getItem("hubAI_"+myId)||"[]")}catch(e){return []}}
-function aiSave(){try{localStorage.setItem("hubAI_"+myId,JSON.stringify(AIH.slice(-60)))}catch(e){}}
+function aiSave(){try{localStorage.setItem("hubAI_"+myId,JSON.stringify(AIH.slice(-60).map(function(x){var o={};for(var k in x)if(k!=="img")o[k]=x[k];return o})))}catch(e){}}
+var AILAST=null;
 function ytOpen(vid){
   var old=document.getElementById("ytv");if(old)old.remove();
   var o=E("div");o.id="ytv";o.style.cssText="position:fixed;inset:0;z-index:260;background:#000;display:flex;flex-direction:column";
@@ -4029,25 +4073,85 @@ var feedAt=0;
 function feedRefresh(){
   var nn=new Date(Date.now()+3600000),wd2=nn.getUTCDay(),hr2=nn.getUTCHours(),gap=(wd2>=1&&wd2<=5&&hr2>=7&&hr2<12)?2*60*1000:10*60*1000;
   if(Date.now()-feedAt<gap)return;feedAt=Date.now();
-  try{fetch("/.netlify/functions/feed").then(function(r){return r.json().then(function(j){if(!r.ok&&isOwner&&!(S.prof&&S.prof.cordial_daily))toast("NSPPD link problem: "+(j.error||r.status)+(j.why?" ("+j.why+")":""))})}).catch(function(){})}catch(e){}
+  try{fetch("/api/feed").then(function(r){return r.json().then(function(j){if(!r.ok&&isOwner&&!(S.prof&&S.prof.cordial_daily))toast("NSPPD link problem: "+(j.error||r.status)+(j.why?" ("+j.why+")":""))})}).catch(function(){})}catch(e){}
 }
 window.ytOpen=ytOpen;window.feedRefresh=feedRefresh;
 (function(){var n=0,iv=setInterval(function(){if(++n>20){clearInterval(iv);return}if(S.profLoaded){clearInterval(iv);feedRefresh()}},3000)})();
-function aiAsk(t){
-  if(AIPEND||!t)return;
+function aiAsk(t,att){
+  if(AIPEND||(!t&&!att))return;
+  t=t||"Please look at this.";
   if(AIH===null)AIH=aiLoad();
-  AIH.push({by:"me",text:t,ts:Date.now()});aiSave();AIPEND=true;lastSig="";renderChat(true);
+  var um={by:"me",text:t,ts:Date.now()};
+  if(att){um.fname=att.name||"";if(att.thumb)um.img=att.thumb;AILAST=att}
+  AIH.push(um);aiSave();AIPEND=true;lastSig="";renderChat(true);
   var hist=AIH.slice(-12).map(function(x){return {role:x.by==="bot"?"assistant":"user",content:x.text}});
-  function done(txt,keep){AIPEND=false;if(keep!==false){AIH.push({by:"bot",text:txt,ts:Date.now()});aiSave()}else{AIH.push({by:"bot",text:txt,ts:Date.now()})}lastSig="";renderChat(true)}
+  function done(txt,keep,acts){AIPEND=false;var m={by:"bot",text:txt,ts:Date.now()};if(acts&&acts.length)m.acts=acts.map(function(a){a.state="pending";return a});AIH.push(m);if(keep!==false)aiSave();botCache.key="";lastSig="";renderChat(true)}
+  var body={messages:hist};
+  if(att)body.attachment={kind:att.kind||"",media:att.media||"",data:att.data||"",name:att.name||""};
   sb.auth.getSession().then(function(ss){
     var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;
-    return fetch("/.netlify/functions/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({messages:hist})});
+    return fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify(body)});
   }).then(function(r){return r.json().then(function(j){return {r:r,j:j}})}).then(function(x){
-    if(x.r.ok&&x.j.reply)return done(x.j.reply);
+    if(x.r.ok&&x.j.reply)return done(x.j.reply,true,x.j.actions);
     if(x.r.status===501)return done("Live chat isn’t switched on yet. The hub owner needs to add the AI key in Netlify.",false);
     if(x.r.status===429)return done("You’ve reached today’s question limit. Try again tomorrow.",false);
     done("I couldn’t answer just now. Please try again in a moment.",false);
   }).catch(function(){done("I couldn’t connect. Check your internet and try again.",false)});
+}
+function aiActText(a){
+  if(a.type==="event")return "📅 Add to calendar: "+a.title+" on "+evWhen({date:a.date,time:a.time});
+  if(a.type==="request")return "📨 Post a request"+(a.to?" for "+a.to:"")+": “"+a.text+"”";
+  if(a.type==="post")return "📝 Post on the timeline: “"+a.text+"”"+(a.image?" (with your photo)":"");
+  if(a.type==="doc")return "📄 Save to Documents ("+a.cat+"): "+a.title;
+  return "";
+}
+async function aiRun(a){
+  if(a.type==="event"){
+    var ex=S.sched[a.date]||{},label=(a.time?a.time+" ":"")+a.title;
+    await db.doc("schedule/"+a.date).set({who:ex.who||a.who||"x",note:ex.note?ex.note+"; "+label:label});
+    return "Added to the calendar for "+evWhen({date:a.date})+".";
+  }
+  var others=(typeof MEMBERS!=="undefined"?MEMBERS:[]).filter(function(m){return m.user_id!==myId});
+  if(a.type==="request"){
+    var tg=others.filter(function(m){return a.to&&(m.name||"").toLowerCase().indexOf(a.to.toLowerCase())===0}).map(function(m){return m.user_id});
+    if(!tg.length)tg=others.map(function(m){return m.user_id});
+    await db.collection("posts").add({text:"📨 Request"+(a.to?" for "+a.to:"")+": "+a.text,req:true,tags:tg,ts:Date.now(),by:myId||""});
+    return "Your request is on the timeline.";
+  }
+  if(a.type==="post"){
+    var p={text:a.text,ts:Date.now(),by:myId||""};
+    if(a.image&&AILAST&&AILAST.file&&AILAST.kind==="image"){
+      var r=await shrink(AILAST.file),ref=db.collection("media").doc();
+      await ref.set({data:r.data,w:r.w,h:r.h,ts:Date.now(),by:myId||""});
+      MEDIA[ref.id]=Promise.resolve({data:r.data});p.mid=ref.id;p.w=r.w;p.h=r.h;
+    }
+    await db.collection("posts").add(p);
+    return "Posted on the timeline.";
+  }
+  if(a.type==="doc"){
+    if(!AILAST||!AILAST.file)throw new Error("nofile");
+    var f=AILAST.file,path=await upload("docs",f,f.name);
+    await db.collection("documents").add({title:a.title,cat:CATS.indexOf(a.cat)>=0?a.cat:"Other",path:path,name:f.name,type:f.type||"application/octet-stream",size:f.size,by:myId||"",ts:Date.now()});
+    return "Saved to Documents under "+a.cat+".";
+  }
+  throw new Error("unknown");
+}
+function aiAct(mi,ai,ok){
+  var m=AIH[mi],a=m&&m.acts&&m.acts[ai];if(!a||a.state!=="pending")return;
+  function fin(st,txt){a.state=st;aiSave();botCache.key="";lastSig="";renderChat(true);if(txt)toast(txt)}
+  if(!ok)return fin("no");
+  a.state="busy";botCache.key="";lastSig="";renderChat(true);
+  aiRun(a).then(function(txt){fin("done",txt)},function(e){fin("pending",e&&e.message==="nofile"?"Attach the file again, then confirm.":"Couldn’t save that. You may not have permission, or check your connection.")});
+}
+function aiPick(file,cb){
+  if(!file)return;
+  var big=file.size>(file.type==="application/pdf"?3000000:25000000);
+  if(big)return toast("That file is too large for Cordial.");
+  if(/^image\//.test(file.type)){
+    shrink(file).then(function(r){cb({kind:"image",media:"image/jpeg",data:r.data.split(",")[1],name:file.name||"photo.jpg",thumb:r.data,file:file})},function(){toast("Couldn’t read that photo.")});
+  }else if(file.type==="application/pdf"){
+    var fr=new FileReader();fr.onload=function(){cb({kind:"pdf",media:"application/pdf",data:String(fr.result).split(",")[1],name:file.name,file:file})};fr.onerror=function(){toast("Couldn’t read that file.")};fr.readAsDataURL(file);
+  }else cb({kind:"other",name:file.name,file:file});
 }
 function botMsgs(){
   var lp=LPf();
@@ -4067,7 +4171,7 @@ function botMsgs(){
   if(yd&&yd.vid)L.push({id:"bot_yt_"+yd.vid+(nsppdLive(yd)?"L":""),by:BOT_ID,chat:BOT_ID,kind:"ytcard",ts:Math.max(yd.seen||0,bs+1500),vid:(nsppdLive(yd)&&yd.liveVid)?yd.liveVid:yd.vid,title:yd.title||"",channel:yd.channel||"YouTube",live:nsppdLive(yd)?(yd.live||""):"",url:yd.url||""});
   var rc=S.prof&&S.prof.cordial_recap;
   if(rc&&rc.items)rc.items.forEach(function(x){if(x&&x.text)L.push({id:"bot_rc_"+x.day,by:BOT_ID,chat:BOT_ID,kind:"text",ts:Math.max(x.ts||0,bs+1500),text:x.text})});
-  AIH.forEach(function(x,i){L.push({id:"ai_"+x.ts+"_"+i,by:x.by==="bot"?BOT_ID:myId,chat:BOT_ID,kind:"text",ts:x.ts,text:x.text})});
+  AIH.forEach(function(x,i){L.push({id:"ai_"+x.ts+"_"+i,by:x.by==="bot"?BOT_ID:myId,chat:BOT_ID,kind:"text",ts:x.ts,text:x.text,img:x.img,fname:x.fname});if(x.acts&&x.acts.length)L.push({id:"aia_"+x.ts+"_"+i,by:BOT_ID,chat:BOT_ID,kind:"aiact",ts:x.ts+1,acts:x.acts,mi:i})});
   if(AIPEND)L.push({id:"ai_pending",by:BOT_ID,chat:BOT_ID,kind:"text",ts:Date.now(),text:"…"});
   botCache={key:key,list:L};return L;
 }
@@ -4397,6 +4501,13 @@ function buildChat(c){
     var mode="ask";
     var obox=E("div","box"),ota=E("textarea");ota.rows=1;ota.maxLength=2000;ota.placeholder="Ask Cordial a question…";ota.setAttribute("aria-label","Message");obox.appendChild(ota);
     var osend=E("button","round g",ic("send",22));osend.type="button";osend.setAttribute("aria-label","Send");
+    var PA=null;
+    var afi=E("input");afi.type="file";afi.accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt";afi.hidden=true;
+    var apv=E("div");apv.style.cssText="display:none;align-items:center;gap:8px;padding:6px 12px;background:var(--wbar,transparent)";
+    function paintPA(){apv.textContent="";apv.style.display=PA?"flex":"none";if(!PA)return;if(PA.thumb){var im=E("img");im.src=PA.thumb;im.style.cssText="height:44px;border-radius:8px";apv.appendChild(im)}var nmx=T("span",null,"📎 "+(PA.name||"File"));nmx.style.cssText="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.85rem";apv.appendChild(nmx);var rx=T("button",null,"✕");rx.type="button";rx.style.cssText="border:0;background:rgba(0,0,0,.1);border-radius:999px;width:28px;height:28px;cursor:pointer;color:inherit";rx.onclick=function(){PA=null;paintPA()};apv.appendChild(rx)}
+    afi.onchange=function(){var f=afi.files&&afi.files[0];afi.value="";aiPick(f,function(a){PA=a;paintPA()})};
+    var abtn=E("button","round",ic("plus",24,1.8));abtn.type="button";abtn.setAttribute("aria-label","Attach a photo or file");abtn.onclick=function(){afi.click()};
+    chatEl.appendChild(apv);
     ota.addEventListener("input",function(){ota.style.height="46px";ota.style.height=Math.min(ota.scrollHeight,120)+"px"});
     if(isOwner){
       var seg=E("div");seg.style.cssText="display:flex;gap:8px;padding:6px 12px 0;background:var(--wbar,transparent)";
@@ -4404,7 +4515,7 @@ function buildChat(c){
       sr.onclick=function(){
         if(!confirm("Write tonight’s recap now? It uses today’s session and the AI key."))return;
         sr.disabled=true;sr.textContent="Working…";
-        sb.auth.getSession().then(function(ss){var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;return fetch("/.netlify/functions/recap",{method:"POST",headers:{Authorization:"Bearer "+tk}})})
+        sb.auth.getSession().then(function(ss){var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;return fetch("/api/recap",{method:"POST",headers:{Authorization:"Bearer "+tk}})})
           .then(function(r){return r.json().then(function(j){toast(r.ok?(j.withTranscript?"Recap ready.":"Recap ready (no captions found, so no summary)."):"Couldn’t make the recap ("+(j.error||r.status)+").")})})
           .catch(function(){toast("Couldn’t reach the server.")}).then(function(){sr.disabled=false;sr.textContent="🌙 Recap now"});
       };
@@ -4415,11 +4526,11 @@ function buildChat(c){
       seg.appendChild(sa);seg.appendChild(sn);seg.appendChild(sr);chatEl.appendChild(seg);
     }
     osend.onclick=function(){
-      var t=ota.value.trim();if(!t)return;
+      var t=ota.value.trim();if(!t&&!(mode==="ask"&&PA))return;
       if(mode==="ann"){if(!confirm("Post this announcement to everyone in the hub?"))return;ota.value="";ota.style.height="46px";post({kind:"announce",text:t}).catch(fail)}
-      else{ota.value="";ota.style.height="46px";aiAsk(t)}
+      else{ota.value="";ota.style.height="46px";var pa=PA;PA=null;paintPA();aiAsk(t,pa)}
     };
-    cp.appendChild(obox);cp.appendChild(osend);
+    cp.appendChild(abtn);cp.appendChild(afi);cp.appendChild(obox);cp.appendChild(osend);
   }
   chatEl.appendChild(cp);
   CH.tray=E("div");CH.tray.id="watray";CH.tray.hidden=true;chatEl.appendChild(CH.tray);
@@ -4512,8 +4623,28 @@ function renderChat(force){
       if(w3){w3.href=m.live;w3.target="_blank";w3.rel="noopener";w3.style.background="#d93025"}
       b.appendChild(yr);
     }
+    else if(m.kind==="aiact"){
+      m.acts.forEach(function(a,k){
+        var bx=E("div");bx.style.cssText="border:1px solid rgba(0,0,0,.12);border-radius:12px;padding:10px;margin:2px 0 6px";
+        bx.appendChild(T("div",null,aiActText(a)));
+        var st=a.state;
+        if(st==="pending"||st==="busy"){
+          var rw=E("div");rw.style.cssText="display:flex;gap:8px;margin-top:8px";
+          var yes=T("button",null,st==="busy"?"Saving…":"Confirm"),no=T("button",null,"Cancel");
+          [yes,no].forEach(function(x){x.type="button";x.disabled=st==="busy";x.style.cssText="border:0;border-radius:999px;padding:7px 16px;font:inherit;font-size:.85rem;font-weight:600;cursor:pointer"});
+          yes.style.background="#1fa855";yes.style.color="#fff";no.style.background="rgba(0,0,0,.1)";no.style.color="inherit";
+          yes.onclick=function(e){e.stopPropagation();aiAct(m.mi,k,true)};no.onclick=function(e){e.stopPropagation();aiAct(m.mi,k,false)};
+          rw.appendChild(yes);rw.appendChild(no);bx.appendChild(rw);
+        }else{var d=T("div",null,st==="done"?"✓ Done":"Cancelled");d.style.cssText="margin-top:6px;font-weight:600;color:"+(st==="done"?"#1a7f45":"#6b7780");bx.appendChild(d)}
+        b.appendChild(bx);
+      });
+    }
     else if(m.kind==="announce"){var ah=T("div","nm","📢 Announcement from "+mname(m.by).replace(/^You$/,"you"));ah.style.color="#1a7f45";ah.style.fontWeight="700";b.appendChild(ah);b.appendChild(document.createTextNode(m.text||""))}
-    else if(!m.kind||m.kind==="text")b.appendChild(document.createTextNode(m.text||""));
+    else if(!m.kind||m.kind==="text"){
+      if(m.img){var pi=E("img");pi.src=m.img;pi.alt="Attached photo";pi.style.cssText="display:block;max-width:100%;max-height:200px;border-radius:10px;margin-bottom:6px";b.appendChild(pi)}
+      else if(m.fname){b.appendChild(T("div",null,"📎 "+m.fname)).style.cssText="font-weight:600;margin-bottom:4px"}
+      b.appendChild(document.createTextNode(m.text||""));
+    }
     else{var inner=E("div");fillBody(inner,m);if(inner.classList.contains("media")){b.classList.add("media")}while(inner.firstChild)b.appendChild(inner.firstChild)}
     var meta=E("span","wmeta");
     if(wpinned(m.id))meta.innerHTML=ic("pin",12,2);
@@ -4704,7 +4835,7 @@ function callChat(c,audio){
     if(RING.cur&&RING.cur.id===id){db.doc("calls/"+id).update({state:"missed"}).catch(function(){});stopRing();sendPush("missed",to,id,audio);logCall(call,"📞 Missed "+(call.audio?"voice":"video")+" call");toast("No answer.");setTimeout(function(){db.doc("calls/"+id).delete().catch(function(){})},4000)}
   },45000);
 }
-function sendPush(kind,to,id,audio){try{sb.auth.getSession().then(function(ss){var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)return;fetch("/.netlify/functions/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:kind,to:to,callId:id,audio:!!audio})}).catch(function(){})})}catch(e){}}
+function sendPush(kind,to,id,audio){try{sb.auth.getSession().then(function(ss){var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)return;fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:kind,to:to,callId:id,audio:!!audio})}).catch(function(){})})}catch(e){}}
 function logCall(call,text){try{db.collection("messages").add({kind:"sys",text:text,ts:Date.now(),by:myId,chat:call.chat})}catch(e){}}
 function showRing(r){
   RING.cur=r;ringEl.hidden=false;ringEl.textContent="";
