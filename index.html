@@ -230,6 +230,7 @@ body.locked #jc{display:none!important}
 #pvx{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:10px;width:42px;height:42px;border-radius:50%;border:0;background:rgba(255,255,255,.16);color:#fff;font-size:22px;line-height:1;cursor:pointer;z-index:2}
 #pvc{position:absolute;left:0;right:0;bottom:0;padding:40px 16px calc(16px + env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff;font-size:.95rem;z-index:2}
 #pvc b{display:block;margin-bottom:2px}
+#pvc{white-space:pre-line}
 #pv.ui #pvx,#pv.ui #pvc{opacity:0;pointer-events:none}
 #pvx,#pvc{transition:opacity .2s}
 
@@ -563,6 +564,8 @@ html[data-look] #home #grid{display:none}
 .drow:last-child{border-bottom:0}
 .drow .ci{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;flex:none}
 .drow .dl{flex:1;font-weight:600}
+html[data-look] .drow .ci{width:42px;height:42px;border-radius:50%;box-shadow:none;background:var(--a-bg)!important;color:var(--a)!important}
+html[data-look] .drow .ci svg{width:22px;height:22px}
 .aunit{position:relative;padding-left:26px;border-bottom:1px solid var(--line)}
 .aunit:last-child{border-bottom:0}
 .aunit>.dg{position:absolute;left:-4px;top:2px;width:26px;padding:6px 0;font-size:1.05rem}
@@ -4880,11 +4883,34 @@ async function start(session){
   }
 
   /* photos and videos */
+  function photoInfo(x){
+    var when=new Date(x.ts).toLocaleString(undefined,{weekday:"short",day:"numeric",month:"short",year:"numeric",hour:"numeric",minute:"2-digit"});
+    var lines=[];
+    if(x.post){
+      var p=x.post,who=memberName(p.by);
+      lines.push("Posted "+when+" · "+ago(x.ts));
+      var likes=S.plikes.filter(function(l){return l.post===p.id}),tot=0,cnt={};
+      likes.forEach(function(l){var n=l.n||1,t=l.type||"like";tot+=n;cnt[t]=(cnt[t]||0)+n});
+      var cms=S.pcom.filter(function(c){return c.post===p.id}).length,bits=[];
+      if(tot)bits.push(Object.keys(cnt).sort(function(a,b){return cnt[b]-cnt[a]}).slice(0,3).map(function(t){return rdef(t)[1]}).join("")+" "+tot+(tot===1?" reaction":" reactions"));else bits.push("No reactions yet");
+      bits.push(cms?cms+(cms===1?" comment":" comments"):"No comments");
+      if(p.shares)bits.push(p.shares+(p.shares===1?" share":" shares"));
+      lines.push(bits.join(" · "));
+      if(p.text)lines.push("“"+(p.text.length>160?p.text.slice(0,160)+"…":p.text)+"”");
+      return [who,lines.join("\n")];
+    }
+    var m=x.msg,rs=S.react.filter(function(r){return r.msg===m.id}),c2={};
+    rs.forEach(function(r){c2[r.emoji]=(c2[r.emoji]||0)+1});
+    lines.push("Sent in chat "+when+" · "+ago(x.ts));
+    lines.push(rs.length?Object.keys(c2).map(function(e){return e+" "+c2[e]}).join("  ")+" · "+rs.length+(rs.length===1?" reaction":" reactions"):"No reactions yet");
+    if(m.text)lines.push("“"+(m.text.length>160?m.text.slice(0,160)+"…":m.text)+"”");
+    return [memberName(m.by),lines.join("\n")];
+  }
   function renderMedia(){
     var box=document.getElementById("mdl"),tabs=document.getElementById("mdt");
     var photos=[];
-    S.posts.forEach(function(p){if(p.mid)photos.push({mid:p.mid,ts:p.ts});(p.more||[]).forEach(function(q){photos.push({mid:q.mid,ts:p.ts})})});
-    S.msgs.forEach(function(m){if(m.kind==="image"&&m.mid)photos.push({mid:m.mid,ts:m.ts})});
+    S.posts.forEach(function(p){if(p.mid)photos.push({mid:p.mid,ts:p.ts,post:p});(p.more||[]).forEach(function(q){photos.push({mid:q.mid,ts:p.ts,post:p})})});
+    S.msgs.forEach(function(m){if(m.kind==="image"&&m.mid)photos.push({mid:m.mid,ts:m.ts,msg:m})});
     photos.sort(function(a,b){return b.ts-a.ts});
     var vids=S.docs.filter(function(d){return String(d.type||"").indexOf("video/")===0}).sort(function(a,b){return b.ts-a.ts});
     var sg=JSON.stringify([mediaTab,photos.map(function(x){return x.mid}),vids.map(function(d){return d.id})]);
@@ -4899,7 +4925,7 @@ async function start(session){
       var g=h("div","mgrid");
       photos.forEach(function(x){
         var im=h("img");im.alt="Photo";
-        im._load=function(){getMedia(x.mid).then(function(d){if(d&&d.data){im.src=d.data;im.onclick=function(){openViewer(d.data)}}})};
+        im._load=function(){getMedia(x.mid).then(function(d){if(d&&d.data){im.src=d.data;im.onclick=function(){var inf=photoInfo(x);openViewer(d.data,inf[0],inf[1])}}})};
         g.appendChild(im);if(io)io.observe(im);else im._load();
       });
       box.appendChild(g);
