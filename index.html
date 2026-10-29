@@ -183,7 +183,36 @@ button.pav{border:0;padding:0;cursor:pointer;font:inherit;font-weight:700}
 #jcf{flex:1;border:0;width:100%;background:#000}
 #cbar{position:fixed;bottom:calc(96px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:60;background:#188038;color:#fff;border:0;border-radius:999px;padding:9px 16px;font:inherit;font-size:.88rem;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.3);cursor:pointer;white-space:nowrap}
 #cbar[hidden]{display:none}
+#cbar.incall{z-index:240;bottom:auto;top:calc(8px + env(safe-area-inset-top,0px))}
 body.locked #cbar,body.locked #jc{display:none!important}
+#jc{background:#000}
+#jc.min{visibility:hidden;pointer-events:none}
+#jcm{position:absolute;inset:0}
+#jcm iframe{width:100%;height:100%;border:0;background:#000}
+#jct{position:absolute;left:0;right:0;top:0;z-index:3;display:flex;align-items:flex-start;justify-content:space-between;padding:calc(14px + env(safe-area-inset-top,0px)) 14px 0;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.55),transparent)}
+#jct>*{pointer-events:auto}
+#jct .jtt{flex:1;text-align:center;color:#fff;padding:4px 8px;min-width:0;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+#jct .jtt b{display:block;font-size:1.25rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#jct .jtt span{font-size:.95rem;opacity:.9}
+#jct .jr{display:flex;flex-direction:column;gap:12px}
+.jcb{width:48px;height:48px;border-radius:50%;border:0;background:rgba(30,26,24,.72);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.jcb:active{transform:scale(.94)}
+.jcb.off{background:#fff;color:#111}
+#jcb{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(22px + env(safe-area-inset-bottom,0px));z-index:3;display:flex;gap:12px;padding:12px 14px;border-radius:40px;background:rgba(60,56,52,.62);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+#jcb .jcb{width:56px;height:56px}
+#jcb .jend{background:#f2194a;color:#fff}
+#jcmenu{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(112px + env(safe-area-inset-bottom,0px));z-index:4;background:rgba(40,36,34,.95);border-radius:16px;padding:6px;min-width:210px;color:#fff}
+#jcmenu[hidden]{display:none}
+#jcmenu button,#jcmenu a{display:block;width:100%;text-align:left;background:none;border:0;color:#fff;padding:12px 14px;font:inherit;border-radius:10px;text-decoration:none;cursor:pointer}
+#jcmenu button:active,#jcmenu a:active{background:rgba(255,255,255,.14)}
+#jcadd{position:absolute;inset:0;z-index:6;background:rgba(0,0,0,.6);display:flex;align-items:flex-end}
+#jcadd[hidden]{display:none}
+#jcadd>div{background:#fff;color:#111;width:100%;border-radius:20px 20px 0 0;padding:16px;max-height:70%;overflow:auto}
+#jcadd h3{margin:0 0 8px;font-size:1.1rem}
+#jcadd button{display:flex;width:100%;align-items:center;justify-content:space-between;background:none;border:0;border-top:1px solid #eee;padding:14px 4px;font:inherit;color:#111;cursor:pointer}
+#jcadd button i{font-style:normal;color:#1fa855;font-weight:600}
+body.locked #jc{display:none!important}
+
 
 #pv img{max-width:100vw;max-height:100vh;max-height:100dvh;object-fit:contain;transform-origin:0 0;user-select:none;-webkit-user-drag:none;will-change:transform}
 #pvx{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:10px;width:42px;height:42px;border-radius:50%;border:0;background:rgba(255,255,255,.16);color:#fff;font-size:22px;line-height:1;cursor:pointer;z-index:2}
@@ -1860,43 +1889,132 @@ function openPick(m,row){
 function newRoom(){var a=new Uint8Array(9);crypto.getRandomValues(a);return "CoParentHub"+Array.prototype.map.call(a,function(x){return x.toString(16).padStart(2,"0")}).join("")}
 function roomUrl(c){return "https://meet.jit.si/"+c.room+"#config.disableDeepLinking=true"+(c.audio?"&config.startWithVideoMuted=true":"")}
 
-var JC=null,JCUR=null;
+var JC=null,JCUR=null,JAPI=null,JT=null,JSTART=0,JSCR={};
+var JI={
+ min:"<svg viewBox='0 0 24 24' width='22' height='22' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7'/></svg>",
+ add:"<svg viewBox='0 0 24 24' width='24' height='24' fill='currentColor'><circle cx='9' cy='8' r='4'/><path d='M1.5 20c0-3.6 3.4-6 7.5-6s7.5 2.4 7.5 6z'/><circle cx='19' cy='17' r='4.2' fill='#222'/><path d='M19 14.8v4.4M16.8 17h4.4' stroke='#fff' stroke-width='1.6' stroke-linecap='round'/></svg>",
+ chat:"<svg viewBox='0 0 24 24' width='24' height='24' fill='currentColor'><path d='M12 3C6.5 3 2 6.6 2 11.2c0 2.3 1.2 4.4 3 5.8-.1 1.4-.6 2.8-1.5 3.8 2-.1 3.7-.8 4.9-1.8 1.1.3 2.3.5 3.6.5 5.5 0 10-3.6 10-8.2S17.5 3 12 3z'/></svg>",
+ flip:"<svg viewBox='0 0 24 24' width='26' height='26' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z' fill='currentColor' stroke='none'/><path d='M9 13a3.2 3.2 0 0 1 5.6-2M15 14a3.2 3.2 0 0 1-5.6 2' stroke='#222'/><path d='M14.8 9.6v1.6h-1.6M9.2 17.4v-1.6h1.6' stroke='#222'/></svg>",
+ more:"<svg viewBox='0 0 24 24' width='26' height='26' fill='currentColor'><circle cx='5' cy='12' r='2'/><circle cx='12' cy='12' r='2'/><circle cx='19' cy='12' r='2'/></svg>",
+ cam:"<svg viewBox='0 0 24 24' width='28' height='28' fill='currentColor'><rect x='2' y='6' width='13' height='12' rx='3'/><path d='M22 8l-6 4 6 4z'/></svg>",
+ camoff:"<svg viewBox='0 0 24 24' width='28' height='28' fill='currentColor'><rect x='2' y='6' width='13' height='12' rx='3'/><path d='M22 8l-6 4 6 4z'/><path d='M3 3l18 18' stroke='currentColor' stroke-width='2.4' stroke-linecap='round'/></svg>",
+ mic:"<svg viewBox='0 0 24 24' width='28' height='28' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round'><rect x='9' y='3' width='6' height='11' rx='3' fill='currentColor'/><path d='M5 11a7 7 0 0 0 14 0M12 18v3'/></svg>",
+ micoff:"<svg viewBox='0 0 24 24' width='28' height='28' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round'><rect x='9' y='3' width='6' height='11' rx='3' fill='currentColor'/><path d='M5 11a7 7 0 0 0 14 0M12 18v3M3 3l18 18' /></svg>",
+ end:"<svg viewBox='0 0 24 24' width='30' height='30' fill='currentColor' style='transform:rotate(135deg)'><path d='M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z'/></svg>"
+};
+function jbtn(cls,svg,label,fn){var b=h("button");b.type="button";b.className="jcb "+cls;b.innerHTML=svg;b.setAttribute("aria-label",label);b.onclick=fn;return b}
+var JSCRP={};
+function loadJitsi(host,path){
+  var k=host+path;if(JSCRP[k])return JSCRP[k];
+  JSCRP[k]=new Promise(function(res,rej){var sc=document.createElement("script");sc.src="https://"+host+path+"external_api.js";sc.onload=function(){window.JitsiMeetExternalAPI?res():rej(new Error("api"))};sc.onerror=function(){delete JSCRP[k];rej(new Error("load"))};document.head.appendChild(sc)});
+  return JSCRP[k];
+}
+function jcStatus(t){var e=JC&&JC.querySelector("#jcs");if(e)e.textContent=t}
+function jcTick(){
+  if(!JSTART){jcStatus(JCUR&&JCUR.calling?"Calling…":"Waiting for others…");return}
+  var d=Math.round((Date.now()-JSTART)/1000),m=Math.floor(d/60),sec=d%60;jcStatus(m+":"+(sec<10?"0":"")+sec);
+}
+function jcParts(){
+  if(!JAPI)return;
+  var n=1;try{n=JAPI.getNumberOfParticipants()}catch(e){}
+  if(n>1){if(!JSTART){JSTART=Date.now();if(JCUR)JCUR.at=JSTART}}else if(JSTART&&n<=1){/* others left: keep timer */}
+  jcTick();
+}
+function jcMin(){if(!JC)return;JC.classList.add("min");syncCbar()}
+function jcRestore(){if(!JC)return;JC.classList.remove("min");syncCbar()}
+function jcToChat(){var cid=JCUR&&JCUR.chat;jcMin();if(window.waOpenChat)waOpenChat(cid||"family")}
+function jcFlip(){
+  if(!JAPI){toast("Camera switch isn’t available here.");return}
+  JAPI.getAvailableDevices().then(function(d){
+    var vs=(d&&d.videoInput)||[];if(vs.length<2){toast("No other camera found.");return}
+    JAPI.getCurrentDevices().then(function(cur){
+      var id=cur&&cur.videoInput&&cur.videoInput.deviceId,i=vs.findIndex(function(x){return x.deviceId===id});
+      var nx=vs[(i+1)%vs.length];JAPI.setVideoInputDevice(nx.label,nx.deviceId);
+    })
+  }).catch(function(){toast("Couldn’t switch camera.")});
+}
+function jcMenu(){var m=JC.querySelector("#jcmenu");m.hidden=!m.hidden}
 function openCall(c){
   if(!c||!c.room)return;
+  if(JC&&!JC.hidden&&JCUR&&JCUR.room===c.room){jcRestore();return}
   if(!JC){
     JC=h("div");JC.id="jc";JC.hidden=true;JC.setAttribute("role","dialog");JC.setAttribute("aria-label","Call");
-    var hd=h("div");hd.id="jch";hd.appendChild(h("strong",null,"Family call"));
-    var nt=h("a",null,"New tab");nt.id="jcn";nt.target="_blank";nt.rel="noopener";hd.appendChild(nt);
-    var lv=h("button",null,"Leave");lv.id="jcl";lv.onclick=closeCall;hd.appendChild(lv);
-    var fr=h("iframe");fr.id="jcf";fr.title="Call";fr.setAttribute("allow","camera; microphone; fullscreen; display-capture; autoplay; clipboard-write");
-    JC.appendChild(hd);JC.appendChild(fr);document.body.appendChild(JC);
-    document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!JC.hidden)closeCall()});
+    var mt=h("div");mt.id="jcm";JC.appendChild(mt);
+    var tp=h("div");tp.id="jct";
+    tp.appendChild(jbtn("",JI.min,"Back to chat",function(){jcToChat()}));
+    var tt=h("div");tt.className="jtt";tt.appendChild(h("b",null,"Call"));var sp=h("span");sp.id="jcs";tt.appendChild(sp);tp.appendChild(tt);
+    var rt=h("div");rt.className="jr";
+    rt.appendChild(jbtn("",JI.add,"Add people",function(){if(window.hubAddToCall)hubAddToCall();else toast("Add people isn’t ready yet.")}));
+    rt.appendChild(jbtn("",JI.chat,"Return to chat",function(){jcToChat()}));
+    var fl=jbtn("",JI.flip,"Switch camera",jcFlip);fl.id="jcflip";rt.appendChild(fl);
+    tp.appendChild(rt);
+    var bt=h("div");bt.id="jcb";
+    bt.appendChild(jbtn("",JI.more,"More",jcMenu));
+    var cb=jbtn("",JI.cam,"Camera",function(){if(JAPI)JAPI.executeCommand("toggleVideo")});cb.id="jccam";bt.appendChild(cb);
+    var mb=jbtn("",JI.mic,"Microphone",function(){if(JAPI)JAPI.executeCommand("toggleAudio")});mb.id="jcmic";bt.appendChild(mb);
+    bt.appendChild(jbtn("jend",JI.end,"End call",closeCall));
+    var mn=h("div");mn.id="jcmenu";mn.hidden=true;
+    var m1=h("button",null,"Share screen");m1.onclick=function(){mn.hidden=true;if(JAPI)JAPI.executeCommand("toggleShareScreen")};
+    var m2=h("button",null,"Grid / speaker view");m2.onclick=function(){mn.hidden=true;if(JAPI)JAPI.executeCommand("toggleTileView")};
+    var m3=h("a",null,"Open in new tab");m3.id="jcn";m3.target="_blank";m3.rel="noopener";
+    mn.appendChild(m1);mn.appendChild(m2);mn.appendChild(m3);
+    JC.appendChild(tp);JC.appendChild(bt);JC.appendChild(mn);document.body.appendChild(JC);
+    document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!JC.hidden&&!JC.classList.contains("min"))jcMin()});
   }
-  JCUR=c;
+  JCUR=c;JSTART=0;JC.classList.remove("min");
   var nm=(S.me||"").replace(/["\\]/g,"");
-  var cfg="#config.prejoinPageEnabled=false&config.disableDeepLinking=true"+(c.audio?"&config.startWithVideoMuted=true":"");
-  var pub="https://meet.jit.si/"+c.room+cfg+(nm?"&userInfo.displayName=%22"+encodeURIComponent(nm)+"%22":"");
-  var fr=JC.querySelector("#jcf"),nt=JC.querySelector("#jcn"),ttl=JC.querySelector("#jch strong");
-  var base=c.title||"Family call";if(ttl)ttl.textContent=base;
-  JC.hidden=false;syncCbar();nt.href=roomUrl(c);fr.src="about:blank";
+  var base=c.title||"Family call";JC.querySelector(".jtt b").textContent=base;
+  var camb=JC.querySelector("#jccam"),micb=JC.querySelector("#jcmic"),nt=JC.querySelector("#jcn");
+  camb.innerHTML=c.audio?JI.camoff:JI.cam;camb.classList.toggle("off",!!c.audio);micb.innerHTML=JI.mic;micb.classList.remove("off");
+  JC.querySelector("#jcmenu").hidden=true;
+  JC.hidden=false;syncCbar();jcTick();clearInterval(JT);JT=setInterval(jcTick,1000);
+  var mount=JC.querySelector("#jcm");mount.textContent="";nt.href=roomUrl(c);
   var mine=c;
   (async function(){
-    var u=pub;
+    var host="meet.jit.si",path="/",roomName=c.room,jwt=null,priv=false,why="";
     try{
       var ss=await sb.auth.getSession();var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;
       if(tk){
         var r=await fetch("/.netlify/functions/jaas-token",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({room:c.room})});
-        if(r.ok){var j=await r.json();if(j&&j.jwt&&j.appId){u="https://8x8.vc/"+j.appId+"/"+c.room+"?jwt="+j.jwt+cfg;nt.href=u;if(ttl)ttl.textContent=base+" · private"}}
-        else{var je={};try{je=await r.json()}catch(x){}if(ttl)ttl.textContent=base+" · basic ("+(je.error||r.status)+")"}
+        if(r.ok){var j=await r.json();if(j&&j.jwt&&j.appId){host="8x8.vc";path="/"+j.appId+"/";roomName=j.appId+"/"+c.room;jwt=j.jwt;priv=true;nt.href="https://8x8.vc/"+j.appId+"/"+c.room+"?jwt="+j.jwt+"#config.disableDeepLinking=true"}}
+        else{var je={};try{je=await r.json()}catch(x){}why=" · basic ("+(je.error||r.status)+")"}
       }
     }catch(e){}
-    if(JCUR===mine&&!JC.hidden)fr.src=u;
+    if(JCUR!==mine||JC.hidden)return;
+    JC.querySelector(".jtt b").textContent=base+(priv?" · private":why);
+    try{
+      await loadJitsi(host,path);
+      if(JCUR!==mine||JC.hidden)return;
+      var opts={roomName:roomName,parentNode:mount,width:"100%",height:"100%",
+        configOverwrite:{prejoinPageEnabled:false,disableDeepLinking:true,startWithVideoMuted:!!c.audio,toolbarButtons:[],hideConferenceSubject:true,hideConferenceTimer:true,disableInviteFunctions:true,notifications:[],disableThirdPartyRequests:true},
+        interfaceConfigOverwrite:{TOOLBAR_BUTTONS:[],MOBILE_APP_PROMO:false,SHOW_JITSI_WATERMARK:false,SHOW_WATERMARK_FOR_GUESTS:false,DISABLE_JOIN_LEAVE_NOTIFICATIONS:true,HIDE_INVITE_MORE_HEADER:true},
+        userInfo:{displayName:S.me||"Guest"}};
+      if(jwt)opts.jwt=jwt;
+      var api=new JitsiMeetExternalAPI(host,opts);JAPI=api;
+      api.addListener("videoConferenceJoined",jcParts);
+      api.addListener("participantJoined",jcParts);
+      api.addListener("participantLeft",jcParts);
+      api.addListener("audioMuteStatusChanged",function(e){micb.innerHTML=e.muted?JI.micoff:JI.mic;micb.classList.toggle("off",!!e.muted)});
+      api.addListener("videoMuteStatusChanged",function(e){camb.innerHTML=e.muted?JI.camoff:JI.cam;camb.classList.toggle("off",!!e.muted)});
+      api.addListener("readyToClose",function(){if(JAPI===api)closeCall()});
+    }catch(e){
+      /* fallback: plain page with Jitsi's own buttons */
+      JC.classList.add("plain");
+      var fr=h("iframe");fr.id="jcf";fr.title="Call";fr.setAttribute("allow","camera; microphone; fullscreen; display-capture; autoplay; clipboard-write");
+      fr.src=(jwt?"https://8x8.vc/"+roomName+"?jwt="+jwt:"https://meet.jit.si/"+c.room)+"#config.prejoinPageEnabled=false&config.disableDeepLinking=true"+(c.audio?"&config.startWithVideoMuted=true":"")+(nm?"&userInfo.displayName=%22"+encodeURIComponent(nm)+"%22":"");
+      mount.appendChild(fr);
+    }
   })();
 }
-function closeCall(){if(!JC)return;var cid=JCUR&&JCUR.callId;if(cid&&window.hubCallEnd)hubCallEnd(cid);JC.hidden=true;JC.querySelector("#jcf").src="about:blank";JCUR=null;syncCbar()}
-var CB=h("button");CB.id="cbar";CB.hidden=true;CB.onclick=function(){if(S.call)openCall(S.call)};document.body.appendChild(CB);
+function closeCall(){
+  if(!JC)return;var cid=JCUR&&JCUR.callId;if(cid&&window.hubCallEnd)hubCallEnd(cid);
+  clearInterval(JT);try{if(JAPI)JAPI.dispose()}catch(e){}JAPI=null;
+  JC.hidden=true;JC.classList.remove("min","plain");JC.querySelector("#jcm").textContent="";JCUR=null;JSTART=0;syncCbar();
+}
+window.hubCallInfo=function(){return JCUR};
+var CB=h("button");CB.id="cbar";CB.hidden=true;CB.onclick=function(){if(JC&&!JC.hidden&&JC.classList.contains("min")){jcRestore();return}if(S.call)openCall(S.call)};document.body.appendChild(CB);
 function callLive(){var c=S.call;return !!(c&&c.room&&Date.now()-c.ts<6*3600*1000)}
-function syncCbar(){var inCall=JC&&!JC.hidden;CB.hidden=!callLive()||inCall;if(callLive())CB.textContent="📞 Call in progress · Join"}
+function syncCbar(){var inCall=JC&&!JC.hidden,mn=inCall&&JC.classList.contains("min");CB.classList.toggle("incall",!!mn);if(mn){CB.hidden=false;CB.textContent="📞 In call · Tap to return";return}CB.hidden=!callLive()||inCall;if(callLive())CB.textContent="📞 Call in progress · Join"}
 function startCall(audio){
   var c={room:newRoom(),audio:audio,by:myId||"",ts:Date.now()};
   if(db)db.doc("calls/current").set(c).catch(fail);
@@ -4160,13 +4278,13 @@ function showRing(r){
   if(!r.out&&document.hidden&&window.Notification&&Notification.permission==="granted"){try{new Notification(who+" is calling",{tag:"hubcall",body:"Incoming "+kind+" call"})}catch(e){}}
 }
 function stopRing(){clearTimeout(RING.timer);clearInterval(RING.iv);RING.cur=null;ringEl.hidden=true;ringEl.textContent=""}
-function joinCall(id,c,title){openCall({room:c.room,audio:c.audio,callId:id,title:title||"Call"})}
+function joinCall(id,c,title,out){openCall({room:c.room,audio:c.audio,callId:id,title:title||"Call",chat:c.chat,calling:!!out})}
 window.waCalls=function(){
   var list=S.calls||[],now=Date.now();
   if(RING.cur){
     var d=list.filter(function(x){return x.id===RING.cur.id})[0];
     if(RING.cur.out){
-      if(d&&d.state==="active"){var r=RING.cur;stopRing();joinCall(r.id,d,r.title)}
+      if(d&&d.state==="active"){var r=RING.cur;stopRing();joinCall(r.id,d,r.title,true)}
       else if(d&&d.state==="declined"){var r2=RING.cur;stopRing();logCall(r2.call,"📞 Declined "+(r2.call.audio?"voice":"video")+" call");toast("Declined.");setTimeout(function(){db.doc("calls/"+r2.id).delete().catch(function(){})},3000)}
     }else if(!d||(d.state!=="ringing"&&d.state!=="active")||now-d.ts>50000){stopRing()}
     return;
@@ -4207,6 +4325,29 @@ function go(tab){close();window.WA_BYPASS=true;try{showTab(tab)}finally{window.W
 WA.chat=null;
 window.waOpen=function(tab){open(tab==="calls"?"calls":tab==="updates"?"updates":"chats")};
 window.waClose=close;
+window.waOpenChat=function(id){if(!id||id==="family"){open("chats");return}open("chats");if(chatById(id))openChat(id)};
+window.hubAddToCall=function(){
+  var cur=window.hubCallInfo&&hubCallInfo();if(!cur)return;
+  var jc=document.getElementById("jc");var old=document.getElementById("jcadd");if(old)old.remove();
+  var ov=E("div");ov.id="jcadd";var box=E("div");ov.appendChild(box);
+  box.appendChild(T("h3",null,"Add people to this call"));
+  var list=MEMBERS.filter(function(u){return u.user_id!==myId&&canCall(u)});
+  if(!list.length)box.appendChild(T("p",null,"No one else has call access."));
+  list.forEach(function(u){
+    var b=E("button");b.type="button";b.appendChild(T("span",null,u.name||"Member"));b.appendChild(T("i",null,"Ring"));
+    b.onclick=function(){
+      var id=db.collection("calls").doc().id;
+      var call={room:cur.room,audio:!!cur.audio,by:myId,name:S.me||"Someone",ts:Date.now(),chat:cur.chat||"family",to:[u.user_id],state:"ringing",added:true};
+      db.doc("calls/"+id).set(call).catch(function(){toast("Couldn’t ring them.")});
+      setTimeout(function(){db.doc("calls/"+id).delete().catch(function(){})},50000);
+      b.lastChild.textContent="Ringing…";b.disabled=true;
+    };
+    box.appendChild(b);
+  });
+  var x=E("button");x.type="button";x.textContent="Done";x.style.justifyContent="center";x.onclick=function(){ov.remove()};box.appendChild(x);
+  ov.addEventListener("click",function(e){if(e.target===ov)ov.remove()});
+  jc.appendChild(ov);
+};
 window.waRender=function(){if(WA.open)render()};
 document.addEventListener("keydown",function(e){if(e.key==="Escape"&&WA.open&&!menuEl){if(ST.chat)closeChat();else close()}});
 setInterval(function(){if(WA.open&&!document.hidden)render()},4000);
