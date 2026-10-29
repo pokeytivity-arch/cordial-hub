@@ -926,8 +926,7 @@ main{max-width:100%}
     <label>Place<input id="tpl" maxlength="80" placeholder="City, hotel or address"></label>
     <div class="row"><label>From<input id="tfr" type="date"></label><label>To<input id="tto" type="date"></label></div>
     <label>Notes<textarea id="tnt" maxlength="800"></textarea></label>
-    <label>Attach tickets, reservations or receipts (optional, pick several)<input id="tfiles" type="file" multiple accept="image/*,application/pdf"></label>
-    <label>These files are<select id="tfcat"><option value="Flight">✈️ Flight tickets</option><option value="Hotel">🏨 Hotel reservations</option><option value="Expense">💳 Expenses</option><option value="Document">📄 Documents</option><option value="Other">📎 Other</option></select></label>
+    <div id="tfrows"><div class="meta">Proof documents (tickets, reservations, receipts). Add one, then press ＋ for more.</div></div>
     <button class="go" id="tadd">Add</button>
   </div>
   <div id="tlist"></div>
@@ -969,6 +968,10 @@ main{max-width:100%}
     <div id="perm"></div>
   </div>
   <div class="card"><h2>People with access</h2><div id="mem"></div></div>
+</section>
+
+<section id="p-issues" hidden>
+  <div class="card"><h2>Issues</h2><p class="meta" style="margin:0">Anything that goes wrong, or that you can’t do, is listed here.</p><div id="isl"></div></div>
 </section>
 
 <section id="p-help" hidden>
@@ -1184,7 +1187,7 @@ function hubRing(force){
 var STARTED=false,READY=false,isOwner=false,PERM={},CUR="home";
 var FEAT={sched:"calendar",exp:"expenses",notes:"notes",kids:"children",docs:"documents",msg:"messages",call:"calls",people:"people",trips:"documents",meet:"notes",feed:"messages",chats:"messages",media:"messages",notif:"messages",profile:"messages"};
 S.posts=[];S.wstat=[];S.plikes=[];S.pcom=[];S.mnotes=[];
-var TABS=[["sched","Events and Calendar"],["exp","Expenses"],["notes","Documents and Notes"],["meet","Meetings"],["kids","Kids"],["docs","Documents"],["msg","Calls and Messages"],["feed","Timeline"],["chats","Chats"],["media","Media"],["notif","Notifications"],["profile","Profile"],["call","Calls"],["people","People"],["trips","Actual meetings"],["access","Access"],["help","Help"]];
+var TABS=[["sched","Events and Calendar"],["exp","Expenses"],["notes","Documents and Notes"],["meet","Meetings"],["kids","Kids"],["docs","Documents"],["msg","Calls and Messages"],["feed","Timeline"],["chats","Chats"],["media","Media"],["notif","Notifications"],["profile","Profile"],["call","Calls"],["people","People"],["trips","Actual meetings"],["issues","Issues"],["access","Access"],["help","Help"]];
 var money=function(n){return Number(n).toLocaleString("en-NG",{style:"currency",currency:"NGN"})};
 var pad=function(n){return String(n).padStart(2,"0")};
 var key=function(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
@@ -1211,8 +1214,9 @@ function showTab(id){
   var home=id==="home";$("#home").hidden=!home;$("#back").hidden=home;
   var tid=({trips:"meet",notes:"docs",call:"msg"})[id]||id,tt=(TILES||[]).filter(function(t){return t[0]===tid})[0];$("#apptitle").textContent=home?"Home":(tt?tt[1]:"");
   window.scrollTo(0,0);note("");
-  if(READY){if(chg)safe(renderAll)();lockForms();if(!cw&&FEAT[id])note("You can view this section but not change it. Ask the owner if you need to.");if(id==="access")safe(renderAccess)()}
+  if(READY){if(chg)safe(renderAll)();lockForms();if(!cw&&FEAT[id])logIssue("You can view this section but not change it.","Your access to this section is view-only.",true);if(id==="access")safe(renderAccess)()}
   if(id==="meet"&&typeof zoomCheck==="function")safe(zoomCheck)();
+  if(id==="issues")safe(renderIssues)();
   if(id==="help"&&typeof measure==="function"){measure();alertStatus();aiMeter()}
   if(home&&typeof renderHome==="function"&&S.kids)safe(renderHome)();
   if(home&&typeof alertStatus==="function")safe(alertStatus)();
@@ -1279,7 +1283,7 @@ $("#xadd").onclick=async function(){
     if(/^image\//.test(type)){try{var sh=await shrinkBlob(f);blob=sh.blob;type="image/jpeg";name=(f.name||"receipt").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
     var path=await upload("docs",blob,name);
     var chk=await aiVerify(f,{kind:"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
-    var xrec={desc:d,amount:a,by:$("#xw").value,date:$("#xt").value||key(new Date()),proof:{path:path,name:name,type:type,size:blob.size||f.size},aicheck:chk};if(chk.status==="review")xrec.review={state:"pending"};
+    var xrec=withShare({desc:d,amount:a,by:$("#xw").value,date:$("#xt").value||key(new Date()),proof:{path:path,name:name,type:type,size:blob.size||f.size},aicheck:chk},"exp");if(chk.status==="review")xrec.review={state:"pending"};
     await db.collection("expenses").add(xrec);
     $("#xd").value="";$("#xa").value="";$("#xf").value="";note("");
   }catch(e){note(attachErr(e))}
@@ -1321,7 +1325,7 @@ function renderExp(){
     l.appendChild(h("div",null,x.desc));l.appendChild(h("div","meta",x.date+" – paid by "+nm(x.by)));
     if(x.proof&&x.proof.path){var rc=h("button","quiet","🧾 View receipt");rc.type="button";rc.style.cssText="padding:2px 0;text-decoration:underline";rc.onclick=function(){signed(x.proof.path).then(function(u){preview(Object.assign({},x.proof,{url:u}))}).catch(function(){note("That receipt isn’t available.")})};l.appendChild(rc)}
     var sl=selfieLinks(x,[["selfie","Selfie"]]);if(sl)l.appendChild(sl);
-    var bg=aiBadge(x,"expenses");if(bg)l.appendChild(bg);
+    var bg=aiBadge(x,"expenses");if(bg)l.appendChild(bg);var xsh=shareLine(x,"expenses");if(xsh)l.appendChild(xsh);
     if(x.review&&x.review.state==="rejected")l.style.opacity=".55";
     var rt=h("div");rt.style.textAlign="right";rt.appendChild(h("div","amt",money(x.amount)));
     var rm=h("button","quiet","Remove");rm.onclick=function(){db.doc("expenses/"+x.id).delete().catch(fail)};
@@ -1363,6 +1367,94 @@ function xtRc(list,label){
     b.onclick=function(){signed(rc.path).then(function(u){preview(Object.assign({},rc,{url:u}))}).catch(function(){note("That file isn’t available.")})};w.appendChild(b)});
   return w;
 }
+
+
+/* ---------- Proof files: add one, then press + to add as many more as needed ---------- */
+function fileRows(opts){
+  opts=opts||{};var wrap=h("div"),rows=[];
+  var cats=[["Flight","✈️ Flight ticket"],["Hotel","🏨 Hotel reservation"],["Expense","💳 Expense receipt"],["Document","📄 Document"],["Other","📎 Other"]];
+  function add(){
+    var r=h("div");r.style.cssText="border:1px solid rgba(127,127,127,.35);border-radius:12px;padding:8px;margin:6px 0";
+    var sel=h("select");cats.forEach(function(c){var o=h("option",null,c[1]);o.value=c[0];sel.appendChild(o)});sel.value=opts.cat||"Document";
+    var fi=h("input");fi.type="file";fi.accept="image/*,application/pdf";
+    var lbl=h("input");lbl.placeholder="Label (e.g. Ticket Lagos to London)";lbl.maxLength=80;
+    var top=h("div");top.style.cssText="display:flex;gap:6px;align-items:center";top.appendChild(sel);
+    if(rows.length){var x=h("button","quiet sm","✕");x.type="button";x.onclick=function(){rows.splice(rows.indexOf(o),1);r.remove()};top.appendChild(x)}
+    r.appendChild(top);r.appendChild(fi);r.appendChild(lbl);wrap.insertBefore(r,plus);
+    var o={sel:sel,fi:fi,lbl:lbl,el:r};rows.push(o);
+  }
+  var plus=h("button","quiet","＋ Add another document");plus.type="button";plus.onclick=add;wrap.appendChild(plus);add();
+  return {el:wrap,items:function(){return rows.filter(function(r){return r.fi.files&&r.fi.files[0]}).map(function(r){return {f:r.fi.files[0],cat:r.sel.value,label:r.lbl.value.trim()}})},
+    reset:function(){rows.slice().forEach(function(r){r.el.remove()});rows.length=0;add()}};
+}
+
+
+/* ---------- Tap-to-open links in messages: Zoom, YouTube, Instagram, Facebook and any web address ---------- */
+function linkKind(u){
+  try{var x=new URL(u),hn=x.hostname.replace(/^www\./,"");
+    if(/(^|\.)zoom\.us$/.test(hn))return {i:"🎥",c:"Zoom"};
+    if(hn==="youtu.be"||/(^|\.)youtube\.com$/.test(hn)){var id=hn==="youtu.be"?x.pathname.slice(1):(x.searchParams.get("v")||(x.pathname.match(/\/(?:shorts|embed|live)\/([\w-]+)/)||[])[1]);return {i:"▶️",c:"YouTube",yt:id||null}}
+    if(/(^|\.)instagram\.com$/.test(hn))return {i:"📷",c:"Instagram"};
+    if(/(^|\.)(facebook\.com|fb\.com|fb\.watch)$/.test(hn))return {i:"📘",c:"Facebook"};
+  }catch(e){}
+  return null;
+}
+function linkFill(el,text,plain){
+  text=String(text==null?"":text);var re=/(https?:\/\/[^\s<>]+|www\.[^\s<>]+)/gi,last=0,m;
+  while((m=re.exec(text))){
+    var raw=m[0],trail="";var t=raw.match(/[.,;:!?)\]}'"”’]+$/);if(t){trail=t[0];raw=raw.slice(0,-trail.length)}
+    if(!raw)continue;
+    if(m.index>last)(plain||function(x){el.appendChild(document.createTextNode(x))})(text.slice(last,m.index));
+    var href=/^www\./i.test(raw)?"https://"+raw:raw,k=linkKind(href);
+    var a=document.createElement("a");a.href=href;a.target="_blank";a.rel="noopener noreferrer";
+    a.style.cssText="color:#1877f2;text-decoration:underline;word-break:break-all";
+    a.textContent=(k?k.i+" ":"")+raw;
+    a.onclick=function(ev,kk,hh){return function(ev){ev.stopPropagation();if(kk&&kk.yt&&window.ytOpen){ev.preventDefault();window.ytOpen(kk.yt)}}}(0,k,href);
+    el.appendChild(a);
+    last=m.index+m[0].length-trail.length;re.lastIndex=last;
+  }
+  if(last<text.length)(plain||function(x){el.appendChild(document.createTextNode(x))})(text.slice(last));
+}
+
+/* ---------- Privacy: whoever uploads decides who can see it (Everyone / Only me / chosen people) ---------- */
+var SHW={};
+function shareVal(slot){var w=SHW[slot];return w&&w.v&&w.v.length?w.v.slice():null}
+function withShare(rec,slot){var v=shareVal(slot);if(v)rec.share=v;return rec}
+function shareOthers(){return (MEMBERS||[]).filter(function(m){return m.user_id!==myId})}
+function shareWidget(slot,onChange){
+  var w=h("div");w.style.cssText="margin:8px 0";var st={v:null};SHW[slot]=st;
+  var lb=h("label",null,"🔒 Who can see this");var sel=h("select");
+  [["all","Everyone with access (default)"],["me","Only me"],["pick","Choose people…"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sel.appendChild(op)});
+  lb.appendChild(sel);w.appendChild(lb);var box=h("div");box.style.cssText="display:none;margin-top:6px";w.appendChild(box);
+  function build(){
+    box.textContent="";var oth=shareOthers();
+    if(!oth.length){box.appendChild(h("div","meta","No one else has joined yet."));return}
+    oth.forEach(function(m){var r=h("label");r.style.cssText="display:flex;gap:8px;align-items:center;margin:2px 0";var c=h("input");c.type="checkbox";c.style.cssText="width:auto;margin:0";c.value=m.user_id;
+      c.onchange=function(){st.v=[myId].concat(Array.prototype.map.call(box.querySelectorAll("input:checked"),function(x){return x.value}));if(st.v.length===1)st.v=null;if(onChange)onChange()};
+      r.appendChild(c);r.appendChild(document.createTextNode(m.name||"Member"));box.appendChild(r)})}
+  sel.onchange=function(){box.style.display=sel.value==="pick"?"block":"none";
+    if(sel.value==="all")st.v=null;else if(sel.value==="me")st.v=[myId];else{build();st.v=null}
+    if(onChange)onChange()};
+  w.appendChild(h("div","meta","Private items are hidden from everyone you don’t choose. The owner can always see everything. Money support and school fees stay visible to both parents."));
+  st.reset=function(){sel.value="all";sel.onchange()};
+  return w;
+}
+function shareLine(rec,coll){
+  if(!rec||!rec.share)return null;
+  var names=rec.share.filter(function(u){return u!==(rec._u||rec.by)}).map(function(u){var m=(MEMBERS||[]).filter(function(x){return x.user_id===u})[0];return m?m.name:"someone"});
+  var w=h("div","meta");w.textContent="🔒 "+(names.length?"Shared with "+names.join(", "):"Only "+((rec._u||rec.by)===myId?"you":"the uploader")+" and the owner can see this")+" ";
+  if(rec.id&&(rec._u||rec.by)===myId&&coll){var b=h("button","quiet sm","Change");b.type="button";b.style.marginLeft="4px";
+    b.onclick=function(){
+      var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px";
+      var bx=h("div","card");bx.style.cssText="max-width:380px;width:100%";bx.appendChild(h("h3",null,"Who can see this?"));
+      var wd=shareWidget("chg_"+rec.id);bx.appendChild(wd);
+      var sv=h("button","go","Save"),cx=h("button","quiet","Cancel");sv.type=cx.type="button";
+      sv.onclick=function(){var v=shareVal("chg_"+rec.id);db.doc(coll+"/"+rec.id).update({share:v||null}).then(function(){ov.remove()},fail)};
+      cx.onclick=function(){ov.remove()};bx.appendChild(sv);bx.appendChild(cx);ov.appendChild(bx);document.body.appendChild(ov)};
+    w.appendChild(b)}
+  return w;
+}
+function mountShare(anchorSel,slot){var a=document.querySelector(anchorSel);if(a&&a.parentNode)a.parentNode.insertBefore(shareWidget(slot),a)}
 
 /* ---------- Cordial checks uploads and flags anything that looks wrong; the owner approves or rejects flagged ones ---------- */
 function blobB64(blob){return new Promise(function(res){var fr=new FileReader();fr.onload=function(){res(String(fr.result).split(",")[1]||"")};fr.onerror=function(){res("")};fr.readAsDataURL(blob)})}
@@ -1413,6 +1505,8 @@ function aiBadge(rec,coll){
   return w;
 }
 /* shopping list */
+var SHPRIO=[[1,"🔴 Urgent","#d93025"],[2,"🟠 High","#e8833a"],[3,"🟡 Normal","#c9a227"],[4,"⚪ Low","#8a949c"]];
+function shPrio(x){return x&&x.prio>=1&&x.prio<=4?x.prio:3}
 function xtShop(){
   var box=$("#xs-shop");if(!box)return;box.textContent="";
   var f=h("div","card");f.appendChild(h("h2",null,"Shopping list"));
@@ -1421,21 +1515,22 @@ function xtShop(){
   var i2=h("input");i2.placeholder="Details (optional): brand, size, where to buy";i2.maxLength=200;i2.id="shn";i2.style.marginTop="8px";
   var i3=h("input");i3.placeholder="Link to the item (optional)";i3.maxLength=300;i3.type="url";i3.style.marginTop="8px";i3.id="shl";
   var pl=h("label",null,"Photo reference (optional)");pl.style.marginTop="8px";var pf=h("input");pf.type="file";pf.accept="image/*";pf.id="shp";pl.appendChild(pf);
-  f.appendChild(i1);f.appendChild(i2);f.appendChild(i3);f.appendChild(pl);
-  if(canWrite){var addb=xtBtn("Add request",async function(){
+  var pr=h("label",null,"Priority");pr.style.marginTop="8px";var ps=h("select");SHPRIO.forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];ps.appendChild(op)});ps.value="3";pr.appendChild(ps);
+  f.appendChild(i1);f.appendChild(i2);f.appendChild(i3);f.appendChild(pl);f.appendChild(pr);
+  if(canWrite){f.appendChild(shareWidget("shop"));var addb=xtBtn("Add request",async function(){
     var t=i1.value.trim();if(!t)return note("Type what you need first.");note("");
     var lk=i3.value.trim();if(lk&&!/^https?:\/\//i.test(lk))lk="https://"+lk;
     if(lk&&!/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(lk))return note("That link doesn’t look right.");
     addb.disabled=true;
     try{
       var ph=pf.files&&pf.files[0]?await xtUp(pf.files[0]):null;
-      var rec={kind:"shop",date:key(new Date()),title:t,note:i2.value.trim(),by:myId,status:"requested",ts:Date.now()};if(lk)rec.link=lk;if(ph)rec.photo=ph;
+      var rec=withShare({kind:"shop",date:key(new Date()),title:t,note:i2.value.trim(),by:myId,status:"requested",prio:parseInt(ps.value,10)||3,ts:Date.now()},"shop");if(lk)rec.link=lk;if(ph)rec.photo=ph;
       await db.collection("expenses").add(rec);i1.value="";i2.value="";i3.value="";pf.value="";
     }catch(e){fail(e)}
     addb.disabled=false});f.appendChild(addb)}
   else f.appendChild(h("p","meta","You can view the list but not add to it."));
   box.appendChild(f);
-  var items=(S.xo||[]).filter(function(x){return x.kind==="shop"}).sort(function(a,b){return (b.ts||0)-(a.ts||0)});
+  var items=(S.xo||[]).filter(function(x){return x.kind==="shop"}).sort(function(a,b){return shPrio(a)-shPrio(b)||(b.ts||0)-(a.ts||0)});
   function when(ts){return ts?new Date(ts).toLocaleDateString(undefined,{day:"numeric",month:"short"}):""}
   function group(title,list,draw){
     var c=h("div","card");c.appendChild(h("h2",null,title+" ("+list.length+")"));
@@ -1448,11 +1543,13 @@ function xtShop(){
       if(x.note)meta+=" · "+x.note;r.appendChild(h("div","meta",meta));
       if(x.link){var la=h("a","meta","🔗 Open link");la.href=x.link;la.target="_blank";la.rel="noopener noreferrer";la.style.textDecoration="underline";r.appendChild(la)}
       if(x.photo&&x.photo.path){var pim=h("img");pim.alt="Reference photo";pim.style.cssText="width:84px;height:84px;object-fit:cover;border-radius:10px;margin-top:4px;cursor:pointer;background:rgba(127,127,127,.2)";signed(x.photo.path).then(function(u){pim.src=u}).catch(function(){});pim.onclick=function(){signed(x.photo.path).then(function(u){preview(Object.assign({},x.photo,{url:u}))})};r.appendChild(pim)}
-      draw(x,r,top);var sl2=selfieLinks(x,[["selfie","Requested"],["selfie_fulfilled","Fulfilled"],["selfie_confirmed","Confirmed"]]);if(sl2)r.appendChild(sl2);c.appendChild(r)});
+      draw(x,r,top);var sl2=selfieLinks(x,[["selfie","Requested"],["selfie_fulfilled","Fulfilled"],["selfie_confirmed","Confirmed"]]);if(sl2)r.appendChild(sl2);var ssh=shareLine(x,"expenses");if(ssh)r.appendChild(ssh);c.appendChild(r)});
     box.appendChild(c);
   }
   group("Waiting to be bought",items.filter(function(x){return x.status==="requested"}),function(x,r,top){
-    top.appendChild(xtChip("Requested","#e8833a"));
+    var pp=SHPRIO[shPrio(x)-1];top.appendChild(xtChip(pp[1],pp[2]));
+    if(canWrite){var sel=h("select");sel.setAttribute("aria-label","Priority");sel.style.cssText="width:auto;padding:4px 8px;font-size:.85rem;margin:2px 0";SHPRIO.forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sel.appendChild(op)});sel.value=String(shPrio(x));
+      sel.onchange=function(){db.doc("expenses/"+x.id).update({prio:parseInt(sel.value,10),prioBy:myId}).catch(fail)};r.appendChild(sel)}
     var a=h("div");
     if(canWrite&&x.by!==myId)a.appendChild(xtBtn("I got it",function(){db.doc("expenses/"+x.id).update({status:"fulfilled",fulfilledBy:myId,fulfilledAt:Date.now(),_selfie:"fulfilled"}).catch(fail)}));
     if(x.by===myId||isOwner)a.appendChild(xtBtn("Cancel request",function(){if(confirm("Remove this request?"))db.doc("expenses/"+x.id).delete().catch(fail)},"quiet"));
@@ -1684,10 +1781,11 @@ document.getElementById("zoomchk").onclick=function(){zoomCheck(true)};
   setInterval(function(){if(!document.hidden&&!sec.hidden)selfieGallery()},3000);
 })();
 
+mountShare("#xadd","exp");mountShare("#dup","docs");mountShare("#nadd","notes");mountShare("#tadd","trip");
 /* notes */
 $("#nadd").onclick=function(){
   var t=$("#nt").value.trim();if(!db||!t)return;
-  db.collection("notes").add({text:t,ts:Date.now(),by:myId||""}).then(function(){$("#nt").value="";note("")},fail)};
+  db.collection("notes").add(withShare({text:t,ts:Date.now(),by:myId||""},"notes")).then(function(){$("#nt").value="";note("")},fail)};
 function renderMeet(){
   var L=$("#mnl");if(!L)return;L.textContent="";
   var rows=S.mnotes.slice().sort(function(a,b){return (b.start||b.ts||0)-(a.start||a.ts||0)});
@@ -1930,7 +2028,7 @@ function renderNotes(){
       var who=(ps&&ps[n.by]&&ps[n.by].name)||"Someone";
       l.style.flex="1";l.style.minWidth="0";
       l.appendChild(h("div","meta",who+" – "+new Date(n.ts).toLocaleString("en-US",{dateStyle:"medium",timeStyle:"short"})));
-      var body=h("div","pre",n.text);l.appendChild(body);
+      var body=h("div","pre");linkFill(body,n.text||"");l.appendChild(body);var nsh=shareLine(n,"notes");if(nsh)l.appendChild(nsh);
       if(n.edited)l.appendChild(h("div","meta","Last edited "+new Date(n.edited).toLocaleString("en-US",{dateStyle:"medium",timeStyle:"short"})+(n.editedBy&&n.editedBy!==n.by?" by "+((ps&&ps[n.editedBy]&&ps[n.editedBy].name)||"someone"):"")));
       r.appendChild(l);
       if(n.id&&canWrite&&(n.by===myId||isOwner)){
@@ -1975,6 +2073,7 @@ var TILES=[
   ["kids","Children and family","<path d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8'/>","#e0a58f,#cf8c76","#4a2418"],
   ["people","People","<path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M19 8v6M22 11h-6'/>","#6f9a8a,#557f70"],
   ["access","Access","<rect x='4' y='11' width='16' height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/>","#7d8b5a,#657245"],
+  ["issues","Issues","<path d='M12 2 1 21h22z'/><path d='M12 9v5M12 17.5v.5'/>","#d9825b,#c46a43"],
   ["help","Help","<path d='M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z'/>","#86a3bd,#6c8aa6"]
 ];
 TILES.forEach(function(t){
@@ -2033,7 +2132,7 @@ function addSeg(secId,items,curId){
   var sec=document.getElementById(secId);if(!sec)return;
   var c=h("div","card");c.style.padding="10px";var sg=h("div","seg");
   items.forEach(function(it){var b=h("button",it[0]===curId?"on":"",it[1]);b.type="button";
-    b.onclick=function(){if(it[0]===curId)return;if(!tabOk(it[0]))return note("You don’t have access to "+it[1]+". Ask the owner.");hubSub(it[0])};sg.appendChild(b)});
+    b.onclick=function(){if(it[0]===curId)return;if(!tabOk(it[0]))return logIssue("You don’t have access to "+it[1]+".","");hubSub(it[0])};sg.appendChild(b)});
   c.appendChild(sg);sec.insertBefore(c,sec.firstChild);
 }
 addSeg("p-docs",[["docs","Documents"],["notes","Notes"]],"docs");
@@ -2286,6 +2385,9 @@ function mentionIds(text,list){
   return out;
 }
 function mentionFill(el,text,ids){
+  linkFill(el,text,function(seg){mentionFill0(el,seg,ids)});
+}
+function mentionFill0(el,text,ids){
   var names=(ids||[]).map(function(id){return mFirst(memberName(id))}).filter(Boolean);
   if(!names.length){el.appendChild(document.createTextNode(text));return}
   var re=new RegExp("(^|[^\\w])(@(?:"+names.map(function(n){return n.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}).join("|")+"))(?![\\w])","gi"),last=0,m;
@@ -2587,7 +2689,7 @@ function fillBody(b,m){
     var dn=h("button","bbtn",m.done?"Undo":"Mark done");dn.onclick=function(){if(db)db.doc("messages/"+m.id).update({done:!m.done}).catch(fail)};bt.appendChild(dn);
     c4.appendChild(bt);b.appendChild(c4);return;
   }
-  b.appendChild(document.createTextNode((m.text||"")+(m.edited?"  (edited)":"")));
+  linkFill(b,m.text||"");if(m.edited)b.appendChild(document.createTextNode("  (edited)"));
 }
 async function fileBlob(m){
   var u=await signed(m.path),r=await fetch(u);
@@ -3244,7 +3346,7 @@ $("#dup").onclick=async function(){
   try{
     var nn=stdName($("#dcat").value,t,f.name),path=await upload("docs",f,nn);
     var chk=await aiVerify(f,{kind:"document",title:t||nn,category:$("#dcat").value,date:key(new Date())});
-    var drec={title:t||nn,cat:$("#dcat").value,path:path,name:nn,orig:f.name,type:f.type||"application/octet-stream",size:f.size,by:myId||"",ts:Date.now(),aicheck:chk};if(chk.status==="review")drec.review={state:"pending"};
+    var drec=withShare({title:t||nn,cat:$("#dcat").value,path:path,name:nn,orig:f.name,type:f.type||"application/octet-stream",size:f.size,by:myId||"",ts:Date.now(),aicheck:chk},"docs");if(chk.status==="review")drec.review={state:"pending"};
     await db.collection("documents").add(drec);
     $("#df").value="";$("#dt").value="";note("");
   }catch(e){note(attachErr(e))}
@@ -3264,14 +3366,14 @@ function renderDocs(){
       var mb=d.size/1048576;
       l.appendChild(h("div","meta",d.name+(d.orig&&d.orig!==d.name?" (was “"+d.orig+"”)":"")+" – "+(mb>=1?mb.toFixed(1)+" MB":Math.max(1,Math.round(d.size/1024))+" KB")+" – "+new Date(d.ts).toLocaleDateString("en-US",{dateStyle:"medium"})));
       var dsl=selfieLinks(d,[["selfie","Selfie"]]);if(dsl)l.appendChild(dsl);
-      var dbg=aiBadge(d,"documents");if(dbg)l.appendChild(dbg);
+      var dbg=aiBadge(d,"documents");if(dbg)l.appendChild(dbg);var dsh=shareLine(d,"documents");if(dsh)l.appendChild(dsh);
       r.appendChild(l);
       if(canWrite){var rm=h("button","quiet","Remove");rm.onclick=function(){sb.storage.from("files").remove([d.path]).then(function(){return db.doc("documents/"+d.id).delete()}).catch(function(e){note(e&&e.code==="not_uploader"?"Only the person who uploaded this file, or an Editor, can remove it.":"That didn’t delete. Try again.")})};r.appendChild(rm)}
       L.appendChild(r)});
   });
 }
 
-function fail(e){if(e&&e.code==="selfie")return note(e.message||"A selfie is needed to save this.");note(e&&e.code==="invalid_argument"?"You have view-only access. Ask the owner to share this page with you as a Contributor.":e&&e.code==="quota_exceeded"?"The hub’s storage is full. Remove old photos or documents, then try again.":"That didn’t save. Check your connection and try again.")}
+function fail(e){if(e&&e.code==="selfie")return note(e.message||"A selfie is needed to save this.");return logIssue(e&&e.code==="invalid_argument"?"You have view-only access to this page.":e&&e.code==="quota_exceeded"?"The hub’s storage is full.":"That didn’t save.",e&&e.code==="quota_exceeded"?"Remove old photos or documents, then try again.":"Check your connection and try again.")}
 /* timeline */
 var CDRAFT={},FPHOTO=null,FMORE=[];
 var REACTS=[["like","👍","Like","#2078f4"],["love","❤️","Love","#f33e58"],["care","🥰","Care","#f7b125"],["haha","😆","Haha","#f7b125"],["wow","😮","Wow","#f7b125"],["sad","😢","Sad","#f7b125"],["angry","😡","Angry","#e9710f"]];
@@ -3581,7 +3683,7 @@ function buildPost(p,ps){
   c.appendChild(hd);
   if(p.text){
     if(p.bg&&BGS[p.bg-1]&&!p.mid){var bgd=h("div","pbg",p.text);bgd.style.background=BGS[p.bg-1];c.appendChild(bgd)}
-    else c.appendChild(h("div","pbody",p.text));
+    else{var pbd=h("div","pbody");linkFill(pbd,p.text);c.appendChild(pbd)}
   }
   if(p.sh){
     var q=p.sh,sc=h("div","pshare");sc.style.cssText="border:1px solid var(--line);border-radius:12px;margin:8px 0;overflow:hidden";
@@ -3721,7 +3823,7 @@ function renderCS(toEnd){
       }
       var tx=h("div","cptx"),hd2=h("div");hd2.style.cssText="display:flex;gap:8px;align-items:baseline";
       hd2.appendChild(h("b",null,who));hd2.appendChild(h("span","meta",ago(p.ts)));tx.appendChild(hd2);
-      tx.appendChild(h("div","t",p.text||(p.mid?"Shared a photo":"")));
+      var ctd=h("div","t");linkFill(ctd,p.text||(p.mid?"Shared a photo":""));tx.appendChild(ctd);
       if((p.text||"").length>90){tx.appendChild(h("div","meta","Tap to read more"));tx.onclick=function(){tx.classList.toggle("open")};tx.style.cursor="pointer"}
       pb.appendChild(tx);
     }
@@ -3783,7 +3885,7 @@ function mixCards(L){
   }
 }
 function openComposer(){
-  if(!canWrite&&!tabEdit("feed"))return note("You can view this section but not post. Ask the owner to change your access.");
+  if(!canWrite&&!tabEdit("feed"))return logIssue("You can view this section but not post.","Your access to this section is view-only.");
   var p=PF(myId);
   [["#fcav"],["#fbav"]].forEach(function(a){var e=$(a[0]);e.textContent=(S.me||"?").charAt(0).toUpperCase();e.style.backgroundImage="";e.classList.remove("has");if(p.avatar)setBg(e,p.avatar)});
   $("#fcn").textContent=S.me||"";
@@ -3951,19 +4053,58 @@ var GROUPS=[["parent","Parent","Parents"],["guardian","Guardian","Guardians"],["
 var FLAB=[["calendar","Calendar"],["messages","Messages"],["calls","Calls"],["documents","Documents"],["notes","Notes"],["expenses","Expenses"],["children","Children and family"],["people","People"]];
 function glabel(g){var x=GROUPS.filter(function(r){return r[0]===g})[0];return x?x[1]:g}
 
+
+/* ---------- Issues: problems are collected in the Issues section of the menu ---------- */
+var ISSUES=[];
+function issKey(){return "hubIssues_"+(myId||"x")}
+function issLoad(){try{ISSUES=JSON.parse(localStorage.getItem(issKey())||"[]")}catch(e){ISSUES=[]}if(!Array.isArray(ISSUES))ISSUES=[]}
+function issSave(){try{localStorage.setItem(issKey(),JSON.stringify(ISSUES.slice(0,100)))}catch(e){}}
+function paintIssueBadge(){
+  var n=ISSUES.filter(function(i){return !i.seen}).length;
+  Array.prototype.forEach.call(document.querySelectorAll('[data-t="issues"],[data-k="issues"]'),function(el){
+    var b=el.querySelector(".issb");
+    if(!n){if(b)b.remove();return}
+    if(!b){b=document.createElement("span");b.className="issb";b.style.cssText="background:#d93025;color:#fff;border-radius:999px;min-width:20px;height:20px;padding:0 6px;font-size:.74rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-left:8px";el.appendChild(b)}
+    b.textContent=String(n);
+  });
+}
+function logIssue(title,detail,quiet){
+  if(!ISSUES.length)issLoad();
+  var last=ISSUES[0];
+  if(!(last&&last.title===title&&last.detail===(detail||"")&&Date.now()-last.ts<60000))
+    ISSUES.unshift({id:Date.now().toString(36),ts:Date.now(),title:title,detail:detail||"",where:(typeof CUR!=="undefined"?CUR:""),seen:false});
+  issSave();paintIssueBadge();
+  if(!quiet){note("⚠️ "+title+" See Issues in the menu.");setTimeout(function(){var n=$("#notice");if(n&&/See Issues in the menu/.test(n.textContent))note("")},6000)}
+}
+function renderIssues(){
+  var L=$("#isl");if(!L)return;issLoad();L.textContent="";
+  ISSUES.forEach(function(i){i.seen=true});issSave();paintIssueBadge();
+  if(!ISSUES.length){var e=h("p","empty","No issues. Everything is working.");e.style.marginTop="10px";L.appendChild(e);return}
+  var ca=h("button","quiet","Clear all");ca.type="button";ca.style.margin="10px 0";ca.onclick=function(){ISSUES=[];issSave();renderIssues()};L.appendChild(ca);
+  ISSUES.forEach(function(i){
+    var r=h("div","item");var l=h("div");l.style.cssText="flex:1;min-width:0";
+    l.appendChild(h("div",null,"⚠️ "+i.title)).style.fontWeight="700";
+    if(i.detail)l.appendChild(h("div","meta",i.detail));
+    l.appendChild(h("div","meta",new Date(i.ts).toLocaleString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})));
+    var x=h("button","quiet","Dismiss");x.type="button";x.onclick=function(){ISSUES=ISSUES.filter(function(z){return z.id!==i.id});issSave();renderIssues()};
+    r.appendChild(l);r.appendChild(x);L.appendChild(r)});
+}
+window.addEventListener("error",function(e){try{if(e&&e.message&&!/ResizeObserver|Script error/.test(e.message))logIssue("Something unexpected happened.",String(e.message).slice(0,160),true)}catch(x){}});
+window.addEventListener("unhandledrejection",function(e){try{var m=String(e&&e.reason&&(e.reason.message||e.reason)||"");if(m&&!/AbortError|aborted/i.test(m))logIssue("A background task didn’t finish.",m.slice(0,160),true)}catch(x){}});
+setInterval(function(){try{paintIssueBadge()}catch(e){}},2000);
 function fail(e){
   if(e&&e.code==="selfie")return note(e.message||"A selfie is needed to save this.");
   var m=String(e&&e.message||""),c=e&&e.code;
-  if(c==="42501"||/row-level security|permission denied|not allowed/i.test(m))return note("You can view this section but not change it. Ask the owner to change your access.");
-  if(/exceeds the maximum|too large|toolarge/i.test(m))return note("That file is too big. The limit is "+(CFG.MAX_UPLOAD_MB||50)+" MB.");
-  note("That didn’t save. Check your connection and try again."+(m?" ["+m.slice(0,140)+"]":""));
+  if(c==="42501"||/row-level security|permission denied|not allowed/i.test(m))return logIssue("You can view this section but not change it.","Your access to this section is view-only.");
+  if(/exceeds the maximum|too large|toolarge/i.test(m))return logIssue("That file is too big.","The limit is "+(CFG.MAX_UPLOAD_MB||50)+" MB.");
+  logIssue("That didn’t save.","Check your connection and try again."+(m?" ["+m.slice(0,140)+"]":""));
 }
 function attachErr(e){
   var m=String(e&&e.message||"");
   if(m==="photo")return "Couldn’t read that photo. Try a JPEG or PNG.";
   if(m==="toolarge"||/exceeds the maximum|too large/i.test(m))return "That file is too big. The limit is "+(CFG.MAX_UPLOAD_MB||50)+" MB.";
-  if(/row-level security|permission|not allowed|unauthorized/i.test(m)||(e&&e.code==="42501"))return "You can view this section but not add to it. Ask the owner to change your access.";
-  return "That didn’t send. Check your connection and try again."+(m?" ["+m.slice(0,140)+"]":"");
+  if(/row-level security|permission|not allowed|unauthorized/i.test(m)||(e&&e.code==="42501")){logIssue("You can view this section but not add to it.","Your access to this section is view-only.",true);return "You can view this section but not add to it. See Issues in the menu."}
+  logIssue("That didn’t send.","Check your connection and try again."+(m?" ["+m.slice(0,140)+"]":""),true);return "That didn’t send. See Issues in the menu.";
 }
 
 /* the data layer: a small wrapper that talks to the Supabase "docs" table */
@@ -4027,7 +4168,7 @@ function mkDb(sb){
     var key=coll+"/"+id;
     return {
       id:id,
-      set:function(o){return gated(coll,o,false).then(function(o2){return sb.from("docs").upsert({key:key,collection:coll,id:id,data:clone(o2)}).then(wr).then(function(){touch(coll)})})},
+      set:function(o){return gated(coll,o,false).then(function(o2){return sb.from("docs").upsert({key:key,collection:coll,id:id,data:Object.assign({_u:myId||undefined},clone(o2))}).then(wr).then(function(){touch(coll)})})},
       get:function(){return sb.from("docs").select("data").eq("key",key).maybeSingle().then(wr).then(function(r){return {exists:!!r.data,id:id,data:function(){return r.data?clone(r.data.data):undefined}}})},
       update:function(o){
         return gated(coll,o,false).then(function(o2){
@@ -4334,6 +4475,46 @@ function shopDraw(){
   items.forEach(function(i){body.appendChild(shopRow(i,false))});
 }
 
+
+/* ---------- Place details: Google Maps link, plus code and nearest landmark ---------- */
+var OLCA="23456789CFGHJMPQRVWX";
+function plusCode(lat,lng){
+  lat=Math.min(90,Math.max(-90,lat))+90;lng=((lng+180)%360+360)%360;
+  var la=Math.min(Math.floor(lat*8000+1e-7),180*8000-1),ln=Math.floor(lng*8000+1e-7),p="",q="",i;
+  for(i=0;i<5;i++){p=OLCA[ln%20]+p;ln=Math.floor(ln/20);q=OLCA[la%20]+q;la=Math.floor(la/20)}
+  var code="";for(i=0;i<5;i++)code+=q[i]+p[i];
+  return code.slice(0,8)+"+"+code.slice(8);
+}
+function gmap(lat,lng){return "https://www.google.com/maps/search/?api=1&query="+lat+"%2C"+lng}
+function fetchJ(url,ms){var c=new AbortController(),t=setTimeout(function(){c.abort()},ms);return fetch(url,{signal:c.signal}).then(function(r){clearTimeout(t);return r.json()})}
+async function geoDescribe(lat,lng){
+  var out={plus:plusCode(lat,lng)};
+  try{
+    var q="[out:json][timeout:8];nwr(around:600,"+lat+","+lng+")[name][~\"^(amenity|leisure|tourism|historic|shop|office|man_made|building|highway|place)$\"~\".\"];out center 40;";
+    var rs=await Promise.all([
+      fetchJ("https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&accept-language=en&lat="+lat+"&lon="+lng,8000).catch(function(){return null}),
+      fetchJ("https://overpass-api.de/api/interpreter?data="+encodeURIComponent(q),9000).catch(function(){return null})
+    ]);
+    var a=rs[0]&&rs[0].address;
+    if(a){var town=a.city||a.town||a.village||a.suburb||a.county||"";var parts=[town,a.state,a.country].filter(Boolean);out.area=parts.join(", ");out.town=town}
+    var best=null;
+    ((rs[1]&&rs[1].elements)||[]).forEach(function(e){
+      var la=e.lat!=null?e.lat:(e.center&&e.center.lat),lo=e.lon!=null?e.lon:(e.center&&e.center.lon),nm0=e.tags&&e.tags.name;
+      if(la==null||!nm0)return;var d=Math.round(geoDist(lat,lng,la,lo));
+      /* prefer real landmarks over roads and plain buildings */
+      var t=e.tags,w=(t.highway||t.building||t.place)&&!(t.amenity||t.leisure||t.tourism||t.historic||t.shop||t.office||t.man_made)?500:0;
+      var sc=d+w;if(!best||sc<best.sc)best={n:nm0,d:d,sc:sc}});
+    if(best)out.lm={n:best.n,d:best.d};
+  }catch(e){}
+  return out;
+}
+function placeText(r){
+  var area=r.area||"",lm=r.lm;
+  if(lm)return (lm.d<20?"At ":lm.d+" m from ")+lm.n+(area?", "+area:"");
+  return area||"";
+}
+function placeStamp(ts){return new Date(ts).toLocaleString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}
+function shortPlus(c,town){return c.slice(4)+(town?" "+town:"")}
 function geoDist(a,b,c,d){var R=6371000,r=Math.PI/180,x=(c-a)*r,y=(d-b)*r,q=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)*Math.sin(y/2);return 2*R*Math.asin(Math.sqrt(q))}
 function geoVerdict(t,lat,lng,acc){
   if(!t||!t.geo||t.geo.lat==null)return {v:"noplace"};
@@ -4346,7 +4527,7 @@ function renderTrips(){
   var L=$("#tlist");if(!L)return;
   var trips=S.docs.filter(function(d){return d.cat==="Trip"}).sort(function(a,b){return String(b.start||"").localeCompare(String(a.start||""))});
   var files=S.docs.filter(function(d){return d.cat==="TripFile"});
-  var sg=JSON.stringify([trips.map(function(t){return [t.id,t.title,t.start,t.end,t.geo&&t.geo.ts]}),files.map(function(f){return f.id+(f.review?f.review.state:"")}),canWrite,(S.checkins||[]).length]);
+  var sg=JSON.stringify([trips.map(function(t){return [t.id,t.title,t.start,t.end,t.geo&&t.geo.ts,t.share&&t.share.join()]}),files.map(function(f){return f.id+(f.review?f.review.state:"")+(f.share?f.share.join():"")}),canWrite,(S.checkins||[]).length]);
   if(sg===tsig)return;tsig=sg;
   L.textContent="";
   if(!trips.length)L.appendChild(h("div","card")).appendChild(h("p","empty","No trips or visits yet. Add one above, then attach flight tickets, hotel reservations and receipts."));
@@ -4356,7 +4537,7 @@ function renderTrips(){
     var tt=h("strong",null,t.title||"Untitled");hd.appendChild(tt);c.appendChild(hd);
     var when=t.start?tdate(t.start)+(t.end&&t.end!==t.start?" – "+tdate(t.end):""):"";
     c.appendChild(h("div","meta",[t.place,when,t.who?"With "+t.who:""].filter(Boolean).join(" · ")));
-    if(t.notes)c.appendChild(h("div","pre",t.notes));
+    if(t.notes)c.appendChild(h("div","pre",t.notes));var tsl=shareLine(t,"documents");if(tsl)c.appendChild(tsl);
     var total=fs.reduce(function(n,f){return n+(f.tcat==="Expense"&&!(f.review&&f.review.state==="rejected")?(Number(f.amount)||0):0)},0);
     if(total)c.appendChild(h("div",null,"Expenses so far: "+money(total))).style.cssText="font-weight:700;margin:6px 0";
     if(t.type==="Visit"||true){
@@ -4365,7 +4546,7 @@ function renderTrips(){
       cb.appendChild(h("div",null,"📍 Check-ins")).style.fontWeight="700";
       var gw=h("div","meta");gw.style.margin="4px 0";
       if(t.geo&&t.geo.lat!=null){
-        var ga=h("a",null,"Meeting place set");ga.href="https://www.openstreetmap.org/?mlat="+t.geo.lat+"&mlon="+t.geo.lng+"#map=17/"+t.geo.lat+"/"+t.geo.lng;ga.target="_blank";ga.rel="noopener";
+        var ga=h("a",null,"Meeting place set"+(t.geo.text?": "+t.geo.text:"")+" ("+(t.geo.plus||plusCode(t.geo.lat,t.geo.lng))+")");ga.href=gmap(t.geo.lat,t.geo.lng);ga.target="_blank";ga.rel="noopener";
         gw.appendChild(document.createTextNode("📌 "));gw.appendChild(ga);gw.appendChild(document.createTextNode(" · check-ins within "+(t.geo.r||200)+" m are marked verified. "));
       }else gw.textContent="No meeting place set yet. Set it so check-ins can be marked “verified at location”. ";
       if(canWrite&&(isOwner||!(t.geo&&t.geo.lat!=null))){
@@ -4375,8 +4556,9 @@ function renderTrips(){
           if(t.geo&&t.geo.lat!=null&&!confirm("Replace the saved meeting place with where you are now?"))return;
           if(!confirm("Stand at the meeting place, then press OK. The hub will save this spot."))return;
           gb.disabled=true;gb.textContent="Finding you…";
-          navigator.geolocation.getCurrentPosition(function(p){
-            db.doc("documents/"+t.id).update({geo:{lat:Math.round(p.coords.latitude*1e6)/1e6,lng:Math.round(p.coords.longitude*1e6)/1e6,r:200,by:myId||"",ts:Date.now()}}).then(function(){note("Meeting place saved.");setTimeout(function(){note("")},2000)},fail);
+          navigator.geolocation.getCurrentPosition(async function(p){
+            gb.textContent="Getting place details…";var gd=await geoDescribe(p.coords.latitude,p.coords.longitude);
+            db.doc("documents/"+t.id).update({geo:{lat:Math.round(p.coords.latitude*1e6)/1e6,lng:Math.round(p.coords.longitude*1e6)/1e6,r:200,by:myId||"",ts:Date.now(),plus:gd.plus,text:placeText(gd)}}).then(function(){note("Meeting place saved.");setTimeout(function(){note("")},2000)},fail);
           },function(e){gb.disabled=false;gb.textContent="📌 Set meeting place here";note(e&&e.code===1?"Location is blocked. Allow location for this app in your phone settings, then try again.":"Couldn’t get your location. Go outside or near a window and try again.")},{enableHighAccuracy:true,timeout:20000,maximumAge:0});
         };gw.appendChild(gb);
       }
@@ -4392,7 +4574,10 @@ function renderTrips(){
           else{gl.textContent="⚠️ Location too imprecise to verify";gl.style.color="#c07a00"}
           r.appendChild(gl)}
         var ksl=selfieLinks(k,[["selfie","Selfie"]]);if(ksl){ksl.style.display="inline-flex";ksl.style.marginLeft="8px";r.appendChild(ksl)}
-        if(k.lat!=null){var a=h("a","meta","View on map");a.href="https://www.openstreetmap.org/?mlat="+k.lat+"&mlon="+k.lng+"#map=18/"+k.lat+"/"+k.lng;a.target="_blank";a.rel="noopener";r.appendChild(a)}
+        if(k.lat!=null){
+          var pt=placeText(k);if(pt){var pl=h("div");pl.style.cssText="margin-top:2px";pl.textContent="📍 "+pt;r.appendChild(pl)}
+          var pc=k.plus||plusCode(k.lat,k.lng);var pcl=h("div","meta","Plus code: "+pc+" ("+shortPlus(pc,k.town)+") · "+placeStamp(k.ts));r.appendChild(pcl);
+          var a=h("a","meta","Open in Google Maps");a.href=gmap(k.lat,k.lng);a.target="_blank";a.rel="noopener";r.appendChild(a)}
         else r.appendChild(h("span","meta","(location not shared)"));
         cb.appendChild(r)});
       if(canWrite){
@@ -4402,9 +4587,10 @@ function renderTrips(){
           b.onclick=function(){
             if(!navigator.geolocation)return note("This phone can’t share its location.");
             b.disabled=true;var old=b.textContent;b.textContent="Finding you…";
-            navigator.geolocation.getCurrentPosition(function(p){
+            navigator.geolocation.getCurrentPosition(async function(p){
+              b.textContent="Getting place details…";var gd=await geoDescribe(p.coords.latitude,p.coords.longitude);
               var id=db.collection("checkins").doc().id;
-              db.doc("checkins/"+id).set({trip:t.id,tripTitle:t.title||"",type:x[0],by:myId||"",lat:Math.round(p.coords.latitude*1e6)/1e6,lng:Math.round(p.coords.longitude*1e6)/1e6,acc:Math.round(p.coords.accuracy||0),ts:Date.now(),gv:(function(){var g=geoVerdict(t,p.coords.latitude,p.coords.longitude,p.coords.accuracy||0);return g.v+(g.dist!=null?"|"+g.dist:"")})()}).then(function(){note("Checked "+(x[0]==="in"?"in":"out")+". This record can’t be edited.");setTimeout(function(){note("")},2500)},fail);
+              db.doc("checkins/"+id).set({trip:t.id,tripTitle:t.title||"",type:x[0],by:myId||"",lat:Math.round(p.coords.latitude*1e6)/1e6,lng:Math.round(p.coords.longitude*1e6)/1e6,acc:Math.round(p.coords.accuracy||0),ts:Date.now(),plus:gd.plus,area:gd.area||"",town:gd.town||"",lm:gd.lm||null,gv:(function(){var g=geoVerdict(t,p.coords.latitude,p.coords.longitude,p.coords.accuracy||0);return g.v+(g.dist!=null?"|"+g.dist:"")})()}).then(function(){note("Checked "+(x[0]==="in"?"in":"out")+". This record can’t be edited.");setTimeout(function(){note("")},2500)},fail);
               b.disabled=false;b.textContent=old},function(e){b.disabled=false;b.textContent=old;note(e&&e.code===1?"Location is blocked. Allow location for this app in your phone settings, then try again.":"Couldn’t get your location. Go outside or near a window and try again.")},{enableHighAccuracy:true,timeout:20000,maximumAge:0})};
           row.appendChild(b)});
         cb.appendChild(row);cb.appendChild(h("div","meta","Check-ins record your phone’s location and time. They can’t be edited or deleted.")).style.marginTop="6px";
@@ -4418,7 +4604,7 @@ function renderTrips(){
         var r=h("div","tfile"),l=h("div");l.style.cssText="flex:1;min-width:0";
         if(/^image\//.test(f.type||"")){var th=h("img");th.alt=f.title||"Photo";th.style.cssText="width:56px;height:56px;object-fit:cover;border-radius:8px;flex:none;cursor:pointer;background:rgba(127,127,127,.2)";th._load=function(){signed(f.path).then(function(u){th.src=u;th.onclick=function(){openViewer(u,"",f.title||"")}}).catch(function(){})};r.appendChild(th);if(io)io.observe(th);else th._load()}
         var a=h("a",null,f.title||f.name);a.href="#";a.onclick=function(e){e.preventDefault();signed(f.path).then(function(u){preview(Object.assign({},f,{url:u}))}).catch(function(){note("That file isn’t available.")})};l.appendChild(a);
-        l.appendChild(h("div","meta",(f.amount?money(f.amount)+" · ":"")+fmtSize(f.size)));var tbg=aiBadge(f,"documents");if(tbg)l.appendChild(tbg);r.appendChild(l);
+        l.appendChild(h("div","meta",(f.amount?money(f.amount)+" · ":"")+fmtSize(f.size)));var tbg=aiBadge(f,"documents");if(tbg)l.appendChild(tbg);var tsh=shareLine(f,"documents");if(tsh)l.appendChild(tsh);r.appendChild(l);
         if(canWrite){var rm=h("button","quiet","Remove");rm.onclick=function(){if(!confirm("Remove this file?"))return;sb.storage.from("files").remove([f.path]).then(function(){return db.doc("documents/"+f.id).delete()}).catch(fail)};r.appendChild(rm)}
         c.appendChild(r);
       });
@@ -4426,26 +4612,23 @@ function renderTrips(){
     if(canWrite){
       var dt=h("details");dt.style.marginTop="10px";dt.open=true;dt.appendChild(h("summary",null,"Add files, photos or expenses"));
       var box=h("div");box.style.marginTop="8px";
-      var sel=h("select");TCATS.forEach(function(k){var o=h("option",null,k[1]);o.value=k[0];sel.appendChild(o)});
-      var ti=h("input");ti.placeholder="Label (e.g. Ticket Lagos to London)";ti.maxLength=80;
-      var am=h("input");am.type="number";am.min="0";am.step="0.01";am.placeholder="Amount (₦), for expenses";am.inputMode="decimal";
-      var fi=h("input");fi.type="file";fi.multiple=true;
-      var up=h("button","go","Upload");
-      sel.value="Document";[["Category",sel],["Label (optional)",ti],["Amount",am],["Files or photos (pick several)",fi]].forEach(function(p){var lb=h("label",null,p[0]);lb.appendChild(p[1]);box.appendChild(lb)});box.appendChild(up);
+      var fr=fileRows(),am=h("input");am.type="number";am.min="0";am.step="0.01";am.placeholder="Amount (₦), only if one expense receipt";am.inputMode="decimal";
+      var up=h("button","go","Upload"),slot="tf_"+t.id;
+      box.appendChild(fr.el);var al=h("label",null,"Amount (optional)");al.appendChild(am);box.appendChild(al);box.appendChild(shareWidget(slot));box.appendChild(up);
       up.onclick=async function(){
-        var fl=Array.prototype.slice.call(fi.files||[]);if(!fl.length)return note("Choose a file or photo to upload.");
+        var items=fr.items();if(!items.length)return note("Choose a file or photo to upload.");
         up.disabled=true;
         try{
-          for(var k=0;k<fl.length;k++){
-            up.textContent="Uploading "+(k+1)+" of "+fl.length+"…";
-            var f=fl[k],blob=f,fname=f.name,ftype=f.type||"application/octet-stream",cat=sel.value;
-            if(/^image\//.test(ftype)){try{var sh=await shrinkBlob(f);blob=sh.blob;ftype="image/jpeg";fname=(f.name||"photo").replace(/\.[^.]*$/,"")+".jpg";if(cat==="Other"||cat==="Document")cat="Photo"}catch(e){}}
+          for(var k=0;k<items.length;k++){
+            up.textContent="Uploading "+(k+1)+" of "+items.length+"…";
+            var f=items[k].f,blob=f,fname=f.name,ftype=f.type||"application/octet-stream",cat=items[k].cat;
+            if(/^image\//.test(ftype)){try{var sh=await shrinkBlob(f);blob=sh.blob;ftype="image/jpeg";fname=(f.name||"photo").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
             var path=await upload("docs",blob,fname);
-            var chk=await aiVerify(f,{kind:"trip "+cat,title:(t.title||"Trip")+" – "+fname,amount:fl.length===1?(parseFloat(am.value)||null):null,date:t.start||key(new Date())});
-            var trec={cat:"TripFile",trip:t.id,tcat:cat,title:(fl.length===1&&ti.value.trim())||fname,amount:fl.length===1?(parseFloat(am.value)||0):0,path:path,name:fname,type:ftype,size:blob.size||f.size,by:myId||"",ts:Date.now()+k,aicheck:chk};if(chk.status==="review")trec.review={state:"pending"};
+            var chk=await aiVerify(f,{kind:"trip "+cat,title:(t.title||"Trip")+" – "+fname,amount:items.length===1?(parseFloat(am.value)||null):null,date:t.start||key(new Date())});
+            var trec=withShare({cat:"TripFile",trip:t.id,tcat:cat,title:items[k].label||fname,amount:items.length===1?(parseFloat(am.value)||0):0,path:path,name:fname,type:ftype,size:blob.size||f.size,by:myId||"",ts:Date.now()+k,aicheck:chk},slot);if(chk.status==="review")trec.review={state:"pending"};
             await db.collection("documents").add(trec);
           }
-          note("");
+          note("");fr.reset();am.value="";
         }catch(e){note(attachErr(e))}
         up.disabled=false;up.textContent="Upload";
       };
@@ -4464,21 +4647,22 @@ function renderTrips(){
     L.appendChild(c);
   });
 }
+var TFR=fileRows();$("#tfrows").appendChild(TFR.el);
 $("#tadd").onclick=function(){
   var ti=$("#ttl").value.trim();if(!db||!ti)return note("Give it a title.");
-  var tid=db.collection("documents").doc().id,fl=Array.prototype.slice.call($("#tfiles").files||[]),fc=$("#tfcat").value,btn=$("#tadd");btn.disabled=true;
-  db.doc("documents/"+tid).set({cat:"Trip",type:$("#ttype").value,title:ti,place:$("#tpl").value.trim(),who:$("#twho").value.trim(),start:$("#tfr").value,end:$("#tto").value,notes:$("#tnt").value.trim(),by:myId||"",ts:Date.now()})
+  var tid=db.collection("documents").doc().id,items=TFR.items(),btn=$("#tadd");btn.disabled=true;
+  db.doc("documents/"+tid).set(withShare({cat:"Trip",type:$("#ttype").value,title:ti,place:$("#tpl").value.trim(),who:$("#twho").value.trim(),start:$("#tfr").value,end:$("#tto").value,notes:$("#tnt").value.trim(),by:myId||"",ts:Date.now()},"trip"))
    .then(async function(){
-     for(var k=0;k<fl.length;k++){
-       btn.textContent="Uploading "+(k+1)+" of "+fl.length+"…";
-       var f=fl[k],blob=f,fname=f.name,ftype=f.type||"application/octet-stream",cat=fc;
+     for(var k=0;k<items.length;k++){
+       btn.textContent="Uploading "+(k+1)+" of "+items.length+"…";
+       var f=items[k].f,blob=f,fname=f.name,ftype=f.type||"application/octet-stream",cat=items[k].cat;
        if(/^image\//.test(ftype)){try{var sh=await shrinkBlob(f);blob=sh.blob;ftype="image/jpeg";fname=(f.name||"photo").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
        var path=await upload("docs",blob,fname);
        var chk=await aiVerify(f,{kind:"trip "+cat,title:ti+" – "+fname,date:$("#tfr").value||key(new Date())});
-       var rec={cat:"TripFile",trip:tid,tcat:cat,title:fname,amount:0,path:path,name:fname,type:ftype,size:blob.size||f.size,by:myId||"",ts:Date.now()+k,aicheck:chk};if(chk.status==="review")rec.review={state:"pending"};
+       var rec=withShare({cat:"TripFile",trip:tid,tcat:cat,title:items[k].label||fname,amount:0,path:path,name:fname,type:ftype,size:blob.size||f.size,by:myId||"",ts:Date.now()+k,aicheck:chk},"trip");if(chk.status==="review")rec.review={state:"pending"};
        await db.collection("documents").add(rec);
      }
-     ["#ttl","#tpl","#twho","#tfr","#tto","#tnt","#tfiles"].forEach(function(x){$(x).value=""});note("");btn.disabled=false;btn.textContent="Add";
+     ["#ttl","#tpl","#twho","#tfr","#tto","#tnt"].forEach(function(x){$(x).value=""});TFR.reset();if(SHW.trip)SHW.trip.reset();note("");btn.disabled=false;btn.textContent="Add";
    }).catch(function(e){btn.disabled=false;btn.textContent="Add";fail(e)})};
 
 /* settings: sound and skin tone */
@@ -4525,7 +4709,7 @@ $("#gin").onsubmit=async function(ev){
 $("#gforgot").onclick=async function(){
   var em=$("#gem").value.trim();if(!em)return gmsg("Type your email first, then tap this again.",true);
   var r=await sb.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});
-  gmsg(r.error?"Couldn’t send that right now. Ask the owner for a new link.":"If that email has an account, a reset link is on its way.",!!r.error);
+  gmsg(r.error?"Couldn’t send that right now. Please try again in a moment.":"If that email has an account, a reset link is on its way.",!!r.error);
 };
 $("#gset").onsubmit=async function(ev){
   ev.preventDefault();
@@ -4544,7 +4728,7 @@ $("#gcancel").onclick=function(){document.body.classList.remove("locked")};
 
 /* what each person may see and change */
 function tabOk(id){
-  if(id==="home"||id==="help")return true;
+  if(id==="home"||id==="help"||id==="issues")return true;
   if(!STARTED)return false;
   if(id==="access")return isOwner;
   return isOwner||!!(PERM[FEAT[id]]&&PERM[FEAT[id]].v);
@@ -4724,7 +4908,7 @@ async function start(session){
   try{me=await loadAccess()}catch(e){console.error(e);lerr=e}
   if(!me){
     showSignin();
-    gmsg(lerr?"Signed in, but the hub couldn’t read its member list: "+(lerr.message||lerr.code||"unknown error")+". Ask the owner to check the database permissions.":"This account isn’t set up in the hub yet. Ask the owner to invite you again.",true);
+    gmsg(lerr?"Signed in, but the hub couldn’t read its member list: "+(lerr.message||lerr.code||"unknown error")+".":"This account isn’t set up in the hub yet.",true);
     sb.auth.signOut();return;
   }
   STARTED=true;
@@ -4756,7 +4940,7 @@ async function start(session){
   var hash=location.hash||"";
   var setMode=/type=(invite|recovery)/.test(hash);
   if(/error_code=|error=/.test(hash)){
-    gmsg("That link has expired or was already used. Ask the owner for a new one, or tap “Forgot password”.",true);
+    gmsg("That link has expired or was already used. Tap “Forgot password” to get a new one.",true);
     try{history.replaceState(null,"",location.pathname+location.search)}catch(e){}
   }
   sb=supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
@@ -5267,13 +5451,15 @@ async function start(session){
     var o=mk("div");o.id="rfask";o.style.cssText="position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center";
     var c=mk("div");c.style.cssText="width:min(100%,460px);background:var(--surface,#fff);color:var(--ink,#111);border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 24px rgba(0,0,0,.3)";
     var t=mk("div");t.textContent="Refresh the app";t.style.cssText="font-weight:800;font-size:1.1rem;margin-bottom:12px;text-align:center";c.appendChild(t);
-    function btn(txt,sub,pri,fn){var b=mk("button");b.type="button";b.style.cssText="display:block;width:100%;text-align:center;border:0;border-radius:14px;padding:13px 12px;margin:0 0 10px;font:inherit;font-weight:700;cursor:pointer;background:"+(pri?"#1fa855":"rgba(127,127,127,.18)")+";color:"+(pri?"#fff":"inherit");
+    function btn(txt,sub,pri,fn){var b=mk("button");b.type="button";b.style.cssText="display:block;width:100%;text-align:center;border:0;border-radius:14px;padding:13px 12px;margin:0 0 10px;font:inherit;font-weight:700;cursor:pointer;background:"+(pri?"#1877f2":"#e7f3ff")+";color:"+(pri?"#fff":"#1877f2");
       b.appendChild(document.createTextNode(txt));if(sub){var m=mk("div");m.textContent=sub;m.style.cssText="font-weight:400;font-size:.82rem;opacity:.85;margin-top:2px";b.appendChild(m)}b.onclick=fn;return b}
-    c.appendChild(btn("Continue from where I left off","Reloads the latest data and keeps you on this page",true,function(){
-      try{sessionStorage.setItem("hubResume",JSON.stringify(resumeState()))}catch(e){}location.reload()}));
-    c.appendChild(btn("Refresh","Starts again from the beginning",false,function(){
+    c.appendChild(btn("Continue from where I left off","Gets the latest updates without leaving this page",true,function(){
+      o.remove();note("Updating…");
+      setTimeout(function(){try{if(db&&db.reloadAll)db.reloadAll()}catch(e){}try{SIG={}}catch(e){}},0);
+      setTimeout(function(){note("")},900)}));
+    c.appendChild(btn("Refresh","Reloads the whole app and goes back to Home",false,function(){
       try{sessionStorage.removeItem("hubResume")}catch(e){}location.reload()}));
-    var cn=btn("Cancel","",false,function(){o.remove()});cn.style.background="transparent";c.appendChild(cn);
+    var cn=btn("Cancel","",false,function(){o.remove()});cn.style.background="transparent";cn.style.color="#65676b";c.appendChild(cn);
     o.appendChild(c);o.onclick=function(e){if(e.target===o)o.remove()};document.body.appendChild(o);
   }
   (function(){
@@ -5435,7 +5621,7 @@ function aiAsk(t,att){
     return fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify(body)});
   }).then(function(r){return r.json().then(function(j){return {r:r,j:j}})}).then(function(x){
     if(x.r.ok&&x.j.reply)return done(x.j.reply,true,x.j.actions);
-    if(x.r.status===501)return done("Live chat isn’t switched on yet. The hub owner needs to add the AI key in Netlify.",false);
+    if(x.r.status===501)return done("Live chat isn’t switched on yet.",false);
     if(x.r.status===429)return done("You’ve reached today’s question limit. Try again tomorrow.",false);
     done("I couldn’t answer just now. Please try again in a moment.",false);
   }).catch(function(){done("I couldn’t connect. Check your internet and try again.",false)});
@@ -5513,7 +5699,7 @@ function aiAct(mi,ai,ok){
   function fin(st,err){a.state=st;if(err)a.err=err;else delete a.err;aiSave();botCache.key="";lastSig="";renderChat(true);if(st==="done")toast(err||"Done.")}
   if(!ok)return fin("no");
   var tb=AITAB[a.type];
-  if(tb&&!tabEdit(tb)){a.err="You can view "+AITABN[tb]+" but not add to it. Ask the hub owner to give you edit access, then tap Confirm again.";botCache.key="";lastSig="";aiSave();renderChat(true);return}
+  if(tb&&!tabEdit(tb)){a.err="You can view "+AITABN[tb]+" but not add to it.";logIssue("Cordial couldn’t add to "+AITABN[tb]+".","Your access to this section is view-only.",true);botCache.key="";lastSig="";aiSave();renderChat(true);return}
   delete a.err;a.state="busy";botCache.key="";lastSig="";renderChat(true);
   aiRun(a).then(function(txt){a.err=null;fin("done",txt)},function(e){
     var msg=e&&e.message==="nofile"?"The file is no longer loaded. Attach it again with the + button, then tap Confirm.":e&&e.message==="notrip"?"I couldn’t find that trip. Add the trip first, then attach the file.":attachErr(e);
@@ -6137,7 +6323,7 @@ function renderChat(force){
         b.appendChild(bx);
       });
     }
-    else if(m.kind==="announce"){var ah=T("div","nm","📢 Announcement from "+mname(m.by).replace(/^You$/,"you"));ah.style.color="#1a7f45";ah.style.fontWeight="700";b.appendChild(ah);b.appendChild(document.createTextNode(m.text||""))}
+    else if(m.kind==="announce"){var ah=T("div","nm","📢 Announcement from "+mname(m.by).replace(/^You$/,"you"));ah.style.color="#1a7f45";ah.style.fontWeight="700";b.appendChild(ah);linkFill(b,m.text||"")}
     else if(!m.kind||m.kind==="text"){
       if(m.img){var pi=E("img");pi.src=m.img;pi.alt="Attached photo";pi.style.cssText="display:block;max-width:100%;max-height:200px;border-radius:10px;margin-bottom:6px";b.appendChild(pi)}
       else if(m.fname){b.appendChild(T("div",null,"📎 "+m.fname)).style.cssText="font-weight:600;margin-bottom:4px"}
