@@ -1523,7 +1523,7 @@ TILES.forEach(function(t){
   ic.style.background="linear-gradient(160deg,"+t[3]+")";if(t[4])ic.style.color=t[4];
   ic.innerHTML="<svg viewBox='0 0 24 24' width='34' height='34' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>"+t[2]+"</svg>";
   b.dataset.t=t[0];b.appendChild(ic);b.appendChild(h("span","tl",t[1]));b.onclick=function(){showTab(t[0])};$("#grid").appendChild(b)});
-$("#back").onclick=function(){if(window.__callFrom&&window.waOpen){window.__callFrom=0;waOpen("calls");return}showTab("home")};
+$("#back").onclick=function(){if(window.__callFrom&&window.waOpen){window.__callFrom=0;if(window.waSubSync)waSubSync();waOpen("calls");return}showTab("home")};
 var ADD=[["Post","feed","#ft"],["Message","msg","#mt"],["Expense","exp","#xd"],["Note","notes","#nt"],["Document","docs","#dt"],["Person","people","#pn"],["Calendar day","sched",null]];
 ADD.forEach(function(a){
   var b=h("button","quiet",a[0]);b.style.cssText="display:block;font-size:1rem;padding:8px 4px;text-decoration:none;color:var(--ink)";
@@ -3978,7 +3978,7 @@ async function start(session){
     var home=document.getElementById("home"),grid=document.getElementById("grid");if(!home)return;
     if(!XTRA){XTRA=[];Array.prototype.forEach.call(home.children,function(c){if(c.classList.contains("hello")||c.id==="addm"||c===grid)return;XTRA.push(c)})}
     if(look==="classic"){XTRA.forEach(function(c){if(c.parentNode!==cdr)cdr.appendChild(c)})}
-    else XTRA.forEach(function(c){if(c.parentNode!==home)home.insertBefore(c,grid)});
+    else{var bad=XTRA.some(function(c){return c.parentNode!==home||(grid.compareDocumentPosition(c)&Node.DOCUMENT_POSITION_PRECEDING)});if(bad)XTRA.forEach(function(c){home.appendChild(c)})}
   }
   function buildC(){
     cdr.textContent="";cdr.appendChild(mk("h3",null,"Menu"));
@@ -4070,7 +4070,7 @@ async function start(session){
     if(id==="notif")seenOpen=lget(SEEN_N);
     orig(id);cur=id;chrome();
   };
-  document.getElementById("back").onclick=function(){showTab("home")};
+  document.getElementById("back").onclick=function(){if(window.__callFrom&&window.waOpen){window.__callFrom=0;if(window.waSubSync)waSubSync();waOpen("calls");return}showTab("home")};
   function chrome(){
     root.setAttribute("data-cur",cur);
     var isRoot=look!=="classic"&&ROOTS[look].indexOf(cur)>=0;
@@ -5482,10 +5482,33 @@ function close(){
   if(ST.chat)closeChat();
   WA.open=false;root.hidden=true;document.body.style.overflow="";
 }
-function go(tab){window.__callFrom=(tab==="call")?1:0;close();window.WA_BYPASS=true;try{showTab(tab)}finally{window.WA_BYPASS=false}}
+function go(tab){window.__callFrom=(tab==="call")?1:0;close();window.WA_BYPASS=true;try{showTab(tab)}finally{window.WA_BYPASS=false}if(window.waSubSync)waSubSync()}
 WA.chat=null;
-window.waOpen=function(tab){open(tab==="calls"?"calls":tab==="updates"?"updates":"chats")};
+window.waOpen=function(tab){open(tab==="calls"?"calls":tab==="updates"?"updates":tab==="you"?"you":"chats")};
 window.waClose=close;
+/* WhatsApp-style bottom bar on the Call schedule page (opened from the call log) */
+(function(){
+  var bar=E("div");bar.id="wasub";bar.hidden=true;document.body.appendChild(bar);
+  var st=document.createElement("style");
+  st.textContent="#wasub{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:60;background:var(--surface,#fff);color:var(--ink,#111);border-radius:999px;box-shadow:0 2px 14px rgba(0,0,0,.18);display:flex;padding:6px}#wasub button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 0 5px;border:0;background:none;color:inherit;font:inherit;border-radius:999px;font-size:.78rem;font-weight:500;cursor:pointer}#wasub button.on{background:rgba(120,130,140,.18);font-weight:700}body.wasub #fbnav{display:none!important}body.wasub #p-call{padding-bottom:110px}";
+  document.head.appendChild(st);
+  function draw(){
+    bar.textContent="";
+    [["upd","Updates","updates"],["phone","Calls","calls"],["chat","Chats","chats"],["user","You","you"]].forEach(function(t){
+      var b=E("button",t[2]==="calls"?"on":"",ic(t[0],26,1.7)+"<span>"+t[1]+"</span>");b.type="button";
+      if(t[2]==="you"){var sv=b.querySelector("svg");var av=T("div","wav xs",inits(S.me));av.style.background=colorOf(myId);var p=PF(myId);if(p.avatar){av.textContent="";setBg(av,p.avatar)}sv.replaceWith(av)}
+      b.onclick=function(){window.__callFrom=0;sync();open(t[2])};bar.appendChild(b);
+    });
+  }
+  function sync(){
+    var pc=document.getElementById("p-call"),on=!!(window.__callFrom&&pc&&!pc.hidden);
+    if(on&&bar.hidden)draw();
+    bar.hidden=!on;document.body.classList.toggle("wasub",on);
+  }
+  var pc=document.getElementById("p-call");
+  if(pc)new MutationObserver(sync).observe(pc,{attributes:true,attributeFilter:["hidden"]});
+  window.waSubSync=sync;
+})();
 window.hubAskCordial=function(t){
   open("chats");
   if(chatById(BOT_ID)){openChat(BOT_ID);setTimeout(function(){var ta=document.querySelector("#wacomp textarea");if(ta){ta.value=t||"";ta.dispatchEvent(new Event("input"));ta.focus();try{ta.setSelectionRange(ta.value.length,ta.value.length)}catch(e){}}},300)}
