@@ -20,6 +20,17 @@ async function channelFromVideo(vid) {
   return m ? m[1] : "";
 }
 
+async function channelFromHandle(vid) {
+  // fallback: video page -> oEmbed gives the channel page address -> read the channel id from that page
+  const o = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent("https://www.youtube.com/watch?v=" + vid)}&format=json`, { headers: UA });
+  if (!o.ok) return "";
+  const j = await o.json();
+  if (!j.author_url) return "";
+  const t = await (await fetch(j.author_url, { headers: UA })).text();
+  const m = t.match(/"channelId":"(UC[\w-]{22})"/) || t.match(/"externalId":"(UC[\w-]{22})"/) || t.match(/youtube\.com\/channel\/(UC[\w-]{22})/) || t.match(/itemprop="channelId" content="(UC[\w-]{22})"/);
+  return m ? m[1] : "";
+}
+
 async function readSaved() {
   const r = await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent(KEYNAME)}&select=data`, { headers: H });
   return ((r.ok ? await r.json() : [])[0] || {}).data || {};
@@ -33,6 +44,7 @@ exports.handler = async (event) => {
 
   let ch = (process.env.YT_CHANNEL_ID || saved.channelId || "").trim();
   try { if (!ch) ch = await channelFromVideo(SEED); } catch {}
+  try { if (!ch) ch = await channelFromHandle(SEED); } catch {}
   if (!ch) return out(502, { error: "channel_not_found" });
 
   let xml = "";
