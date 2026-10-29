@@ -23,6 +23,7 @@ exports.handler = async (event) => {
 
   const log = {};
   let first = null;
+  let recent = [];
 
   // Way 1: Instagram's public profile data (newest by date, ignoring pinned posts)
   try {
@@ -36,6 +37,7 @@ exports.handler = async (event) => {
       const nodes = edges.map((e) => e.node).filter((n) => n && n.shortcode);
       nodes.sort((a, b) => (b.taken_at_timestamp || 0) - (a.taken_at_timestamp || 0));
       if (nodes[0]) first = { kind: "p", code: nodes[0].shortcode, ts: (nodes[0].taken_at_timestamp || 0) * 1000 };
+      recent = nodes.slice(0, 9).map((n) => ({ kind: "p", code: n.shortcode, v: n.is_video ? 1 : 0, ts: (n.taken_at_timestamp || 0) * 1000 }));
     }
   } catch (e) { log.api = "error"; }
 
@@ -49,14 +51,17 @@ exports.handler = async (event) => {
         log.len = html.length;
         const re = /(?:\\?\/)(p|reel|tv)(?:\\?\/)([A-Za-z0-9_-]{8,14})(?=[\\\/"?&'])/g;
         let m;
-        while ((m = re.exec(html))) { if (m[2] !== "embed") { first = { kind: m[1], code: m[2] }; break; } }
+        while ((m = re.exec(html)) && recent.length < 9) {
+          if (m[2] !== "embed" && !recent.some((x) => x.code === m[2])) recent.push({ kind: m[1], code: m[2], v: m[1] === "reel" || m[1] === "tv" ? 1 : 0 });
+        }
+        if (recent[0]) first = { kind: recent[0].kind, code: recent[0].code };
       }
     } catch (e) { log.embed = "error"; }
   }
   if (!first) return out(502, { error: "no_post_found", log });
   if (debug) return out(200, { ok: true, debug: true, log, first });
 
-  const data = { handle, kind: first.kind, code: first.code, checked: now, seen: saved.code === first.code ? (saved.seen || now) : now };
+  const data = { handle, kind: first.kind, code: first.code, checked: now, postTs: first.ts || 0, recent, seen: saved.code === first.code ? (saved.seen || now) : now };
   await fetch(`${URL_}/rest/v1/docs?on_conflict=key`, {
     method: "POST", headers: { ...H, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify({ key: "profiles/cordial_shoplatest", collection: "profiles", id: "cordial_shoplatest", data }),
