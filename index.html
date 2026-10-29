@@ -774,6 +774,7 @@ main{max-width:100%}
 </section>
 
 <section id="p-feed" hidden>
+  <div class="card" id="nsppd" hidden></div>
   <div class="fh2"><h2>All posts</h2><button class="flink" id="ffilt" type="button">Filters</button></div>
   <div id="ffmenu" class="prtabs" hidden></div>
   <button class="fbar" id="fbar" type="button"><span class="fbav" id="fbav"></span><span class="fbtx">What’s on your mind?</span><span class="fbim" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26"><rect x="3" y="3" width="18" height="18" rx="3.5" fill="currentColor"/><circle cx="9" cy="9" r="2" fill="#fff"/><path d="M4 18l5-5 3 3 3-4 5 6z" fill="#fff"/></svg></span></button>
@@ -2906,8 +2907,28 @@ function feedFilter(a){
 }
 function pinFirst(a){return a.slice().sort(function(x,y){if(!!x.pinned!==!!y.pinned)return x.pinned?-1:1;if(x.pinned&&y.pinned)return (y.pinTs||0)-(x.pinTs||0);return 0})}
 function syncBar(){var e=$("#fbav");if(!e)return;var p=PF(myId);e.textContent=(S.me||"?").charAt(0).toUpperCase();if(p.avatar)setBg(e,p.avatar);else{e.style.backgroundImage="";e.classList.remove("has")}}
+function renderNsppd(){
+  var el=$("#nsppd");if(!el)return;
+  var d=S.prof&&S.prof.cordial_daily,r=S.prof&&S.prof.cordial_recap,items=(r&&r.items)||[],last=items[items.length-1];
+  if(!d||!d.vid){el.hidden=true;return}
+  el.hidden=false;el.textContent="";
+  var hd=h("div");hd.style.cssText="display:flex;align-items:center;gap:8px;margin-bottom:6px";
+  hd.appendChild(h("b",null,"🔴 "+(d.channel||"Streams of Joy NSPPD")));el.appendChild(hd);
+  var t=h("div",null,d.title||"Today’s session");t.style.cssText="font-size:1.05rem;font-weight:600;margin-bottom:10px";el.appendChild(t);
+  var row=h("div");row.style.cssText="display:flex;flex-wrap:wrap;gap:8px";
+  function btn(txt,bg,fn,href){var b=h(href?"a":"button",null,txt);if(href){b.href=href;b.target="_blank";b.rel="noopener"}else b.type="button";b.style.cssText="border:0;border-radius:999px;padding:8px 16px;font:inherit;font-size:.9rem;font-weight:600;text-decoration:none;cursor:pointer;background:"+bg+";color:"+(bg==="rgba(0,0,0,.08)"?"inherit":"#fff");if(fn)b.onclick=fn;row.appendChild(b)}
+  btn("▶ Watch here","#1fa855",function(){if(window.ytOpen)ytOpen(d.vid)});
+  btn("Open in YouTube","rgba(0,0,0,.08)",null,d.url);
+  if(d.live)btn("Live now","#d93025",null,d.live);
+  el.appendChild(row);
+  if(last&&last.text){
+    var rc=h("div");rc.style.cssText="margin-top:12px;padding-top:10px;border-top:1px solid rgba(0,0,0,.08);white-space:pre-wrap;line-height:1.4;font-size:.95rem";
+    rc.textContent=last.text;el.appendChild(rc);
+    var by=h("div","meta","Written by Cordial, an AI agent. It can make mistakes.");by.style.marginTop="6px";el.appendChild(by);
+  }
+}
 function renderFeed(){
-  syncBar();
+  syncBar();safe(renderNsppd)();
   renderFeedInto($("#fl"),feedFilter(pinFirst(S.posts)),"No posts yet. Share an update, a photo, or a reminder with everyone.",true);
   var prl=$("#prl");if(prl)renderFeedInto(prl,pinFirst(S.posts).filter(function(p){return p.by&&p.by===(VIEW||myId)}),"You haven’t posted yet.",false);
   if(CS.post)renderCS(false);
@@ -3297,7 +3318,7 @@ function subscribeAll(){
   var err=function(e){fail(e)};
   db.collection("schedule").onSnapshot(function(s){S.sched={};s.docs.forEach(function(d){S.sched[d.id]=d.data()});renderCal();openEditor()},err);
   db.collection("expenses").orderBy("date","desc").limit(500).onSnapshot(function(s){S.exp=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderExp()},err);
-  db.collection("profiles").limit(300).onSnapshot(function(s){S.prof={};s.docs.forEach(function(d){S.prof[d.id]=d.data()});S.profLoaded=true;renderProf();if(window.waRender)waRender()},err);
+  db.collection("profiles").limit(300).onSnapshot(function(s){S.prof={};s.docs.forEach(function(d){S.prof[d.id]=d.data()});S.profLoaded=true;renderProf();safe(renderNsppd)();if(window.waRender)waRender()},err);
   db.collection("highlights").limit(500).onSnapshot(function(s){S.hl=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderProf()},err);
   db.collection("meetingnotes").limit(300).onSnapshot(function(s){S.mnotes=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderMeet()},err);
   db.collection("notes").orderBy("ts","desc").limit(200).onSnapshot(function(s){S.notes=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderNotes()},err);
@@ -3861,8 +3882,10 @@ function ytOpen(vid){
 var feedAt=0;
 function feedRefresh(){
   if(Date.now()-feedAt<10*60*1000)return;feedAt=Date.now();
-  try{fetch("/.netlify/functions/feed").catch(function(){})}catch(e){}
+  try{fetch("/.netlify/functions/feed").then(function(r){return r.json().then(function(j){if(!r.ok&&isOwner)toast("NSPPD link problem: "+(j.error||r.status))})}).catch(function(){})}catch(e){}
 }
+window.ytOpen=ytOpen;
+(function(){var n=0,iv=setInterval(function(){if(++n>20){clearInterval(iv);return}if(S.profLoaded){clearInterval(iv);feedRefresh()}},3000)})();
 function aiAsk(t){
   if(AIPEND||!t)return;
   if(AIH===null)AIH=aiLoad();
