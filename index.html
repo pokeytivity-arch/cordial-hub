@@ -1633,7 +1633,7 @@ function xtSup(){
         if(!fl.files||!fl.files[0])return note("Attach the transaction receipt first.");note("");pb.disabled=true;
         try{var rc=await xtUp(fl.files[0]);rc.aicheck=await aiVerify(fl.files[0],{kind:"support",title:"Monthly support "+mn[mm.m-1]+" "+mm.y,amount:cfg.amount,date:key(new Date())});
           var pt={kind:"sup",date:mm.y+"-"+pad(mm.m)+"-01",amount:cfg.amount,paidAt:Date.now(),paidBy:myId,receipt:rc,_selfie:"paid"};if(rc.aicheck.status==="review")pt.review={state:"pending"};
-          await xtDoc(id,pt)}catch(e){fail(e)}
+          await xtDoc(id,pt);{var who2=myRole();setTimeout(function(){babyPost(who2||"daddy","sent this month’s support for Janet",true)},2500)}}catch(e){fail(e)}
         pb.disabled=false});acts.appendChild(pb);
     }
     if(r.paidAt&&!r.receivedAt){
@@ -1674,7 +1674,7 @@ function xtFee(){
         var inp=h("input");inp.type="number";inp.min="0";inp.step="0.01";inp.inputMode="decimal";inp.placeholder="Fee (₦)";inp.value=r.amount||"";inp.style.cssText="flex:1;min-width:120px";
         ar.appendChild(inp);
         ar.appendChild(xtBtn("Save fee",function(){var v=parseFloat(inp.value);if(!(v>=0))return note("Enter the fee amount.");note("");xtDoc(id,{kind:"fee",date:yr+"-"+pad(t===0?9:t===1?1:5)+"-01",amount:v,year:y,term:t+1})}));
-        if(r.amount&&!r.paid)ar.appendChild(xtBtn("Mark paid",function(){xtDoc(id,{paid:true,paidBy:myId,paidOn:Date.now(),_selfie:"paid"})}));
+        if(r.amount&&!r.paid)ar.appendChild(xtBtn("Mark paid",function(){var who=myRole();xtDoc(id,{paid:true,paidBy:myId,paidOn:Date.now(),_selfie:"paid"});setTimeout(function(){babyPost(who||"both","paid Janet’s school fees for the term",true)},2500)}));
         if(r.paid)ar.appendChild(xtBtn("Undo paid",function(){xtDoc(id,{paid:false,paidBy:null,paidOn:null,selfie_paid:null})},"quiet"));
         row.appendChild(ar);
       }
@@ -1806,6 +1806,7 @@ function myRole(){var o=ownerM(),m=mumM();return o&&o.user_id===myId?"daddy":m&&
 function todoWho(x){return x.who==="daddy"?"Our Daddy":x.who==="mummy"?"Our Mummy":x.who==="both"?"Both parents":"Not assigned"}
 function todoCanDo(x){var r=myRole();return canWrite&&r&&(x.who==="both"||!x.who||x.who===r)}
 function todoNotify(x,what){
+  try{if(what!=="done"){var dr=x.who==="daddy"||x.who==="mummy"?x.who:"both";setTimeout(function(){babyPost(dr,"finished an agreed task for the family: “"+String(x.title||"").slice(0,120)+"”",true)},2500)}}catch(e){}
   try{
     var o=ownerM(),m=mumM(),other=what==="done"?(myRole()==="daddy"?(m&&m.user_id):(o&&o.user_id)):x.doneBy;
     var me=xtName(myId).replace(/^You \(/,"").replace(/\)$/,"")||"A parent";var mine=myRole()==="daddy"?"Our Daddy":myRole()==="mummy"?"Our Mummy":"A parent";
@@ -2134,8 +2135,8 @@ $("#kadd").onclick=function(){
   db.collection("kids").add({name:n,school:$("#ks").value.trim(),medical:$("#km").value.trim(),contacts:$("#kc").value.trim()}).then(function(){["#kn","#ks","#km","#kc"].forEach(function(s){$(s).value=""});note("")},fail)};
 function renderKids(){
   var L=$("#kl");L.textContent="";
-  if(!S.kids.length)L.appendChild(h("p","empty","No children added yet. Add names, school, medical details, and emergency contacts."));
-  S.kids.forEach(function(k){
+  if(!S.kids.filter(function(k){return k.id!=="baby"}).length)L.appendChild(h("p","empty","Janet has her own place in the People page. Other children you add will show here. Add names, school, medical details, and emergency contacts."));
+  S.kids.filter(function(k){return k.id!=="baby"}).forEach(function(k){
     var c=h("div","card");c.style.borderLeft="6px solid "+PINK;var kh=h("h2",null,k.name);kh.style.color=PINK;c.appendChild(kh);
     if(k.permanent)c.appendChild(h("div","meta","Our baby"));
     [["School",k.school],["Medical",k.medical],["Contacts and details",k.contacts]].forEach(function(p){
@@ -2348,6 +2349,77 @@ function renderMsgs(){
 
 /* reply and reactions */
 var PROF={},EMOJI=["👍","❤️","😂","😮","😢","🙏"];
+/* Janet's journal: Cordial asks Mummy twice a week for photos and news, to document Janet's journey. The journal is private to the parents and the owner. */
+function janetEntries(){return Object.keys(S.prof||{}).filter(function(k){return k.indexOf("janet_")===0&&S.prof[k]&&S.prof[k].kind==="janetlog"}).map(function(k){return Object.assign({},S.prof[k],{id:k})}).sort(function(a,b){return (b.ts||0)-(a.ts||0)})}
+function janetWhat(e){var mood=["","a bit down","not her best","okay","happy","very happy"][e.mood||0]||"";var a=[];if(e.activities)a.push("What she has been up to: "+e.activities);if(e.school)a.push("School: "+e.school);if(mood)a.push("She has been "+mood);return a.join(". ")}
+async function janetPostFrom(e,quiet){
+  var ph=(e.photos||[]),ok=await babyPost("mummy",janetWhat(e)||"a lovely week with Mummy",quiet,ph.length?{mid:ph[0].mid,w:ph[0].w,h:ph[0].h,more:ph.slice(1)}:null);
+  if(ok){try{await db.doc("profiles/"+e.id).update({posted:true,postedAt:Date.now()})}catch(x){}}
+  return ok;
+}
+function janetQueue(){try{if(OBS||!S.profLoaded)return;var q=janetEntries().filter(function(e){return !e.posted&&(e.photos&&e.photos.length||e.activities||e.school)}).pop();if(q&&babyCap().ok)janetPostFrom(q,true)}catch(e){}}
+function openJanetJournal(){
+  if(OBS||!db||!tabEdit("feed"))return note("Only a parent can add to Janet’s journal.");
+  var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto";
+  var bx=h("div","card");bx.style.cssText="max-width:440px;width:100%;margin:auto";
+  bx.appendChild(h("h3",null,"Janet’s journal 📝"));
+  bx.appendChild(h("p","meta","Cordial is helping document Janet’s journey. Share a photo and a quick update. Janet’s own account (run by Cordial) can then post on her behalf. Her school, health and notes below stay private to you, Daddy and the hub owner."));
+  var ph=h("input");ph.type="file";ph.accept="image/*";ph.multiple=true;bx.appendChild(h("label","meta","Photos (up to 3)"));bx.appendChild(ph);
+  function ta(lbl,ph0){bx.appendChild(h("label","meta",lbl));var t=h("textarea");t.rows=2;t.placeholder=ph0||"";t.style.width="100%";bx.appendChild(t);return t}
+  var act=ta("What has Janet been up to?","New words, games, outings…"),sch=ta("How is school going?","");
+  bx.appendChild(h("label","meta","Health"));var hs=h("select");["Doing well","A little unwell","Unwell, needs attention"].forEach(function(x){var o=h("option",null,x);o.value=x;hs.appendChild(o)});bx.appendChild(hs);
+  var hn=ta("Health notes (optional)","");
+  bx.appendChild(h("label","meta","How happy is Janet?"));var mw=h("div");mw.style.cssText="display:flex;gap:8px;font-size:1.6rem";var mood=0;
+  ["😞","😕","🙂","😊","🥰"].forEach(function(em,i){var b=h("button","quiet",em);b.type="button";b.style.cssText="font-size:1.5rem;padding:4px 8px";b.onclick=function(){mood=i+1;Array.prototype.forEach.call(mw.children,function(c,j){c.style.outline=j===i?"2px solid var(--b)":"none"})};mw.appendChild(b)});bx.appendChild(mw);
+  var nt=ta("Anything about Janet we should know?","Allergies, new routines, worries, milestones…");
+  var row=h("div");row.style.cssText="display:flex;gap:8px;margin-top:12px;justify-content:flex-end";
+  var cn=h("button","quiet","Cancel");cn.type="button";cn.onclick=function(){ov.remove()};
+  var sv=h("button","go","Save to journal");sv.type="button";
+  sv.onclick=async function(){
+    if(!ph.files.length&&!act.value.trim()&&!sch.value.trim()&&!nt.value.trim()&&!mood)return note("Add a photo or a few words first.");
+    sv.disabled=true;sv.textContent="Saving…";
+    try{
+      var photos=[];for(var i=0;i<Math.min(3,ph.files.length);i++){var sh=await shrink(ph.files[i]),rf=db.collection("media").doc();await rf.set({data:sh.data,w:sh.w,h:sh.h,ts:Date.now(),by:myId||""});MEDIA[rf.id]=Promise.resolve({data:sh.data});photos.push({mid:rf.id,w:sh.w,h:sh.h})}
+      var o=ownerM(),m=mumM(),sh2=[];[o,m].forEach(function(x){if(x&&sh2.indexOf(x.user_id)<0)sh2.push(x.user_id)});if(sh2.indexOf(myId)<0)sh2.push(myId);
+      var id="janet_"+Date.now(),e={kind:"janetlog",ts:Date.now(),by:myId||"",activities:act.value.trim(),school:sch.value.trim(),health:hs.value,healthNote:hn.value.trim(),mood:mood,notes:nt.value.trim(),photos:photos,share:sh2,posted:false};
+      await db.doc("profiles/"+id).set(e);ov.remove();e.id=id;
+      var cap=babyCap();
+      if(cap.ok){note("Saved. Cordial is writing Janet’s post…");await janetPostFrom(e,false)}
+      else{note("Saved to Janet’s journal. She can post again on "+babyNextText(cap)+", and Cordial will use this then.");setTimeout(function(){note("")},4000)}
+    }catch(x){sv.disabled=false;sv.textContent="Save to journal";fail(x)}
+  };
+  row.appendChild(cn);row.appendChild(sv);bx.appendChild(row);ov.appendChild(bx);document.body.appendChild(ov);
+}
+setTimeout(janetQueue,8000);setInterval(janetQueue,300000);
+/* Janet: an AI-driven account. No login, no email. Cordial writes her posts. Her own real account is reserved until she is 12. */
+var BABY_ID="baby_janet",BABY={name:"Janet Onyemachi Chuku",dob:"2024-08-22",unlock:"2036-08-22"};PROF[BABY_ID]=BABY.name;
+function babyAge(){var d=new Date(BABY.dob+"T00:00:00"),n=new Date(),m=(n.getFullYear()-d.getFullYear())*12+n.getMonth()-d.getMonth();if(n.getDate()<d.getDate())m--;var y=Math.floor(m/12),r=m%12,a=[];if(y)a.push(y+" year"+(y>1?"s":""));if(r||!y)a.push(r+" month"+(r===1?"":"s"));return a.join(" ")}
+function babyUnlocked(){return Date.now()>=new Date(BABY.unlock+"T00:00:00").getTime()}
+/* Janet posts at most twice a week and about 6 to 8 times a month: never more than 2 in 7 days, never more than 8 in a month, and at least 3 days apart */
+function babyCap(){
+  var DAYMS=86400000,now=Date.now(),mine=(S.posts||[]).filter(function(x){return x.by===BABY_ID}).map(function(x){return x.ts||0}).sort(function(a,b){return b-a});
+  var wk=mine.filter(function(t){return now-t<7*DAYMS}),d0=new Date(),mo=mine.filter(function(t){var d=new Date(t);return d.getMonth()===d0.getMonth()&&d.getFullYear()===d0.getFullYear()});
+  var next=0;if(mine.length)next=Math.max(next,mine[0]+3*DAYMS);if(wk.length>=2)next=Math.max(next,wk[1]+7*DAYMS);
+  if(mo.length>=8){var nm=new Date(d0.getFullYear(),d0.getMonth()+1,1).getTime();next=Math.max(next,nm)}
+  return {ok:now>=next,next:next};
+}
+function babyNextText(c){return new Date(c.next).toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"})}
+async function babyPost(target,what,quiet,extra){
+  try{
+    if(OBS||!db||!tabEdit("feed")){if(!quiet)note("Only a parent can ask Cordial to post for Janet.");return false}
+    var cap=babyCap();if(!cap.ok){if(!quiet){note("Janet posts at most twice a week. She can post again on "+babyNextText(cap)+".");setTimeout(function(){note("")},3500)}return false}
+    var o=ownerM(),m=mumM(),dad=o?mFirst(o.name):"Daddy",mum=m?mFirst(m.name):"Mummy";
+    var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)return false;
+    if(!quiet)note("Cordial is writing Janet’s post…");
+    var r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({baby:{event:String(what||"").slice(0,300),target:target,dad:dad,mum:mum,age:babyAge()}})});
+    var j=await r.json();if(!r.ok||!j.text){if(!quiet)note("Cordial couldn’t write the post just now. Try again in a moment.");return false}
+    var tags=[];if((target==="daddy"||target==="both")&&o)tags.push(o.user_id);if((target==="mummy"||target==="both")&&m)tags.push(m.user_id);
+    var np={text:String(j.text).slice(0,600),ts:Date.now(),by:BABY_ID,ai:true,tags:tags};if(extra&&extra.mid){np.mid=extra.mid;np.w=extra.w;np.h=extra.h;if(extra.more&&extra.more.length)np.more=extra.more}
+    await db.collection("posts").add(np);
+    if(!quiet){note("Posted for Janet.");setTimeout(function(){note("")},1800)}
+    return true;
+  }catch(e){if(!quiet)note("Cordial couldn’t write the post just now.");return false}
+}
 S.react=[];S.reply=null;
 function nameOf(id,ps){
   if(id&&id===myId)return "You";
@@ -2402,15 +2474,41 @@ $("#padd").onclick=function(){
   db.collection("people").add({name:n,cat:$("#pc").value,phone:$("#pp").value.trim(),email:$("#pe").value.trim(),role:$("#pr").value.trim(),ts:Date.now(),by:myId||""}).then(function(){["#pn","#pp","#pe","#pr"].forEach(function(x){$(x).value=""});note("")},fail)};
 function renderPeople(){
   var L=$("#pl");L.textContent="";
+  /* Baby: Janet's reserved, AI-driven account */
+  var bk=(S.kids||[]).filter(function(k){return k.id==="baby"})[0]||{},bc=h("div","card");bc.appendChild(h("h2",null,"Baby (1)"));
+  var br=h("div","item");br.style.cssText="display:flex;align-items:center;gap:12px;cursor:pointer";
+  var bav=avatarEl(BABY_ID,"pav",BABY.name);bav.style.cssText+=";flex:0 0 auto;width:44px;height:44px;font-size:1.1rem";
+  var bl=h("div");bl.style.minWidth="0";var bst=h("strong",null,BABY.name),bt=h("span",null," · Our Baby");bt.style.cssText="font-weight:600;opacity:.75";bst.appendChild(bt);bl.appendChild(bst);
+  bl.appendChild(h("div","meta","Born 22 August 2024 · "+babyAge()+" old"));
+  bl.appendChild(h("div","meta","AI agent account. Cordial writes her posts and has no email or login. A real account is reserved for her from 22 August 2036, when she turns 12."+(babyUnlocked()?" It is available now.":"")));
+  [["School",bk.school],["Medical",bk.medical],["Contacts and details",bk.contacts]].forEach(function(q){if(!q[1])return;bl.appendChild(h("div","meta",q[0]));var pre=h("div","pre",q[1]);bl.appendChild(pre)});
+  br.appendChild(bav);br.appendChild(bl);br.onclick=function(e){if(e.target.closest&&e.target.closest(".babyact"))return;openProfile(BABY_ID)};
+  bc.appendChild(br);
+  if(!OBS&&tabEdit("feed")){
+    var ba=h("div","babyact");ba.style.cssText="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center";
+    var sel=h("select");[["daddy","Thank Daddy"],["mummy","Thank Mummy"],["both","Thank both of you"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sel.appendChild(op)});
+    var go=h("button","go sm","Ask Cordial to post for Janet");go.type="button";
+    go.onclick=function(){go.disabled=true;babyPost(sel.value,"being loving, doing amazing things and looking after Janet every day",false).then(function(){go.disabled=false})};
+    var jb=h("button","go sm","📝 Add to Janet’s journal");jb.type="button";jb.onclick=openJanetJournal;ba.appendChild(jb);
+    ba.appendChild(sel);ba.appendChild(go);bc.appendChild(ba);
+    var cp=babyCap();bc.appendChild(h("div","meta","Janet posts at most twice a week."+(cp.ok?"":" Next post: "+babyNextText(cp)+".")));
+  }
+  L.appendChild(bc);
   /* everyone who has an account in the hub is always listed here, so the list is never empty */
   var hm=(typeof MEMBERS!=="undefined"?MEMBERS:[]).slice();
   hm.sort(function(a,b){var r=function(m){return m===mumM()?1:m===ownerM()?0:2};return r(a)-r(b)});
   if(hm.length){
     var hc=h("div","card");hc.appendChild(h("h2",null,"In the hub ("+hm.length+")"));
     hm.forEach(function(m){
-      var r=h("div","item"),l=h("div"),st=h("strong",null,(typeof roleTitle==="function"&&roleTitle(m.user_id)?roleTitle(m.user_id)+" · ":"")+(m.name||"Member"));
+      var r=h("div","item"),l=h("div"),nmx=m.name||"Member",rt=(typeof roleTitle==="function"&&roleTitle(m.user_id))||(m.is_owner&&m.grp!=="parent"?"AI agent":memberRole(m));
+      r.style.cssText="display:flex;align-items:center;gap:12px;cursor:pointer";
+      var av=avatarEl(m.user_id==="x"?"":m.user_id,"pav",nmx);av.style.cssText+=";flex:0 0 auto;width:44px;height:44px;font-size:1.1rem";
+      var st=h("strong",null,nmx);
       try{var vb=vbadge(m.user_id,true);if(vb)st.appendChild(vb)}catch(e){}
-      l.appendChild(st);l.appendChild(h("div","meta",memberRole(m)));r.appendChild(l);hc.appendChild(r)});
+      l.appendChild(st);if(rt){var rl=h("span",null," · "+rt);rl.style.cssText="font-weight:600;opacity:.75";st.appendChild(rl)}
+      l.style.minWidth="0";r.appendChild(av);r.appendChild(l);
+      r.onclick=function(){openProfile(m.user_id)};
+      hc.appendChild(r)});
     L.appendChild(hc);
   }
   if(!S.people.length&&!hm.length)L.appendChild(h("p","empty","No one added yet. Add parents, guardians, family members, and lawyers above."));
@@ -2691,7 +2789,7 @@ window.pushSubscribe=async function(){
   },3000);
 })();
 try{if(location.search.indexOf("ring=")>=0)history.replaceState(null,"",location.pathname)}catch(e){}
-function openFromUrl(u){try{var m=String(u||"").match(/[?&]chat=([\w-]+)/);if(m&&window.waOpenChat)waOpenChat(m[1]);var g=String(u||"").match(/[?&]goto=(\w+)/);if(g&&typeof showTab==="function")showTab(g[1])}catch(e){}}
+function openFromUrl(u){try{var m=String(u||"").match(/[?&]chat=([\w-]+)/);if(m&&window.waOpenChat)waOpenChat(m[1]);var g=String(u||"").match(/[?&]goto=(\w+)/);if(g&&g[1]==="janet"){showTab("people");setTimeout(openJanetJournal,600)}else if(g&&typeof showTab==="function")showTab(g[1])}catch(e){}}
 try{if(location.search.indexOf("chat=")>=0||location.search.indexOf("goto=")>=0){var cu=location.search;setTimeout(function(){openFromUrl(cu);try{history.replaceState(null,"",location.pathname)}catch(e){}},3500)}}catch(e){}
 try{if(navigator.serviceWorker)navigator.serviceWorker.addEventListener("message",function(e){if(e.data&&e.data.type==="open")openFromUrl(e.data.url)})}catch(e){}
 function previewText(m){
@@ -3772,7 +3870,7 @@ function photoGrid(list,who,text){
 function buildPost(p,ps){
   var c=h("div","card post"),hd=h("div","phead"),who=pname(p.by,ps);
   hd.appendChild(avatarEl(p.by,"pav",who));
-  var hw=h("div");hw.style.flex="1";var wn=h("button","pwho linkish",who);wn.type="button";wn.onclick=function(){openProfile(p.by)};var vb=vbadge(p.by,false);if(vb)wn.appendChild(vb);hw.appendChild(wn);hw.appendChild(h("div","meta",(p.pinned?"📌 Pinned to profile · ":"")+ago(p.ts)+(p.edited?" · Edited":"")));
+  var hw=h("div");hw.style.flex="1";var wn=h("button","pwho linkish",who);wn.type="button";wn.onclick=function(){openProfile(p.by)};var vb=vbadge(p.by,false);if(vb)wn.appendChild(vb);hw.appendChild(wn);hw.appendChild(h("div","meta",(p.pinned?"📌 Pinned to profile · ":"")+ago(p.ts)+(p.ai?" · AI agent, written by Cordial":"")+(p.edited?" · Edited":"")));
   if(p.tags&&p.tags.length){wn.parentNode&&0;var tg=h("span","ptags"," — with "+p.tags.map(function(i){return i===myId?"you":memberName(i)}).join(", "));wn.appendChild(tg)}
   hd.appendChild(hw);
   var mb=h("button","pmore","•••");mb.setAttribute("aria-label","Post options");mb.onclick=function(){postMenu(p)};hd.appendChild(mb);
@@ -5860,11 +5958,17 @@ function botMsgs(){
   if(!S.profLoaded)return [];
   if(!lp.botSince){lp.botSince=Date.now();saveLP(true)}
   var bs=lp.botSince,day=new Date();day.setHours(8,0,0,0);
+  /* twice a week (Tuesday and Friday, 9am) Cordial asks Mummy for news and photos of Janet */
+  var jn=[];
+  if(typeof myRole==="function"&&myRole()==="mummy"){
+    for(var dj=0;dj<7;dj++){var dd=new Date();dd.setDate(dd.getDate()-dj);dd.setHours(9,0,0,0);if((dd.getDay()===2||dd.getDay()===5)&&dd.getTime()<=Date.now()&&dd.getTime()>bs+5000)jn.push(dd.getTime())}
+  }
   if(AIH===null)AIH=aiLoad();
-  var yd0=S.prof&&S.prof.cordial_daily;var key=bs+"|"+day.getTime()+"|"+(new Date().getHours()>=8?1:0)+"|"+AIH.length+(AIPEND?"p":"")+"|"+(yd0?yd0.vid+(yd0.seen||"")+(nsppdLive(yd0)?"L":""):"")+"|"+((S.prof&&S.prof.cordial_recap&&S.prof.cordial_recap.items||[]).map(function(x){return x.ts}).join(","));
+  var yd0=S.prof&&S.prof.cordial_daily;var key=bs+"|"+new Date().getHours()+"|"+day.getTime()+"|"+(new Date().getHours()>=8?1:0)+"|"+AIH.length+(AIPEND?"p":"")+"|"+(yd0?yd0.vid+(yd0.seen||"")+(nsppdLive(yd0)?"L":""):"")+"|"+((S.prof&&S.prof.cordial_recap&&S.prof.cordial_recap.items||[]).map(function(x){return x.ts}).join(","));
   if(botCache.key===key)return botCache.list;
   var L=[{id:"bot_w",by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs,text:"Hi, I’m Cordial 👋\n\nI’m the AI agent for this hub, and I’m not a real person. I send co-parenting tips and help with the hub, and you can ask me questions here.\n\nI can make mistakes, and I’m not a lawyer, doctor or counsellor. I can’t see your private messages, files or calendar."}];
   BOT_HELP.forEach(function(t,i){L.push({id:"bot_h"+i,by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs+1000*(i+1),text:t})});
+  jn.forEach(function(t){L.push({id:"bot_janet_"+Math.floor(t/86400000),by:BOT_ID,chat:BOT_ID,kind:"text",ts:t,text:"📝 Janet’s journal\n\nHi Mummy! Could you share a photo or two of Janet, and tell me how she is doing: what she has been up to, how school is going, her health, how happy she is, and anything about her we should know?\n\nThis helps document Janet’s journey, and Janet’s account (run by me) can post on her behalf. Open People, then tap “Add to Janet’s journal”."})});
   for(var k=6;k>=0;k--){
     var t=day.getTime()-k*86400000;
     if(t>bs+5000&&t<=Date.now()){var n=Math.floor(t/86400000);L.push({id:"bot_t"+n,by:BOT_ID,chat:BOT_ID,kind:"text",ts:t,text:"💡 Tip of the day\n\n"+BOT_TIPS[n%BOT_TIPS.length]})}
