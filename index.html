@@ -980,7 +980,7 @@ main{max-width:100%}
     <p class="meta" id="acct" style="margin:0 0 10px"></p>
     <label>Your name<input id="myname" maxlength="40"></label>
     <p class="meta" id="namelock" hidden style="margin:0 0 8px">Your name is permanent and cannot be changed.</p>
-    <div class="row" style="gap:8px;align-items:center"><button class="go" id="savename">Save name</button><button class="go" id="chgpw" style="background:var(--b)">Change password</button><button class="quiet" id="signout">Sign out</button></div>
+    <div class="row" style="gap:8px;align-items:center"><button class="go" id="savename">Save name</button><button class="go" id="chgpw" style="background:var(--b)">Change password</button><button class="quiet" id="swbtn" type="button" hidden></button><button class="quiet" id="signout">Sign out</button></div>
   </div>
   <div class="card"><h2>How to use the hub</h2>
     <ul class="help">
@@ -4961,7 +4961,29 @@ $("#savename").onclick=function(){
   });
 };
 $("#chgpw").onclick=function(){showSet(true)};
-$("#signout").onclick=function(){try{localStorage.removeItem("hubFid")}catch(e){}sb.auth.signOut().then(function(){location.reload()})};
+/* one-tap switch between the two accounts the same person uses (Cordial Co-Parenting admin and Onyemachi), on this device only */
+var SW_K="hubAcct_";
+function swRole(){if(!MEMBER||!MEMBERS||!MEMBERS.length)return null;if(OBS)return "admin";var o=ownerM();return(o&&o.user_id===myId&&MEMBER.grp==="parent")?"father":null}
+function swSave(){var r=swRole();if(!r)return;sb.auth.getSession().then(function(x){var q=x&&x.data&&x.data.session;if(!q)return;try{localStorage.setItem(SW_K+r,JSON.stringify({a:q.access_token,r:q.refresh_token,u:q.user.id}))}catch(e){}})}
+function swLabel(){return swRole()==="admin"?"Switch to my Parent account":"Switch to Cordial Co-Parenting"}
+function swUi(){var b=$("#swbtn");if(!b)return;var r=swRole();b.hidden=!r;if(r)b.textContent=swLabel()}
+async function swGo(){
+  var r=swRole();if(!r)return;
+  try{var x=await sb.auth.getSession(),q=x&&x.data&&x.data.session;if(q)localStorage.setItem(SW_K+r,JSON.stringify({a:q.access_token,r:q.refresh_token,u:q.user.id}))}catch(e){}
+  var t=null;try{t=JSON.parse(localStorage.getItem(SW_K+(r==="admin"?"father":"admin"))||"null")}catch(e){}
+  if(t&&t.r){
+    try{var y=await sb.auth.setSession({access_token:t.a,refresh_token:t.r});if(y&&y.data&&y.data.session){location.reload();return}}catch(e){}
+    try{localStorage.removeItem(SW_K+(r==="admin"?"father":"admin"))}catch(e){}
+  }
+  /* other account not saved on this device yet: leave this one (without ending its login) so you can sign in to the other once */
+  note("Sign in to the other account once, and it will switch with one tap from then on.");
+  setTimeout(function(){sb.auth.signOut({scope:"local"}).then(function(){location.reload()})},1500);
+}
+if($("#swbtn"))$("#swbtn").onclick=swGo;
+window.hubSwRole=swRole;window.hubSwLabel=swLabel;window.hubSwGo=swGo;
+setTimeout(function(){swSave();swUi()},2500);
+setInterval(function(){swSave();swUi()},600000);
+$("#signout").onclick=function(){try{localStorage.removeItem("hubFid");localStorage.removeItem(SW_K+"admin");localStorage.removeItem(SW_K+"father")}catch(e){}sb.auth.signOut().then(function(){location.reload()})};
 $("#signout2").onclick=$("#signout").onclick;
 
 function subscribeAll(){
@@ -6784,6 +6806,7 @@ function renderYou(){
     {icon:"palette",label:"Appearance",fn:function(){try{localStorage.setItem("hubLook","classic")}catch(e){}location.reload()}},
     {icon:"bell",label:"Notifications",fn:function(){go("profile")}}
   ]);
+  if(window.hubSwRole&&hubSwRole())grp([{icon:"key",label:hubSwLabel(),fn:function(){hubSwGo()}}]);
   grp([
     {icon:"info",label:"Help and tour",fn:function(){close();setTimeout(function(){window.hubTour&&window.hubTour(true)},300)}},
     {icon:"out",label:"Log out",red:1,fn:function(){$("#signout").click()}}
