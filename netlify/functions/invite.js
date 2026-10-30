@@ -1,4 +1,5 @@
-// Owner-only helper: invites people by email, makes one-time invite links, and removes people.
+// Helper: the owner invites people by email, makes one-time invite links, and removes people.
+// Parents can also create a login (email + password, already confirmed) and remove the accounts THEY added.
 // It needs two environment variables in Netlify: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
 // The service key never goes in the web page. It lives only here, on the server.
 const URL_ = process.env.SUPABASE_URL;
@@ -16,18 +17,22 @@ exports.handler = async (event) => {
   if (event.httpMethod !== "POST") return out(405, { error: "post_only" });
   if (!URL_ || !KEY) return out(500, { error: "not_configured" });
 
-  // 1. Who is asking? They must be signed in AND be an owner.
+  // 1. Who is asking? They must be signed in AND be the owner or a parent.
   const token = (event.headers.authorization || event.headers.Authorization || "").replace(/^Bearer /i, "");
   if (!token) return out(401, { error: "signin", message: "Please sign in again." });
   const who = await fetch(`${URL_}/auth/v1/user`, { headers: { apikey: KEY, Authorization: `Bearer ${token}` } });
   if (!who.ok) return out(401, { error: "signin", message: "Please sign in again." });
   const me = await who.json();
-  const mr = await fetch(`${URL_}/rest/v1/members?user_id=eq.${me.id}&select=is_owner`, { headers: admin });
+  const mr = await fetch(`${URL_}/rest/v1/members?user_id=eq.${me.id}&select=is_owner,grp`, { headers: admin });
   const mrows = mr.ok ? await mr.json() : [];
-  if (!mrows[0] || !mrows[0].is_owner) return out(403, { error: "forbidden", message: "Only the owner can do this." });
+  const isOwner = !!(mrows[0] && mrows[0].is_owner);
+  const isParent = !!(mrows[0] && mrows[0].grp === "parent");
+  if (!isOwner && !isParent) return out(403, { error: "forbidden", message: "Only the owner or a parent can do this." });
 
   let b;
   try { b = JSON.parse(event.body || "{}"); } catch { return out(400, { error: "bad", message: "Bad request." }); }
+
+  if (!isOwner && !["create", "remove"].includes(b.action)) return out(403, { error: "forbidden", message: "Only the owner can do this." });
 
   // Only send people back to this site.
   const host = event.headers["x-forwarded-host"] || event.headers.host || "";
@@ -37,9 +42,14 @@ exports.handler = async (event) => {
 
   if (b.action === "remove") {
     if (!b.user_id || b.user_id === me.id) return out(400, { error: "bad", message: "You can’t remove yourself." });
-    const t = await fetch(`${URL_}/rest/v1/members?user_id=eq.${encodeURIComponent(b.user_id)}&select=is_owner`, { headers: admin });
+    const t = await fetch(`${URL_}/rest/v1/members?user_id=eq.${encodeURIComponent(b.user_id)}&select=is_owner,grp,added_by`, { headers: admin });
     const trows = t.ok ? await t.json() : [];
     if (trows[0] && trows[0].is_owner) return out(400, { error: "bad", message: "You can’t remove an owner." });
+    if (!isOwner) {
+      // A parent can only remove someone they added themselves, never the other parent's additions.
+      if (!trows[0] || trows[0].grp === "parent" || trows[0].added_by !== me.id)
+        return out(403, { error: "forbidden", message: "You can only remove accounts you added yourself." });
+    }
     const r = await fetch(`${URL_}/auth/v1/admin/users/${encodeURIComponent(b.user_id)}`, { method: "DELETE", headers: admin });
     return r.ok ? out(200, { ok: true }) : out(502, { error: "failed", message: "Couldn’t remove them." });
   }
@@ -70,6 +80,23 @@ exports.handler = async (event) => {
       }
       if (!already) return out(409, { error: "slot", message: "The co-parent slot is already used. Only one co-parent can be in the hub." });
     }
+  }
+
+  if (b.action === "create") {
+    const password = String(b.password || "");
+    if (password.length < 8) return out(400, { error: "bad", message: "The password must be at least 8 characters." });
+    if (grp === "parent" && !isOwner) return out(403, { error: "forbidden", message: "Only the owner can add a parent." });
+    if (!name) name = email.split("@")[0];
+    const r = await fetch(`${URL_}/auth/v1/admin/users`, {
+      method: "POST", headers: admin,
+      body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { name, grp, added_by: me.id } }),
+    });
+    if (r.ok) return out(200, { ok: true });
+    const j = await r.json().catch(() => ({}));
+    const msg = j.msg || j.message || j.error_description || "";
+    if (/already|registered|exists/i.test(msg)) return out(409, { error: "exists", message: "That email already has an account." });
+    if (/password/i.test(msg)) return out(400, { error: "bad", message: msg });
+    return out(502, { error: "failed", message: msg || "Couldn’t create the account." });
   }
 
   if (b.action === "invite") {
