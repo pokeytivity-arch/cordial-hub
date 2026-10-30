@@ -937,7 +937,7 @@ main{max-width:100%}
 </section>
 
 <section id="p-people" hidden>
-  <div class="card" id="kform">
+  <div class="card" id="kform" style="display:none">
     <h2>Add a child</h2>
     <label>Name<input id="kn" maxlength="60"></label>
     <label>School and grade<input id="ks" maxlength="100"></label>
@@ -951,8 +951,9 @@ main{max-width:100%}
     <label>Category<select id="pc"></select></label>
     <div class="row"><label>Phone<input id="pp" type="tel" maxlength="30"></label><label>Email<input id="pe" type="email" maxlength="80"></label></div>
     <label>Role or notes (for example: aunt, family lawyer, firm name)<input id="pr" maxlength="120"></label>
+    <label>Password for their login (optional, at least 8 characters)<input id="pw" type="text" autocomplete="off" maxlength="72" placeholder="Leave empty to save contact details only"></label>
     <button class="go" id="padd">Add person</button>
-    <p class="meta" style="margin:10px 0 0">Adding someone here saves their details in the hub. It does not give them access. To let someone in, the owner invites them from the Access page.</p>
+    <p class="meta" style="margin:10px 0 0">With an email and a password, they can sign in straight away. Give them the password yourself and ask them to change it. With no password, this only saves their contact details. You can remove anyone you added. You can’t remove people the other parent added.</p>
   </div>
   <div id="pl"></div>
 </section>
@@ -960,10 +961,11 @@ main{max-width:100%}
 <section id="p-access" hidden>
   <div class="card">
     <h2>Invite someone</h2>
-    <p class="meta" style="margin:0 0 10px">They get a link by email. When they open it they choose a password and join. Nobody can join without an invite.</p>
+    <p class="meta" style="margin:0 0 10px">Type their email and a password and they can sign in straight away. Or send an invite link instead. Nobody can join without you adding them.</p>
     <div class="row"><label>Name<input id="inm" maxlength="40" placeholder="Their name"></label><label>Email<input id="iem" type="email" placeholder="name@example.com" autocomplete="off"></label></div>
     <label>Group<select id="igr"></select></label>
-    <div class="row" style="gap:8px"><button class="go" id="isend">Send invite email</button><button class="go" id="ilink" style="background:var(--b)">Get invite link instead</button></div>
+    <label>Password (at least 8 characters)<input id="ipw" type="text" autocomplete="off" maxlength="72"></label>
+    <div class="row" style="gap:8px"><button class="go" id="icreate">Create account</button><button class="go" id="isend" style="background:var(--b)">Send invite email</button><button class="go" id="ilink" style="background:var(--b)">Get invite link instead</button></div>
     <div id="ires" class="meta pre" hidden style="margin-top:10px"></div>
   </div>
   <div class="card">
@@ -990,7 +992,7 @@ main{max-width:100%}
       <li>Tap a tile on the home screen to open it, and the arrow at the top to come back.</li>
       <li>You only see the sections the owner has switched on for your group.</li>
       <li>Where a section says you can view but not change it, you can read everything but not add to it.</li>
-      <li>Use People to keep contact details for parents, guardians, family members, and lawyers. Adding someone there does not give them access. The owner invites people from the Access page.</li>
+      <li>Use People to keep contact details for parents, guardians, family members, and lawyers. With an email and password, they can sign in straight away; otherwise it only saves contact details.</li>
       <li>Tap + Add on the home screen to jump straight to writing a message, expense, or note.</li>
     </ul>
   </div>
@@ -1191,7 +1193,7 @@ function hubRing(force){
 var OBS=false,STARTED=false,READY=false,isOwner=false,PERM={},CUR="home";
 var FEAT={sched:"calendar",exp:"expenses",notes:"notes",kids:"children",docs:"documents",msg:"messages",call:"calls",people:"people",trips:"documents",meet:"notes",todo:"notes",feed:"messages",chats:"messages",media:"messages",notif:"messages",profile:"messages"};
 S.posts=[];S.wstat=[];S.plikes=[];S.pcom=[];S.mnotes=[];
-var TABS=[["sched","Events and Calendar"],["exp","Expenses"],["notes","Documents and Notes"],["meet","Meetings"],["todo","To-do list"],["kids","Kids"],["docs","Documents"],["msg","Calls and Messages"],["feed","Timeline"],["chats","Chats"],["media","Media"],["notif","Notifications"],["profile","Profile"],["call","Calls"],["people","People"],["trips","Actual meetings"],["issues","Issues"],["access","Access"],["help","Help"]];
+var TABS=[["sched","Events and Calendar"],["exp","Expenses and Support"],["notes","Documents and Notes"],["meet","Meetings"],["todo","To-do list"],["kids","Kids"],["docs","Documents"],["msg","Calls and Messages"],["feed","Timeline"],["chats","Chats"],["media","Media"],["notif","Notifications"],["profile","Profile"],["call","Calls"],["people","People"],["trips","Actual meetings"],["issues","Issues"],["access","Access"],["help","Help"]];
 var money=function(n){return Number(n).toLocaleString("en-NG",{style:"currency",currency:"NGN"})};
 var pad=function(n){return String(n).padStart(2,"0")};
 var key=function(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
@@ -2484,8 +2486,19 @@ function gesture(row,m,col){
 S.people=[];
 var PCATS=[["Parent","Parents"],["Guardian","Guardians"],["Family member","Family members"],["Nanny","Nannies"],["Lawyer","Lawyers"],["Mediator","Mediators"],["Counsellor or therapist","Counsellors and therapists"],["Guardian ad litem / social worker","Guardians ad litem and social workers"]];
 PCATS.forEach(function(c){var o=h("option",null,c[0]);o.value=c[0];$("#pc").appendChild(o)});
+function groupOfCat(c){var g=GROUPS.filter(function(x){return x[1]===c})[0];return g?g[0]:"family"}
 $("#padd").onclick=function(){
   var n=$("#pn").value.trim();if(!db||!n)return note("Add the person’s name first.");
+  var pw=$("#pw").value,em=$("#pe").value.trim();
+  if(pw){
+    if(!em||em.indexOf("@")<1)return note("Type their email address.");
+    if(pw.length<8)return note("The password must be at least 8 characters.");
+    note("Creating their login…");
+    adminCall({action:"create",email:em,password:pw,name:n,grp:groupOfCat($("#pc").value)}).then(function(){
+      return db.collection("people").add({name:n,cat:$("#pc").value,phone:$("#pp").value.trim(),email:em,role:$("#pr").value.trim(),ts:Date.now(),by:myId||""});
+    }).then(function(){["#pn","#pp","#pe","#pr","#pw"].forEach(function(x){$(x).value=""});note(n+" can sign in now.");return loadAccess().then(function(){renderPeople();try{renderAccess()}catch(e){}})}).catch(function(e){note((e&&e.message)||"That didn’t work. Try again.")});
+    return;
+  }
   db.collection("people").add({name:n,cat:$("#pc").value,phone:$("#pp").value.trim(),email:$("#pe").value.trim(),role:$("#pr").value.trim(),ts:Date.now(),by:myId||""}).then(function(){["#pn","#pp","#pe","#pr"].forEach(function(x){$(x).value=""});note("")},fail)};
 function renderPeople(){
   var L=$("#pl");L.textContent="";
@@ -2509,10 +2522,12 @@ function renderPeople(){
   L.appendChild(bc);
   /* everyone who has an account in the hub is always listed here, so the list is never empty */
   var hm=(typeof MEMBERS!=="undefined"?MEMBERS:[]).slice();
-  hm.sort(function(a,b){var r=function(m){return m===mumM()?1:m===ownerM()?0:2};return r(a)-r(b)});
+  hm.sort(function(a,b){var r=function(m){return m===mumM()?1:m===ownerM()?0:2};var d=r(a)-r(b);if(d)return d;var ka=a.added_by?(hm.indexOf(hm.filter(function(x){return x.user_id===a.added_by})[0])+1):99,kb=b.added_by?(hm.indexOf(hm.filter(function(x){return x.user_id===b.added_by})[0])+1):99;return ka-kb});
   if(hm.length){
     var hc=h("div","card");hc.appendChild(h("h2",null,"In the hub ("+hm.length+")"));
+    var lastBy="";
     hm.forEach(function(m){
+      if(m.added_by&&m.added_by!==lastBy){lastBy=m.added_by;var ab=hm.filter(function(x){return x.user_id===m.added_by})[0];var hd=h("div","meta","Added by "+(ab?ab.name:"a parent"));hd.style.cssText="font-weight:700;margin:12px 0 2px";hc.appendChild(hd)}
       var r=h("div","item"),l=h("div"),nmx=m.name||"Member",rt=(typeof roleTitle==="function"&&roleTitle(m.user_id))||(m.is_owner&&m.grp!=="parent"?"AI agent":memberRole(m));
       r.style.cssText="display:flex;align-items:center;gap:12px;cursor:pointer";
       var av=avatarEl(m.user_id==="x"?"":m.user_id,"pav",nmx);av.style.cssText+=";flex:0 0 auto;width:44px;height:44px;font-size:1.1rem";
@@ -2520,7 +2535,14 @@ function renderPeople(){
       try{var vb=vbadge(m.user_id,false);if(vb)st.appendChild(vb)}catch(e){}
       l.appendChild(st);if(rt){var rl=h("span",null," · "+rt);rl.style.cssText="font-weight:600;opacity:.75";st.appendChild(rl)}
       l.style.cssText="min-width:0;flex:1;text-align:left";r.appendChild(av);r.appendChild(l);
-      r.onclick=function(){openProfile(m.user_id)};
+      r.onclick=function(e){if(e.target.closest&&e.target.closest(".rmacct"))return;openProfile(m.user_id)};
+      if(m.user_id!==myId&&!m.is_owner&&m.grp!=="parent"&&(isOwner||(m.added_by&&m.added_by===myId))){
+        var rm=h("button","quiet rmacct","Remove");rm.type="button";var tm=null;
+        rm.onclick=function(ev){ev.stopPropagation();
+          if(!tm){rm.textContent="Tap again to remove";tm=setTimeout(function(){rm.textContent="Remove";tm=null},4000);return}
+          clearTimeout(tm);adminCall({action:"remove",user_id:m.user_id}).then(function(){return loadAccess()}).then(function(){renderPeople();try{renderAccess()}catch(e){}}).catch(function(e){note((e&&e.message)||"Couldn’t remove them.")})};
+        r.appendChild(rm);
+      }
       hc.appendChild(r)});
     L.appendChild(hc);
   }
@@ -2577,7 +2599,7 @@ async function measure(){
 }
 $("#stref").onclick=measure;
 /* court-ready report */
-var RPOPTS=[["cal","Calendar and custody days",1],["msg","Family chat messages",1],["exp","Expenses (with totals)",1],["mtg","Meetings and attendance",1],["nts","Notes",1],["doc","List of documents",1],["trp","Trips and visits",1],["kid","Children’s information",0]];
+var RPOPTS=[["cal","Calendar and custody days",1],["msg","Family chat messages",1],["exp","Expenses and Support (with totals)",1],["mtg","Meetings and attendance",1],["nts","Notes",1],["doc","List of documents",1],["trp","Trips and visits",1],["kid","Children’s information",0]];
 (function(){var o=$("#rpopts");if(!o)return;RPOPTS.forEach(function(x){var l=document.createElement("label");l.style.cssText="display:flex;align-items:center;gap:8px;font-weight:400";var c=document.createElement("input");c.type="checkbox";c.checked=!!x[2];c.dataset.k=x[0];c.style.cssText="width:auto;margin:0";l.appendChild(c);l.appendChild(document.createTextNode(x[1]));o.appendChild(l)});
   var t=new Date(),f=new Date(t.getTime()-90*864e5);$("#rpto").value=key(t);$("#rpfrom").value=key(f)})();
 
@@ -4254,7 +4276,7 @@ function renderFeed(){
 }
 
 function renderAll(){safe(renderTodos)();safe(renderLegend)();safe(renderCal)();safe(openEditor)();safe(renderExp)();safe(renderNotes)();safe(renderMeet)();safe(renderProf)();safe(renderKids)();safe(renderDocs)();safe(renderTrips)();safe(renderMsgs)();safe(renderFeed)();safe(renderCall)();safe(renderPeople)();safe(renderHome)()}
-function lockForms(){["#fbar","#exform","#nform","#mnform","#editor","#mform","#fform","#cstart","#pform","#dform","#tform"].forEach(function(s){var e=$(s);if(e)e.style.display=canWrite?"":"none"});var kf=$("#kform");if(kf)kf.style.display=tabEdit("kids")?"":"none";var kh=$("#kidhint");if(kh){var kb=$("#kgo");if(kb)kb.style.display=tabOk("people")?"":"none"}}
+function lockForms(){["#fbar","#exform","#nform","#mnform","#editor","#mform","#fform","#cstart","#pform","#dform","#tform"].forEach(function(s){var e=$(s);if(e)e.style.display=canWrite?"":"none"});var kf=$("#kform");if(kf)kf.style.display="none";var kh=$("#kidhint");if(kh){var kb=$("#kgo");if(kb)kb.style.display=tabOk("people")?"":"none"}}
 
 READY=true;
 renderAll();
@@ -4263,7 +4285,7 @@ renderAll();
 var CFG=window.HUB_CONFIG||{};
 var sb=null,MEMBERS=[],EMAILS={},PERMROWS=[],MEMBER=null,OPENG=null,SIGSIG="";
 var GROUPS=[["parent","Parent","Parents"],["guardian","Guardian","Guardians"],["family","Family member","Family members"],["nanny","Nanny","Nannies"],["lawyer","Lawyer","Lawyers"],["mediator","Mediator","Mediators"],["therapist","Counsellor or therapist","Counsellors and therapists"],["gal","Guardian ad litem / social worker","Guardians ad litem and social workers"],["owner","Owner","Owner"]];
-var FLAB=[["calendar","Calendar"],["messages","Messages"],["calls","Calls"],["documents","Documents"],["notes","Notes"],["expenses","Expenses"],["children","Children and family"],["people","People"]];
+var FLAB=[["calendar","Calendar"],["messages","Messages"],["calls","Calls"],["documents","Documents"],["notes","Notes"],["expenses","Expenses and Support"],["children","Children and family"],["people","People"]];
 function glabel(g){var x=GROUPS.filter(function(r){return r[0]===g})[0];return x?x[1]:g}
 
 
@@ -4970,7 +4992,7 @@ function applyAccess(){
 }
 async function loadAccess(){
   var r=await Promise.all([
-    sb.from("members").select("user_id,name,grp,is_owner,created_at").order("created_at"),
+    sb.from("members").select("user_id,name,grp,is_owner,created_at,added_by").order("created_at").then(function(q){return q.error?sb.from("members").select("user_id,name,grp,is_owner,created_at").order("created_at"):q}),
     sb.from("member_private").select("user_id,email"),
     sb.from("group_permissions").select("grp,feature,can_view,can_edit")]);
   if(r[0].error)throw r[0].error;
@@ -5026,7 +5048,7 @@ function renderAccess(){
     var ni=h("input");ni.value=m.name;ni.maxLength=40;ni.setAttribute("aria-label","Name");if(m.grp==="parent")ni.disabled=true;
     ni.onchange=function(){var v=ni.value.trim();if(!v)return;sb.from("members").update({name:v}).eq("user_id",m.user_id).then(function(x){if(x.error)fail(x.error);else loadAccess().then(function(){renderAccess();renderAll()})})};
     c.appendChild(ni);
-    c.appendChild(h("div","meta",(EMAILS[m.user_id]||"")+(roleTitle(m.user_id)?" · "+roleTitle(m.user_id):"")));
+    c.appendChild(h("div","meta",(EMAILS[m.user_id]||"")+(roleTitle(m.user_id)?" · "+roleTitle(m.user_id):"")+(m.added_by?" · added by "+((MEMBERS.filter(function(x){return x.user_id===m.added_by})[0]||{}).name||"a parent"):"")));
     var gs=h("select");gs.setAttribute("aria-label","Group");gs.disabled=!!m.is_owner;
     GROUPS.forEach(function(g){if(g[0]==="owner"&&m.grp!=="owner")return;var o=h("option",null,g[1]);o.value=g[0];if(g[0]==="parent"&&m.grp!=="parent"&&MEMBERS.filter(function(x){return x.grp==="parent"}).length>=2){o.disabled=true;o.textContent="Parent (slots taken)"}gs.appendChild(o)});gs.value=m.grp;
     gs.onchange=function(){sb.from("members").update({grp:gs.value}).eq("user_id",m.user_id).then(function(x){if(x.error)fail(x.error);loadAccess().then(renderAccess)})};
@@ -5069,6 +5091,17 @@ function invite(mode){
   }).catch(function(e){note(e.message||"That didn’t work. Try again.")});
 }
 $("#isend").onclick=function(){invite("invite")};
+$("#icreate").onclick=function(){
+  var nm_=$("#inm").value.trim(),em=$("#iem").value.trim(),pw=$("#ipw").value,res=$("#ires");
+  if(!em||em.indexOf("@")<1)return note("Type their email address.");
+  if(pw.length<8)return note("The password must be at least 8 characters.");
+  res.hidden=true;note("Creating…");
+  adminCall({action:"create",email:em,password:pw,name:nm_,grp:$("#igr").value}).then(function(){
+    note("");res.hidden=false;res.textContent=em+" can sign in now with the password you set. Give it to them privately.";
+    $("#iem").value="";$("#inm").value="";$("#ipw").value="";
+    return loadAccess().then(renderAccess);
+  }).catch(function(e){note(e.message||"That didn’t work. Try again.")});
+};
 $("#ilink").onclick=function(){invite("link")};
 GROUPS.forEach(function(g){if(g[0]==="owner")return;var o=h("option",null,g[1]);o.value=g[0];$("#igr").appendChild(o)});
 $("#igr").value="family";
@@ -5650,16 +5683,33 @@ async function start(session){
   setInterval(renderExtras,4000);
 
   /* first-time tour */
-  var tourEl=null,TSTEPS=[
-    {t:"Menu",d:"Tap the menu to open every part of the hub: messages, calendar, expenses, documents, people and more. You can also switch interface or log out there.",sel:function(){return look==="classic"?"#grid":"#fbmenu"},go:function(){if(look!=="classic")showTab("feed")}},
-    {t:"Home",d:"Home is the family timeline. Tap “What’s on your mind?” to post text, a photo, a document or an event, and to tag people.",sel:function(){return look==="fb"?"#fbnav [data-t=feed]":look==="wa"?"#fbnav [data-t=feed]":"#grid"},go:function(){showTab(look==="classic"?"home":"feed")}},
-    {t:"Notifications",d:"Comments, reactions, tags, reminders, calendar events and meeting summaries all land here.",sel:function(){return look==="classic"?"#grid":"#fbnav [data-t=notif]"},go:function(){if(look==="fb")showTab("notif")}},
-    {t:"Your profile",d:"Your photo, name and posts live here. Add a profile picture so everyone knows it’s you.",sel:function(){return look==="classic"?"#grid":"#fbnav [data-t=profile]"},go:function(){if(look==="fb")showTab("profile")}}
+  var tourEl=null,TS=[],tgrp=function(){return OBS?"owner":(MEMBER&&MEMBER.grp)||"parent"},pg=function(id){return function(){return "#p-"+id+" .card"}},
+  gopg=function(id){return function(){showTab(id)}},
+  TSTEPS=[
+    {t:"Welcome to the hub",d:function(){var g=tgrp(),w={parent:"This is your private space with the other parent to share the calendar, money, documents, messages and meetings in one place, with Cordial, the AI helper, keeping things calm and on record.",guardian:"You were invited as a guardian. You can follow the parts of the family’s hub the parents have opened to you.",family:"You were invited as a family member. You can follow the parts of the hub the parents have opened to you.",nanny:"You were invited as the nanny. You can see and use the parts of the hub the parents set up for day-to-day care.",lawyer:"You were invited as a lawyer. You can see the records the parents have opened to you, kept in order and time-stamped.",mediator:"You were invited as a mediator. You can see the records the parents have opened to you, kept in order and time-stamped.",gal:"You were invited as a guardian ad litem or social worker. You can see the records the parents have opened to you.",therapist:"You were invited as a counsellor or therapist. You can see the parts of the hub the parents have opened to you.",owner:"You are the owner account. You manage access and invites; you do not take part in chats or calls."}[g]||"This is a private family hub.";return w+" This tour only shows what your access allows, and it changes if the parents change your access. You can skip it and reopen it any time from Account and Settings."},sel:function(){return null},go:function(){showTab(look==="classic"?"home":"feed")}},
+    {t:"Menu",d:function(){return "Tap the menu to open the parts of the hub you can use. Account and Settings stays at the bottom: alerts, Face ID lock, ringtone, switching interface, and Log out."+(isOwner?" You can also switch between your accounts there.":"")},sel:function(){return look==="classic"?"#grid":"#fbmenu"},go:function(){showTab(look==="classic"?"home":"feed")}},
+    {t:"Home: the family timeline",d:function(){return "See what the family has shared."+(tabEdit("feed")?" Post an update, photo, document or event. Type @ to tag someone: tap their name in the list. Like, comment and share.":" You can read it but not post.")+" Use the back arrow (<) on any page to return to where you were."},sel:function(){return look==="classic"?"#grid":"#fbnav [data-t=feed]"},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){return tabOk("feed")}},
+    {t:"Notifications",d:"Comments, reactions, tags, reminders, calendar events and meeting summaries land here, and your phone can alert you too.",sel:function(){return look==="classic"?"#grid":"#fbnav [data-t=notif]"},go:function(){if(look!=="classic")showTab("notif")},ok:function(){return tabOk("notif")}},
+    {t:"Your profile",d:"Your photo, name and posts. A blue tick means the account is verified. Tap anyone’s name to open their profile, then the < button to go back.",sel:function(){return look==="classic"?"#grid":"#fbnav [data-t=profile]"},go:function(){if(look!=="classic")showTab("profile")},ok:function(){return tabOk("profile")}},
+    {t:"Chats and calls",d:function(){return "Family chat"+(tabEdit("chats")?", private chats and groups":"")+(tabEdit("call")?", plus voice and video calls":"")+". Messages can’t be edited or deleted, so the record stays honest."+(tabEdit("msg")?" A tone check can warn you before you send something heated. Tap the speech icon to start.":" You can read messages but not send them.")},sel:function(){return look==="classic"?"#grid":"#fbnav [data-t=chats]"},go:function(){showTab("msg")},ok:function(){return !OBS&&tabOk("msg")}},
+    {t:"Cordial, the AI helper",d:"Open Cordial from the chat list. Ask a question or send it a receipt and it fills in an expense for you to confirm. It is an AI, not a person, and not a lawyer.",sel:function(){return null},go:function(){showTab("msg")},ok:function(){return !OBS&&tabEdit("msg")&&tgrp()==="parent"}},
+    {t:"Calendar",d:function(){return "Custody days, events and appointments."+(tabEdit("sched")?" Add an event and the others see it, with reminders.":" You can view it but not change it.")},sel:pg("sched"),go:gopg("sched"),ok:function(){return tabOk("sched")}},
+    {t:"Expenses and Support",d:function(){return "Expenses with their receipts, monthly support, school fees and the shopping list."+(tabEdit("exp")?(tgrp()==="parent"?" Add an expense with its receipt: Cordial reads it and flags anything that doesn’t match. Monthly support is marked paid by Daddy and confirmed received by Mummy.":" You can add entries here."):" You can view the totals and records but not change them.")},sel:pg("exp"),go:gopg("exp"),ok:function(){return tabOk("exp")}},
+    {t:"Documents and notes",d:function(){return "Important documents, proof and notes."+(tabEdit("docs")||tabEdit("notes")?" When you upload, choose who can see it. Anything shared beyond Only me is checked by Cordial first.":" You can view what has been shared with you.")+" Items marked private or for chosen people appear only if you were chosen."},sel:pg("docs"),go:gopg("docs"),ok:function(){return tabOk("docs")||tabOk("notes")}},
+    {t:"Privacy you control",d:"“Only me” items are hidden from everyone else, including the owner account, and skip the AI check. Money support and school fees are always visible to both parents so nothing is hidden. Private items travel over a secure connection.",sel:function(){return null},go:gopg("docs"),ok:function(){return tgrp()==="parent"&&tabOk("docs")}},
+    {t:"Children",d:function(){return "Information about the children the parents have chosen to share."+(tabEdit("kids")?" You can update it.":" You can view it but not change it.")},sel:pg("kids"),go:gopg("kids"),ok:function(){return tabOk("kids")}},
+    {t:"Meetings",d:"Zoom meetings show a short summary, key points, what was agreed and the to-dos. Tap a meeting to open it. The tick on Zoom connection shows ✅ when everything is working, ⚠️ when something needs attention.",sel:pg("meet"),go:gopg("meet"),ok:function(){return tabOk("meet")}},
+    {t:"To-do list",d:"Tasks agreed in meetings. The person responsible marks it done, the other parent confirms, and it moves to the archive.",sel:pg("todo"),go:gopg("todo"),ok:function(){return tabOk("todo")}},
+    {t:"People",d:function(){return "Everyone in the hub is listed here, grouped under the parent who added them. Tap a name to open their profile."+(tgrp()==="parent"?" Add someone with an email and password and they can sign in straight away; you can remove the people you added, but not the other parent’s. Janet has an AI-run account: Cordial writes her posts, at most twice a week, and Mummy gets a Tuesday and Friday reminder to add photos and news to Janet’s journal, which stays private to the parents.":"")},sel:pg("people"),go:gopg("people"),ok:function(){return tabOk("people")}},
+    {t:"Your role",d:function(){return {guardian:"Be kind in comments: everything is on the record. If you need more access, ask the parents.",family:"Be kind in comments: everything is on the record. If you need more access, ask the parents.",nanny:"Use the calendar and messages to stay in step with the parents. If you need to see more, ask them.",lawyer:"Everything you see is time-stamped and cannot be edited or deleted after the fact. Access is set by the parents and can change.",mediator:"Everything you see is time-stamped and cannot be edited or deleted after the fact. Access is set by the parents and can change.",gal:"Everything you see is time-stamped and cannot be edited or deleted after the fact. Access is set by the parents and can change.",therapist:"Only what the parents have opened to you appears here. Access can change at any time."}[tgrp()]||""},sel:function(){return null},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){var g=tgrp();return g!=="parent"&&g!=="owner"}},
+    {t:"Safety",d:"Some actions ask for a quick selfie so every entry is tied to a real person. Turn on Face ID lock in Account and Settings so only you can open the hub.",sel:function(){return null},go:function(){showTab(look==="classic"?"home":"feed")}},
+    {t:"Issues and help",d:"Anything that goes wrong is listed under Issues, and you can clear it any time. Help explains each feature, and you can replay this tour from Account and Settings.",sel:pg("issues"),go:gopg("issues")},
+    {t:"Access and invites",d:"As the owner you invite people and choose, for each group, what they can view or edit: parents, guardians, family, nannies, lawyers, mediators, counsellors and guardians ad litem.",sel:pg("access"),go:gopg("access"),ok:function(){return isOwner}}
   ];
   function tourEnd(){if(tourEl){tourEl.remove();tourEl=null}try{localStorage.setItem("hubTour_"+(myId||""),"1")}catch(e){}try{window.hubPref&&hubPref("toured",true)}catch(e){}showTab("home")}
   function tourStep(i){
-    if(i>=TSTEPS.length)return tourEnd();
-    var st=TSTEPS[i];try{st.go()}catch(e){}
+    if(i>=TS.length)return tourEnd();
+    var st=TS[i];try{st.go()}catch(e){}
     setTimeout(function(){
       if(!tourEl)return;
       var q=st.sel(),el=q&&document.querySelector(q),ring=tourEl.querySelector("#tring"),box=tourEl.querySelector("#tbox");
@@ -5669,11 +5719,12 @@ async function start(session){
         var below=r.top<window.innerHeight/2;box.style.top=below?Math.min(window.innerHeight-210,r.bottom+16)+"px":"auto";box.style.bottom=below?"auto":(window.innerHeight-r.top+16)+"px";
       }else{ring.style.display="none";box.style.top="30%";box.style.bottom="auto"}
       box.innerHTML="";
-      box.appendChild(mk("h3",null,(i+1)+". "+st.t));box.appendChild(mk("p",null,st.d));
-      var row=mk("div","tr"),dots=mk("span","dots",(i+1)+" of "+TSTEPS.length);
+      box.appendChild(mk("h3",null,(i+1)+". "+st.t));box.appendChild(mk("p",null,typeof st.d==="function"?st.d():st.d));
+      var row=mk("div","tr"),dots=mk("span","dots",(i+1)+" of "+TS.length);
       var sk=mk("button","quiet","Skip");sk.type="button";sk.onclick=tourEnd;
-      var nx=mk("button","go",i===TSTEPS.length-1?"Done":"Next");nx.type="button";nx.onclick=function(){tourStep(i+1)};
-      row.appendChild(sk);row.appendChild(dots);row.appendChild(nx);box.appendChild(row);
+      var nx=mk("button","go",i===TS.length-1?"Done":"Next");nx.type="button";nx.onclick=function(){tourStep(i+1)};
+      var bk=mk("button","quiet","Back");bk.type="button";bk.hidden=i===0;bk.onclick=function(){tourStep(i-1)};
+      row.appendChild(sk);row.appendChild(bk);row.appendChild(dots);row.appendChild(nx);box.appendChild(row);
     },320);
   }
   window.hubTour=function(force){
@@ -5685,6 +5736,7 @@ async function start(session){
     }
     if(tourEl)return;
     setMenu(false);
+    TS=TSTEPS.filter(function(x){try{return !x.ok||x.ok()}catch(e){return true}});
     tourEl=mk("div",null,"<div id='tring'></div><div id='tbox'></div>");tourEl.id="tour";document.body.appendChild(tourEl);
     tourStep(0);
   };
