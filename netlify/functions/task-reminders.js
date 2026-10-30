@@ -46,5 +46,37 @@ exports.handler = async () => {
     }
     await writeDoc(`expenses/${row.id}`, "expenses", row.id, { ...t, remindCount: n + 1, remindedAt: now });
   }
+  // Twice a week (Tuesday and Friday, 9am Lagos time) Cordial asks Mummy for news and photos of Janet.
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", weekday: "short", hour: "2-digit", hour12: false, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+    const g = (t) => (parts.find((x) => x.type === t) || {}).value;
+    const today = `${g("year")}-${g("month")}-${g("day")}`;
+    if ((g("weekday") === "Tue" || g("weekday") === "Fri") && Number(g("hour")) === 9) {
+      const st = (await readDoc("profiles/janetnudge")) || {};
+      if (st.day !== today) {
+        const jr = await fetch(`${URL_}/rest/v1/docs?collection=eq.profiles&id=like.janet_*&select=data`, { headers: H });
+        const entries = jr.ok ? await jr.json() : [];
+        const lastEntry = entries.reduce((m, e) => Math.max(m, (e.data || {}).ts || 0), 0);
+        const parents = members.filter((m) => m.grp === "parent");
+        const mum = parents.find((m) => /glory|mngutyo/i.test(m.name || "")) || parents.find((m) => !/onyemachi/i.test(m.name || ""));
+        if (mum && now - lastEntry > 2 * DAY) {
+          const key = `profiles/cp_${mum.user_id}`;
+          const d = (await readDoc(key)) || {};
+          const subs = Array.isArray(d.push) ? d.push : [];
+          const keep = [];
+          const payload = { kind: "task", title: "📝 Janet’s journal", body: "Cordial would love a photo and a quick update on Janet: school, health, how happy she is, anything we should know. It helps document her journey.", tag: "janet-" + today, url: "/?goto=janet" };
+          for (const sub of subs) {
+            if (!sub || !sub.endpoint || !sub.keys) continue;
+            let c = 0;
+            try { c = await push._sendOne(sub, payload); } catch { c = 0; }
+            if (c >= 200 && c < 300) sent++;
+            if (c !== 404 && c !== 410) keep.push(sub);
+          }
+          if (keep.length !== subs.length) { d.push = keep; await writeDoc(key, "profiles", `cp_${mum.user_id}`, d); }
+        }
+        await writeDoc("profiles/janetnudge", "profiles", "janetnudge", { day: today });
+      }
+    }
+  } catch {}
   return { statusCode: 200, body: JSON.stringify({ checked: rows.length, sent }) };
 };
