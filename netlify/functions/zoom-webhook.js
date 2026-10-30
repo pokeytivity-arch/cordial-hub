@@ -181,6 +181,14 @@ exports.handler = async (event) => {
 
   const o = (b.payload && b.payload.object) || {};
   await markLast(b.event, o.meeting_topic || o.topic || "");
+  // The call schedule changed in Zoom: update the hub calendar and reminders to match.
+  if (/^meeting\.(created|updated|deleted)$/.test(b.event)) {
+    const mid = String(process.env.ZOOM_MEETING_NUMBER || "81051139171").replace(/\D/g, "");
+    if (String(o.id || "").replace(/\D/g, "") === mid) {
+      try { await require("./zoom-sync.js").syncSchedule(); } catch (e) {}
+      return out(200, { ok: true, synced: true });
+    }
+  }
   const uuid = String(o.meeting_uuid || o.uuid || "");
   if (!uuid) return out(200, { ok: true, skipped: "no meeting" });
   const topic = o.meeting_topic || o.topic || "Zoom meeting";
@@ -188,7 +196,7 @@ exports.handler = async (event) => {
 
   try {
     const durSec = Number(o.duration) ? Number(o.duration) * 60 : 0;
-    if (b.event === "meeting.ended") { await logZoom(uuid, topic, Date.parse(o.start_time || "") || start, durSec); return out(200, { ok: true }); }
+    if (b.event === "meeting.ended") { try { await require("./zoom-sync.js").syncSchedule(); } catch (e) {} await logZoom(uuid, topic, Date.parse(o.start_time || "") || start, durSec); return out(200, { ok: true }); }
     if (b.event === "meeting.summary_completed" || b.event === "recording.completed" || b.event === "recording.transcript_completed") await logZoom(uuid, topic, start, 0);
     if (b.event === "meeting.summary_completed") {
       let text = summaryText(o), steps = nextSteps(o);

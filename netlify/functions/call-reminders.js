@@ -16,8 +16,14 @@ async function readDoc(key) {
 
 exports.handler = async () => {
   if (!URL_ || !KEY || !process.env.VAPID_PRIVATE_KEY) return { statusCode: 501, body: "not_configured" };
+  // Keep the schedule in step with the real Zoom meeting (at most once an hour)
+  try {
+    const cur = (await readDoc("settings/callplan")) || {};
+    if (!cur.synced || Date.now() - cur.synced > 3600e3) await require("./zoom-sync.js").syncSchedule();
+  } catch (e) {}
   const plan = (await readDoc("settings/callplan")) || {};
-  const days = Array.isArray(plan.days) ? plan.days : [2, 4, 6];
+  const days = Array.isArray(plan.days) ? plan.days : [0, 2, 5];
+  const from = String(plan.from || "2026-11-03");
   const [hh, mm] = String(plan.t || "18:30").split(":").map((x) => parseInt(x, 10) || 0);
   const now = Date.now();
   const state = (await readDoc("profiles/callremind")) || {};
@@ -29,6 +35,7 @@ exports.handler = async () => {
     const callAt = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), hh, mm) - WAT;
     const wd = new Date(callAt + WAT).getUTCDay();
     if (!days.includes(wd) || callAt < now) continue;
+    if (new Date(callAt + WAT).toISOString().slice(0, 10) < from) continue;
     for (const [off, label] of OFFSETS) {
       const due = callAt - off, k = `${callAt}_${off}`;
       if (now >= due && now - due < LATE && !sent[k]) todo.push({ k, label, callAt });
