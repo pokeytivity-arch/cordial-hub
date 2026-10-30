@@ -47,7 +47,14 @@ exports.handler = async (event) => {
   const email = String(b.email || "").trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return out(400, { error: "bad", message: "That email doesn’t look right." });
   const grp = GROUPS.includes(b.grp) ? b.grp : "family";
-  const name = grp === "parent" ? "Glory Edward Mngutyo" : String(b.name || "").trim().slice(0, 40);
+  let name = String(b.name || "").trim().slice(0, 40);
+  if (grp === "parent") {
+    // Two parent slots: Glory (mother) and the father. Whichever is already taken decides the name.
+    const gr = await fetch(`${URL_}/rest/v1/members?grp=eq.parent&select=name`, { headers: admin });
+    const have = gr.ok ? await gr.json() : [];
+    const hasGlory = have.some((x) => /glory|mngutyo/i.test(x.name || ""));
+    name = hasGlory ? "Onyemachi Uchenna Chuku" : "Glory Edward Mngutyo";
+  }
   const data = { name, grp };
 
   // Only one co-parent: the owner plus one more parent. Once both slots are used, nobody else can be a parent.
