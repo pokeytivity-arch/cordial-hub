@@ -1449,7 +1449,7 @@ function shareWidget(slot,onChange){
   sel.onchange=function(){box.style.display=sel.value==="pick"?"block":"none";
     if(sel.value==="all")st.v=null;else if(sel.value==="me")st.v=[myId];else{build();st.v=null}
     if(onChange)onChange()};
-  w.appendChild(h("div","meta","Private items are hidden from the other people in the hub unless you choose them. Money support and school fees stay visible to both parents."));
+  w.appendChild(h("div","meta","Private items are hidden from everyone in the hub you don’t choose, including the owner account, and are sent over a secure connection. Money support and school fees stay visible to both parents."));
   st.reset=function(){sel.value="all";sel.onchange()};
   return w;
 }
@@ -2596,20 +2596,26 @@ function mentionAttach(ta,getList){
   function upd(){
     var pos=ta.selectionStart==null?ta.value.length:ta.selectionStart,before=ta.value.slice(0,pos),m=before.match(/(^|\s)@([^\s@]{0,20})$/);
     if(!m){hide();return}
-    var q=m[2].toLowerCase(),list=(getList()||[]).filter(function(u){return u.user_id!==myId&&(u.name||"").toLowerCase().indexOf(q)>=0||false}).slice(0,6);
+    var q=m[2].toLowerCase(),list=(getList()||[]).filter(function(u){return u.user_id!==myId&&!(u.is_owner&&u.grp!=="parent")&&(u.name||"").toLowerCase().indexOf(q)>=0||false}).slice(0,6);
     if(!list.length){hide();return}
     box.textContent="";
     list.forEach(function(u){
       var b=document.createElement("button");b.type="button";b.style.cssText="display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:10px 14px;font:inherit;text-align:left;cursor:pointer;color:#111";
       var av=document.createElement("span");av.textContent=(u.name||"?").charAt(0).toUpperCase();av.style.cssText="width:30px;height:30px;border-radius:50%;background:#25d366;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none";
       b.appendChild(av);b.appendChild(document.createTextNode(u.name||"Member"));
-      b.onmousedown=b.ontouchstart=function(e){e.preventDefault()};
-      b.onclick=function(){
+      /* iPhone: cancelling touchstart also cancels the tap, so pick on pointer-up and keep the keyboard open */
+      var picked=false;
+      b.addEventListener("pointerdown",function(e){e.preventDefault()});
+      b.addEventListener("mousedown",function(e){e.preventDefault()});
+      b.addEventListener("pointerup",function(e){e.preventDefault();pick()});
+      b.addEventListener("click",function(e){e.preventDefault();pick()});
+      function pick(){
+        if(picked)return;picked=true;
         var start=pos-m[2].length-1,ins="@"+mFirst(u.name)+" ";
         ta.value=ta.value.slice(0,start)+ins+ta.value.slice(pos);
         var np=start+ins.length;try{ta.setSelectionRange(np,np)}catch(e){}
         hide();ta.dispatchEvent(new Event("input"));ta.focus();
-      };
+      }
       box.appendChild(b);
     });
     var r=ta.getBoundingClientRect();box.style.left=Math.max(8,r.left)+"px";box.style.width=Math.min(320,innerWidth-16)+"px";box.style.bottom=(innerHeight-r.top+8)+"px";box.style.display="block";
@@ -5383,10 +5389,10 @@ async function start(session){
   var TITLES={fb:{feed:"Cordial Co-Parenting",media:"Photos and videos",notif:"Notifications",profile:"Profile"},wa:{chats:"Chats",feed:"Updates",call:"Calls",msg:"Family chat"}};
   var ROOTS={fb:["feed","media","notif","profile"],wa:["chats","feed","call"]};
   var orig=showTab,HIST=[],NOHIST=false;
-  function isRootId(id){return id==="home"||(look!=="classic"&&ROOTS[look].indexOf(id)>=0)}
+  function isRootId(id){if(id==="profile"&&typeof VIEW!=="undefined"&&VIEW)return false;return id==="home"||(look!=="classic"&&ROOTS[look].indexOf(id)>=0)}
   function histNote(id,wasMenu){
     if(NOHIST||window.__sub)return;
-    if(isRootId(id)){HIST.length=0;return}
+    if(look==="fb"?id==="feed":isRootId(id)){HIST.length=0;return}
     if(id===cur)return;
     HIST.push(wasMenu?"menu":cur);if(HIST.length>40)HIST.shift();
   }
@@ -5407,13 +5413,13 @@ async function start(session){
     var o=HIST.pop();NOHIST=true;
     try{
       if(o==="menu"){if(look==="classic")showTab("home");else{showTab("feed");setMenu(true)}}
-      else showTab(o||"home");
+      else{if(o==="profile"&&typeof VIEW!=="undefined"){VIEW=null;PVSET=true;PSIG=""}showTab(o||"home")}
     }finally{NOHIST=false}
   }
   document.getElementById("back").onclick=goBack;
   function chrome(){
     root.setAttribute("data-cur",cur);
-    var isRoot=look!=="classic"&&ROOTS[look].indexOf(cur)>=0;
+    var isRoot=look==="fb"?cur==="feed":(look!=="classic"&&ROOTS[look].indexOf(cur)>=0);
     root.setAttribute("data-root",isRoot?"1":"0");
     if(look!=="classic"){var t=TITLES[look][cur];if(t)document.getElementById("apptitle").textContent=t}
     setIcons();mark();renderExtras();
