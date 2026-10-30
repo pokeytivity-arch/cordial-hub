@@ -787,6 +787,7 @@ main{max-width:100%}
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
+    <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Co-Parenting and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
     <div class="arow" style="margin-top:6px"><button class="quiet" id="tourbtn" type="button">Take a tour</button><button class="go sm" id="signout2" type="button" style="background:#d93025">Log out</button></div>
   </div>
   <div class="grid" id="grid"></div>
@@ -4966,7 +4967,7 @@ var SW_K="hubAcct_";
 function swRole(){if(!MEMBER||!MEMBERS||!MEMBERS.length)return null;if(OBS)return "admin";var o=ownerM();return(o&&o.user_id===myId&&MEMBER.grp==="parent")?"father":null}
 function swSave(){var r=swRole();if(!r)return;sb.auth.getSession().then(function(x){var q=x&&x.data&&x.data.session;if(!q)return;try{localStorage.setItem(SW_K+r,JSON.stringify({a:q.access_token,r:q.refresh_token,u:q.user.id}))}catch(e){}})}
 function swLabel(){return swRole()==="admin"?"Switch to my Parent account":"Switch to Cordial Co-Parenting"}
-function swUi(){var b=$("#swbtn");if(!b)return;var r=swRole();b.hidden=!r;if(r)b.textContent=swLabel()}
+function swUi(){var r=swRole();[["#swbtn"],["#swbtn2"]].forEach(function(x){var b=$(x[0]);if(b){b.hidden=!r;if(r)b.textContent=swLabel()}});var w=$("#swrow");if(w)w.hidden=!r}
 async function swGo(){
   var r=swRole();if(!r)return;
   try{var x=await sb.auth.getSession(),q=x&&x.data&&x.data.session;if(q)localStorage.setItem(SW_K+r,JSON.stringify({a:q.access_token,r:q.refresh_token,u:q.user.id}))}catch(e){}
@@ -4979,7 +4980,7 @@ async function swGo(){
   note("Sign in to the other account once, and it will switch with one tap from then on.");
   setTimeout(function(){sb.auth.signOut({scope:"local"}).then(function(){location.reload()})},1500);
 }
-if($("#swbtn"))$("#swbtn").onclick=swGo;
+if($("#swbtn"))$("#swbtn").onclick=swGo;if($("#swbtn2"))$("#swbtn2").onclick=swGo;
 window.hubSwRole=swRole;window.hubSwLabel=swLabel;window.hubSwGo=swGo;
 setTimeout(function(){swSave();swUi()},2500);
 setInterval(function(){swSave();swUi()},600000);
