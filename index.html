@@ -795,15 +795,15 @@ main{max-width:100%}
 </div>
 
 <section id="p-sched">
-  <div class="card" style="padding:10px"><div class="seg" id="evseg"><button type="button" class="on" data-p="cal">Calendar</button><button type="button" data-p="ev">Events</button></div></div>
+  <div class="card" id="evsegcard" style="padding:10px"><div class="seg" id="evseg"><button type="button" class="on" data-p="cal">Calendar</button><button type="button" data-p="ev">Events</button><button type="button" data-p="vm">Virtual</button><button type="button" data-p="am">Actual</button></div></div>
   <div id="calpane">
-  <div class="card">
+  <div class="card" id="calcard">
     <div id="homerow" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"></div>
     <div class="legend" id="legend"></div>
     <div class="cal-head"><button id="prev" aria-label="Previous month">‹</button><strong id="mlabel"></strong><button id="next" aria-label="Next month">›</button></div>
     <div class="cal" id="cal"></div>
   </div>
-  <div class="card" id="dayview" style="padding:12px 12px 8px"></div>
+  <div class="card" id="dayview" hidden style="padding:12px 12px 8px"></div>
   <div class="card" id="editor" hidden>
     <h2 id="edate"></h2>
     <div class="row" id="who"></div>
@@ -816,6 +816,8 @@ main{max-width:100%}
   </details>
   </div>
   <div id="evpane" hidden></div>
+  <div id="vmpane" hidden></div>
+  <div id="ampane" hidden></div>
 </section>
 
 <section id="p-exp" hidden>
@@ -969,7 +971,11 @@ main{max-width:100%}
 </section>
 
 <section id="p-issues" hidden>
+  <div class="card" id="ihseg" style="padding:10px"><div class="seg"><button type="button" class="on" data-p="is">Issues</button><button type="button" data-p="hp">Help</button></div></div>
+  <div id="ispane">
   <div class="card"><h2>Issues</h2><p class="meta" style="margin:0">Anything that goes wrong, or that you can’t do, is listed here.</p><div id="isl"></div></div>
+  </div>
+  <div id="hlpane" hidden></div>
 </section>
 
 <section id="p-help" hidden>
@@ -977,17 +983,9 @@ main{max-width:100%}
     <p class="meta" id="acct" style="margin:0 0 10px"></p>
     <label>Your name<input id="myname" maxlength="40"></label>
     <p class="meta" id="namelock" hidden style="margin:0 0 8px">Your name is permanent and cannot be changed.</p>
-    <div class="row" style="gap:8px;align-items:center"><button class="go" id="savename">Save name</button><button class="go" id="chgpw" style="background:var(--b)">Change password</button><button class="quiet" id="swbtn" type="button" hidden></button><button class="quiet" id="signout">Sign out</button></div>
+    <div class="row" style="gap:8px;align-items:center"><button class="go" id="savename">Save name</button><button class="go" id="chgpw" style="background:var(--b)">Change password</button><button class="go" id="signout" style="background:#d93025;color:#fff">Sign out</button></div>
   </div>
-  <div class="card"><h2>How to use the hub</h2>
-    <ul class="help">
-      <li>Tap a tile on the home screen to open it, and the arrow at the top to come back.</li>
-      <li>You only see the sections the owner has switched on for your group.</li>
-      <li>Where a section says you can view but not change it, you can read everything but not add to it.</li>
-      <li>Use People to keep contact details for parents, guardians, family members, and lawyers. With an email and password, they can sign in straight away; otherwise it only saves contact details.</li>
-      <li>Tap + Add on the home screen to jump straight to writing a message, expense, or note.</li>
-    </ul>
-  </div>
+  <div class="card" id="tourcard" style="text-align:center"><button class="go" id="tourhub" type="button" style="width:100%;font-size:1.1rem;padding:14px 18px;border-radius:14px">🧭 Tour the Hub</button><p class="meta" style="margin:8px 0 0">A short walk through everything you can use.</p></div>
   <div class="card" id="rpcard"><h2>Court-ready record</h2>
     <p class="meta" style="margin:0 0 8px">Creates a dated, printable report from what is saved in the hub, which you can save as a PDF or print to share with a lawyer, mediator or court. Choose the period and what to include.</p>
     <div class="row" style="gap:8px"><label style="flex:1">From<input id="rpfrom" type="date"></label><label style="flex:1">To<input id="rpto" type="date"></label></div>
@@ -1001,7 +999,7 @@ main{max-width:100%}
     <p class="meta" style="margin:0 0 10px">This is an estimate, not your live Anthropic balance (Anthropic doesn’t share that with apps). Enter the amount of credit you loaded in the Anthropic Console, and the bar counts down from it using each message’s real token use. The exact balance is always at console.anthropic.com under Billing.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="aibud" type="number" min="0" step="1" placeholder="Credit loaded, $" style="max-width:170px"><button id="aiset">Set / top up</button><button id="airef" class="quiet">Refresh</button></div>
   </div>
-  <div class="card"><h2>Storage and backup</h2>
+  <div class="card" id="stcard" hidden><h2>Storage and backup</h2>
     <div id="stbar" style="height:12px;border-radius:6px;background:rgba(127,127,127,.25);overflow:hidden"><div id="stfill" style="height:100%;width:0;background:var(--accent,#2f80ed)"></div></div>
     <p id="sttxt" class="meta" style="margin:8px 0">Measuring…</p>
     <p class="meta" style="margin:0 0 10px">This counts messages, posts, photos shared on the Timeline and everything else kept in the database (the free Supabase plan allows about 500 MB). Documents and chat files are stored separately (about 1 GB on the free plan). Photos are shrunk to under 190 KB each.</p>
@@ -1185,7 +1183,7 @@ function hubRing(force){
 var OBS=false,STARTED=false,READY=false,isOwner=false,PERM={},CUR="home";
 var FEAT={sched:"calendar",exp:"expenses",notes:"notes",docs:"documents",msg:"messages",call:"calls",people:"people",trips:"documents",meet:"notes",todo:"notes",feed:"messages",chats:"messages",media:"messages",notif:"messages",profile:"messages"};
 S.posts=[];S.wstat=[];S.plikes=[];S.pcom=[];S.mnotes=[];
-var TABS=[["sched","Events and Calendar"],["exp","Expenses and Support"],["notes","Documents and Notes"],["meet","Meetings"],["todo","To-do and Shopping List"],["docs","Documents"],["msg","Calls and Messages"],["feed","Timeline"],["chats","Chats"],["media","Media"],["notif","Notifications"],["profile","Profile"],["call","Calls"],["people","People"],["trips","Actual meetings"],["issues","Issues"],["access","Access"],["help","Help"]];
+var TABS=[["sched","Events and Calendar"],["exp","Expenses and Support"],["notes","Documents and Notes"],["meet","Meetings"],["todo","To-do and Shopping List"],["docs","Documents"],["msg","Calls and Messages"],["feed","Timeline"],["chats","Chats"],["media","Media"],["notif","Notifications"],["profile","Profile"],["call","Calls"],["people","People"],["trips","Actual meetings"],["issues","Issues and Help"],["access","Access"],["help","Help"]];
 var money=function(n){return Number(n).toLocaleString("en-NG",{style:"currency",currency:"NGN"})};
 var pad=function(n){return String(n).padStart(2,"0")};
 var key=function(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
@@ -1205,7 +1203,7 @@ window.vbadge=function(uid,wa){
 };
 window.roleTitle=function(uid){var o=ownerM(),m=mumM();return o&&uid===o.user_id?"Our Daddy":m&&uid===m.user_id?"Our Mummy":""};
 window.hubRoleColor=function(uid){var o=ownerM(),m=mumM();return o&&uid===o.user_id?"#2f7de1":m&&uid===m.user_id?"#2fa84f":null};
-function homeWho(){var w=S.custody&&S.custody.home;return w==="a"||w==="b"||w==="x"?w:"b"}
+function homeWho(){var w=S.custody&&S.custody.home;return w==="a"||w==="b"?w:"b"}
 var nm=function(w){return w==="a"?((ownerM()||{}).name||S.names.a):w==="b"?((mumM()||{}).name||S.names.b):"Other"};
 var BLUE="#2f7de1",GREEN="#2fa84f",PINK="#f06fa8";
 /* on a computer or iPad: Return sends, Shift+Return starts a new line (phones keep Return as a new line) */
@@ -1244,17 +1242,36 @@ function renderLegend(){
   ["a","b"].forEach(function(w){var o=h("option",null,nm(w));o.value=w;wsel.appendChild(o)});if(cur)wsel.value=cur;
 }
 function renderCustodyRow(){
-  var R=$("#homerow");if(!R)return;R.textContent="";
-  var t=key(new Date()),w=(S.sched[t]||{}).who||homeWho();
-  var a=h("strong",null,"📍 Today, "+(S.names.kid||"Janet")+" is with "+nm(w));R.appendChild(a);
-  if(canWrite){var l=h("label",null,"Usually lives with");l.style.cssText="display:flex;align-items:center;gap:6px;margin-left:auto;font-size:.85rem";
-    var sel=h("select");sel.style.cssText="width:auto;margin:0;padding:4px 8px";
-    [["a",nm("a")],["b",nm("b")],["x","Other"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sel.appendChild(op)});sel.value=homeWho();
-    sel.onchange=function(){if(db)db.doc("settings/custody").set({home:sel.value}).then(function(){note("Saved.")},fail)};
-    l.appendChild(sel);R.appendChild(l)}
+  var R=$("#homerow");if(!R)return;R.textContent="";R.style.cssText="display:flex;flex-direction:column;gap:6px;margin-bottom:8px";
+  var kid=S.names.kid||"Janet",t=key(new Date()),cur=S.sched[t]||{},w=cur.who==="a"||cur.who==="b"?cur.who:homeWho();
+  var u=h("div");u.style.cssText="font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap";
+  u.appendChild(h("span",null,"📍 Usually lives with"));
+  if(isOwner){
+    /* only the owner account can change this */
+    var hs=h("select");hs.style.cssText="width:auto;flex:1;min-width:150px;margin:0;padding:6px 8px";hs.setAttribute("aria-label","Usually lives with");
+    [["b",nm("b")],["a",nm("a")]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];hs.appendChild(op)});hs.value=homeWho();
+    hs.onchange=function(){if(db)db.doc("settings/custody").set({home:hs.value}).then(function(){note("Saved.")},fail)};
+    u.appendChild(hs)}
+  else u.appendChild(h("span",null,nm(homeWho())));
+  R.appendChild(u);
+  var row=h("div");row.style.cssText="display:flex;align-items:center;gap:8px;flex-wrap:wrap";
+  row.appendChild(h("span",null,"Today, "+kid+" is with"));
+  if(canWrite){
+    var sel=h("select");sel.style.cssText="width:auto;flex:1;min-width:150px;margin:0;padding:6px 8px";sel.setAttribute("aria-label","Who "+kid+" is with today");
+    [["b",nm("b")],["a",nm("a")]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sel.appendChild(op)});sel.value=w;
+    sel.onchange=function(){if(!db)return;var v=sel.value,keepNote=(S.sched[t]||{}).note||"";
+      var p=(v===homeWho()&&!keepNote)?db.doc("schedule/"+t).delete():db.doc("schedule/"+t).set({who:v,note:keepNote});
+      p.then(function(){note("Saved.")},fail)};
+    row.appendChild(sel)}
+  else{var st=h("strong",null,nm(w));row.appendChild(st)}
+  R.appendChild(row);
 }
 function renderCal(){
   try{renderCustodyRow()}catch(e){}
+  try{segAccess()}catch(e){}
+  try{ownerOnlyCards()}catch(e){}
+  if(typeof CUR!=="undefined"&&CUR&&CUR!=="sched")S.dayOpen=false;
+  try{var dop=!!S.dayOpen;["calcard","evsegcard","dayview"].forEach(function(i){var el=$("#"+i);if(el)el.hidden=(i==="dayview")?!dop:dop});var ed0=$("#editor");if(ed0&&!dop)ed0.hidden=true}catch(e){}
   var m=S.month,y=m.getFullYear(),mo=m.getMonth();
   $("#mlabel").textContent=m.toLocaleDateString("en-US",{month:"long",year:"numeric"});
   var C=$("#cal");C.textContent="";
@@ -1271,7 +1288,7 @@ function renderCal(){
     if(k>=today){var zv=(S.events||[]).filter(function(x){return x.zoom});
       if(zv.length){var ze=zv.filter(function(x){return x.date===k})[0];if(ze)b.appendChild(h("small","dcall","📞 "+zLocalTime(ze.time||zplan().t)))}
       else if(k>=zplan().from&&zplan().days.indexOf(dt.getDay())>=0)b.appendChild(h("small","dcall","📞 "+zLocalTime(zplan().t)))}
-    b.onclick=function(){S.sel=k;S.who=e.who||null;openEditor();renderCal()};
+    b.onclick=function(){S.sel=k;S.who=e.who||null;S.dayOpen=true;S.dvFor=null;openEditor();renderCal();window.scrollTo(0,0)};
     C.appendChild(b);
   })(d);
   try{renderDay()}catch(err){}
@@ -1283,12 +1300,16 @@ function renderDay(){
   var day=S.sel||key(new Date()),today=key(new Date());
   var scrollKeep=box.querySelector(".dvs")?box.querySelector(".dvs").scrollTop:null;
   box.textContent="";
-  var hd=h("div");hd.style.cssText="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px";
-  function nb(t,dn,lab){var b=h("button","quiet",t);b.type="button";b.setAttribute("aria-label",lab);b.style.cssText="font-size:1.3rem;padding:2px 12px;text-decoration:none";
-    b.onclick=function(){var d=new Date(day+"T12:00:00");d.setDate(d.getDate()+dn);S.sel=key(d);S.who=(S.sched[S.sel]||{}).who||null;S.month=new Date(d.getFullYear(),d.getMonth(),1);S.dvFor=null;openEditor();renderCal()};return b}
+  var hd=h("div");hd.style.cssText="display:flex;align-items:center;gap:10px;margin-bottom:6px";
+  var bk=h("button",null,"‹");bk.type="button";bk.setAttribute("aria-label","Back to the calendar");bk.style.cssText="flex:none;width:38px;height:38px;border-radius:50%;border:0;background:rgba(127,127,127,.18);color:inherit;font-size:1.5rem;line-height:1;cursor:pointer";
+  bk.onclick=function(){S.dayOpen=false;renderCal();openEditor()};
   var dd=new Date(day+"T12:00:00");
-  var ttl=h("strong",null,(day===today?"Today · ":"")+dd.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}));
-  hd.appendChild(nb("‹",-1,"Previous day"));hd.appendChild(ttl);hd.appendChild(nb("›",1,"Next day"));box.appendChild(hd);
+  var ttl=h("strong",null,(day===today?"Today · ":"")+dd.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}));ttl.style.cssText="flex:1;text-align:center;padding-right:38px";
+  hd.appendChild(bk);hd.appendChild(ttl);box.appendChild(hd);
+  function step(dn){var d=new Date(day+"T12:00:00");d.setDate(d.getDate()+dn);S.sel=key(d);S.who=(S.sched[S.sel]||{}).who||null;S.month=new Date(d.getFullYear(),d.getMonth(),1);S.dvFor=null;openEditor();renderCal()}
+  var nv=h("div");nv.style.cssText="display:flex;justify-content:space-between;margin-bottom:4px";
+  [["← Previous day",-1],["Next day →",1]].forEach(function(o){var b=h("button","quiet",o[0]);b.type="button";b.style.cssText="font-size:.85rem;padding:4px 6px;text-decoration:none";b.onclick=function(){step(o[1])};nv.appendChild(b)});
+  box.appendChild(nv);
   var who=(S.sched[day]||{}).who||homeWho();
   var wb=h("div","meta","📍 "+(S.names.kid||"Janet")+" is with "+nm(who)+((S.sched[day]||{}).note?" · "+(S.sched[day]||{}).note:""));wb.style.cssText="text-align:center;margin-bottom:6px";box.appendChild(wb)
   /* what is on this day */
@@ -1320,7 +1341,7 @@ function renderDay(){
         jb.onclick=function(ev){ev.stopPropagation();openZoomInHub()};act.appendChild(jb);
         var za=h("a",null,"Open in Zoom");za.href=ZURL;za.target="_blank";za.rel="noopener";za.style.cssText="color:#fff;text-decoration:underline;align-self:center;font-size:.8rem";act.appendChild(za)}
       else{var nt=(S.mnotes||[]).filter(function(n){return n.start&&new Date(n.start+3600e3).toISOString().slice(0,10)===day})[0];
-        if(nt){var sb=h("button",null,"Summary");sb.type="button";sb.style.cssText="background:#fff;color:#1f6feb;border:0;border-radius:999px;padding:4px 12px;font:inherit;font-weight:700;cursor:pointer";sb.onclick=function(ev){ev.stopPropagation();MOPEN[nt.id]=true;showTab("meet")};act.appendChild(sb)}}
+        if(nt){var sb=h("button",null,"Summary");sb.type="button";sb.style.cssText="background:#fff;color:#1f6feb;border:0;border-radius:999px;padding:4px 12px;font:inherit;font-weight:700;cursor:pointer";sb.onclick=function(ev){ev.stopPropagation();MOPEN[nt.id]=true;openCalPane("vm")};act.appendChild(sb)}}
       b.appendChild(act)}
     else if(e.place)b.appendChild(h("div","meta",e.place));
     grid.appendChild(b)});
@@ -1331,7 +1352,7 @@ function renderDay(){
   else if(scrollKeep!=null)wrap.scrollTop=scrollKeep;
 }
 function openEditor(){
-  var ed=$("#editor");if(!S.sel){ed.hidden=true;return}
+  var ed=$("#editor");if(!S.sel||!S.dayOpen){ed.hidden=true;return}
   ed.hidden=false;
   var d=new Date(S.sel+"T12:00:00");
   $("#edate").textContent=d.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
@@ -1372,7 +1393,7 @@ $("#xadd").onclick=async function(){
 /* Cordial helper cards on Expenses, Trips and Documents */
 (function(){
   var C=[["p-exp","💳","Add an expense with Cordial","Tell Cordial what was paid and attach the receipt. It fills in the details and asks you to confirm.","I want to add an expense: "],
-         ["p-trips","✈️","Add a trip or visit with Cordial","Tell Cordial about the trip or visit and attach tickets, bookings or photos. It files them under the right trip.","I want to add a trip or visit: "],
+         ["ampane","✈️","Add a trip or visit with Cordial","Tell Cordial about the trip or visit and attach tickets, bookings or photos. It files them under the right trip.","I want to add a trip or visit: "],
          ["p-docs","📄","Save a document with Cordial","Attach the document and tell Cordial what it is. It files it under the right category once you confirm.","Please save this document: "]];
   C.forEach(function(x){
     var sec=document.getElementById(x[0]);if(!sec)return;
@@ -1780,8 +1801,36 @@ S.events=S.events||[];
   var seg=document.getElementById("evseg");if(!seg)return;
   Array.prototype.forEach.call(seg.children,function(b){b.onclick=function(){
     Array.prototype.forEach.call(seg.children,function(x){x.className=x===b?"on":""});
-    document.getElementById("calpane").hidden=b.dataset.p!=="cal";document.getElementById("evpane").hidden=b.dataset.p!=="ev";if(b.dataset.p==="ev")renderEvents()}});
+    var P=b.dataset.p;
+    document.getElementById("calpane").hidden=P!=="cal";document.getElementById("evpane").hidden=P!=="ev";
+    document.getElementById("vmpane").hidden=P!=="vm";document.getElementById("ampane").hidden=P!=="am";
+    if(P==="ev")renderEvents();try{renderMeet()}catch(e){}}});
 })();
+/* Virtual and Actual meetings now live on this page: move their content here */
+(function(){
+  [["p-meet","vmpane"],["p-trips","ampane"]].forEach(function(p){
+    var from=document.getElementById(p[0]),to=document.getElementById(p[1]);if(!from||!to)return;
+    while(from.firstChild)to.appendChild(from.firstChild)});
+})();
+window.openCalPane=function(p){
+  showTab("sched");
+  var b=document.querySelector('#evseg button[data-p="'+p+'"]');if(b&&!b.hidden)b.onclick();
+};
+/* Issues and Help share one page */
+(function(){
+  var from=document.getElementById("p-help"),to=document.getElementById("hlpane");
+  if(from&&to)while(from.firstChild)to.appendChild(from.firstChild);
+  var sg=document.querySelector("#ihseg .seg");if(!sg)return;
+  Array.prototype.forEach.call(sg.children,function(b){b.onclick=function(){
+    Array.prototype.forEach.call(sg.children,function(x){x.className=x===b?"on":""});
+    document.getElementById("ispane").hidden=b.dataset.p!=="is";document.getElementById("hlpane").hidden=b.dataset.p!=="hp";try{ownerOnlyCards()}catch(e){}}});
+})();
+window.openIssuesHelp=function(p){showTab("issues");var b=document.querySelector('#ihseg button[data-p="'+p+'"]');if(b)b.onclick()};
+var __th=document.getElementById("tourhub");if(__th)__th.onclick=function(){window.hubTour(true)};
+function ownerOnlyCards(){var c=document.getElementById("stcard");if(c)c.hidden=!isOwner}
+function segAccess(){var v=document.querySelector('#evseg button[data-p="vm"]'),a=document.querySelector('#evseg button[data-p="am"]');
+  if(v)v.hidden=!tabOk("meet");if(a)a.hidden=!tabOk("trips")}
+var EVALL=false;
 function renderEvents(){
   var box=document.getElementById("evpane");if(!box||box.hidden)return;
   var ae=document.activeElement;if(ae&&ae.matches&&ae.matches("input,textarea")&&box.contains(ae))return;
@@ -1802,8 +1851,10 @@ function renderEvents(){
   }
   var today=key(new Date()),all=(S.events||[]).slice();
   function sortKey(e){return (e.date||"")+(e.time||"")}
-  var up=all.filter(function(e){return e.date>=today}).sort(function(a,b){return sortKey(a)<sortKey(b)?-1:1});
-  var past=all.filter(function(e){return e.date<today}).sort(function(a,b){return sortKey(a)<sortKey(b)?1:-1}).slice(0,15);
+  function dk(n){var d=new Date();d.setDate(d.getDate()+n);return key(d)}
+  var tom=dk(1),y1=dk(-1),y2=dk(-2);
+  var up=all.filter(function(e){return e.date>=today&&(EVALL||e.date<=tom)}).sort(function(a,b){return sortKey(a)<sortKey(b)?-1:1});
+  var past=all.filter(function(e){return e.date<today&&(EVALL||e.date>=y2)}).sort(function(a,b){return sortKey(a)<sortKey(b)?1:-1}).slice(0,EVALL?15:6);
   function group(title,list,empty){
     var c=h("div","card");c.appendChild(h("h2",null,title));
     if(!list.length)c.appendChild(h("p","empty",empty));
@@ -1818,7 +1869,7 @@ function renderEvents(){
         var zb=h("div");zb.style.cssText="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap";
         if(e.date>=today){var jb=h("button","go sm","📞 Join call");jb.type="button";jb.onclick=function(){openZoomInHub()};zb.appendChild(jb)}
         else{var nt=(S.mnotes||[]).filter(function(n){return n.start&&new Date(n.start+3600e3).toISOString().slice(0,10)===e.date})[0];
-          if(nt){var sb=h("button","go sm","📝 Summary");sb.type="button";sb.onclick=function(){MOPEN[nt.id]=true;showTab("meet")};zb.appendChild(sb)}
+          if(nt){var sb=h("button","go sm","📝 Summary");sb.type="button";sb.onclick=function(){MOPEN[nt.id]=true;openCalPane("vm")};zb.appendChild(sb)}
           else zb.appendChild(h("span","meta","No summary for this call"))}
         l.appendChild(zb)}
       r.appendChild(l);
@@ -1826,8 +1877,10 @@ function renderEvents(){
       c.appendChild(r)});
     box.appendChild(c);
   }
-  group("Upcoming events",up,"No upcoming events. Add one above.");
-  group("Past events",past,"Nothing yet.");
+  group(EVALL?"Upcoming events":"Today and tomorrow",up,EVALL?"No upcoming events. Add one above.":"Nothing today or tomorrow.");
+  group(EVALL?"Past events":"Yesterday and the day before",past,"Nothing yet.");
+  var more=h("button","quiet",EVALL?"Show fewer":"Show all events");more.type="button";more.style.cssText="display:block;margin:0 auto 12px";
+  more.onclick=function(){EVALL=!EVALL;renderEvents()};box.appendChild(more);
 }
 
 var ZCH=0;
@@ -2251,13 +2304,11 @@ var TILES=[
   ["feed","Timeline","<path d='M4 4h13a1 1 0 0 1 1 1v14a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2z'/><path d='M18 8h2a1 1 0 0 1 1 1v10a2 2 0 0 1-2 2M8 8h6M8 12h6M8 16h4'/>","#e3955a,#cc7a3f"],
   ["sched","Events and Calendar","<rect x='3' y='4' width='18' height='18' rx='2'/><path d='M8 2v4M16 2v4M3 10h18'/>","#e3c070,#caa550","#5a4310"],
   ["docs","Documents and Notes","<path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><path d='M14 2v6h6M12 18v-6M9 15h6'/>","#8a73a6,#6f5a8a"],
-  ["meet","Meetings","<rect x='2' y='5' width='14' height='14' rx='2'/><path d='M16 10l6-3v10l-6-3z'/>","#5f8fb0,#487596"],
   ["todo","To-do and Shopping List","<path d='M9 6h11M9 12h11M9 18h11'/><path d='M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11M3.5 18l1.5 1.5L7.5 17'/>","#6fae8b,#4f9370"],
   ["exp","Expenses and Support","<path d='M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z'/><path d='M8 8h8M8 12h8'/>","#8dbba0,#76a58b","#1f3a2c"],
   ["people","People","<path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M19 8v6M22 11h-6'/>","#6f9a8a,#557f70"],
   ["access","Access","<rect x='4' y='11' width='16' height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/>","#7d8b5a,#657245"],
-  ["issues","Issues","<path d='M12 2 1 21h22z'/><path d='M12 9v5M12 17.5v.5'/>","#d9825b,#c46a43"],
-  ["help","Help","<path d='M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z'/>","#86a3bd,#6c8aa6"]
+  ["issues","Issues and Help","<path d='M12 2 1 21h22z'/><path d='M12 9v5M12 17.5v.5'/>","#d9825b,#c46a43"],
 ];
 TILES.forEach(function(t){
   var b=h("button","tile"),ic=h("span","ic");
@@ -2321,8 +2372,7 @@ function addSeg(secId,items,curId){
 }
 addSeg("p-docs",[["docs","Documents"],["notes","Notes"]],"docs");
 addSeg("p-notes",[["docs","Documents"],["notes","Notes"]],"notes");
-addSeg("p-meet",[["meet","Virtual meetings"],["trips","Actual meetings"]],"meet");
-addSeg("p-trips",[["meet","Virtual meetings"],["trips","Actual meetings"]],"trips");
+document.addEventListener("click",function(e){var t=e.target;if(S.dayOpen&&t&&t.closest&&t.closest("#back")){e.stopImmediatePropagation();e.preventDefault();S.dayOpen=false;renderCal();openEditor()}},true);
 $("#back").onclick=function(){if(window.__callFrom&&window.waOpen){window.__callFrom=0;if(window.waSubSync)waSubSync();waOpen("calls");return}showTab("home")};
 var ADD=[["Post","feed","#ft"],["Message","msg","#mt"],["Expense","exp","#xd"],["Note","notes","#nt"],["Document","docs","#dt"],["Person","people","#pn"],["Calendar day","sched",null]];
 ADD.forEach(function(a){
@@ -3391,7 +3441,7 @@ function startCall(audio){
   S.call=c;openCall(c);
 }
 $("#cend").onclick=function(){if(db)db.doc("calls/current").delete().catch(fail)};
-$("#zmeet").onclick=function(e){e.preventDefault();showTab("meet")};
+$("#zmeet").onclick=function(e){e.preventDefault();openCalPane("vm")};
 
 /* scheduled Zoom call */
 /* Zoom inside the hub (Meeting SDK, Component View) */
@@ -5389,7 +5439,7 @@ async function start(session){
       var ci=mk("span","ci","<svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>"+t[2]+"</svg>");
       ci.style.background="linear-gradient(160deg,"+t[3]+")";if(t[4])ci.style.color=t[4];
       r.appendChild(ci);r.appendChild(mk("span","dl",t[1]));
-      r.onclick=function(e){if(e.target.closest&&e.target.closest(".dg"))return;showTab(id);setMenu(false)};
+      r.onclick=function(e){if(e.target.closest&&e.target.closest(".dg"))return;MENUSAVED=openSecKeys();showTab(id);setMenu(false)};
       list.appendChild(r);
     });
     try{updTodoBadge()}catch(e){}
@@ -5430,6 +5480,9 @@ async function start(session){
     makeSortable(famL,".item",function(){lsSet("hubFamOrder",Array.prototype.map.call(famL.children,function(c){return c.dataset.k}))});
     makeSortable(acc,".aunit",function(){lsSet("hubAcctOrder",Array.prototype.map.call(acc.querySelectorAll(":scope>.aunit"),function(c){return c.dataset.k}))});
   }
+  var MENUSAVED=[],RESTORE=null;
+  function openSecKeys(){var o=[];if(DS)Array.prototype.forEach.call(DS.wrap.children,function(sec){var b=sec.querySelector(".db");if(!sec.dataset.fixed&&b&&!b.hidden)o.push(sec.dataset.k)});return o}
+  function restoreSecs(){if(!RESTORE||!DS)return;var keys=RESTORE;RESTORE=null;Array.prototype.forEach.call(DS.wrap.children,function(sec){if(keys.indexOf(sec.dataset.k)>=0){var b=sec.querySelector(".db");if(b)b.hidden=false;sec.classList.add("open")}})}
   function collapseAll(){if(!DS)return;Array.prototype.forEach.call(DS.wrap.children,function(sec){if(sec.dataset.fixed)return;var b=sec.querySelector(".db");if(b)b.hidden=true;sec.classList.remove("open")})}
   function placeAcct(){
     var home=document.getElementById("home");if(!home)return;
@@ -5443,13 +5496,13 @@ async function start(session){
   }
   function setMenu(on){
     if(look==="classic"){
-      if(on){buildC();collapseAll();root.style.setProperty("--abh","0px");cdr.classList.add("open")}else cdr.classList.remove("open");
+      if(on){buildC();collapseAll();restoreSecs();root.style.setProperty("--abh","0px");cdr.classList.add("open")}else cdr.classList.remove("open");
       scrim.hidden=!on;if(on)root.setAttribute("data-menu","open");else root.removeAttribute("data-menu");
       menuBtn.innerHTML=svg(on?"close":"menu",24);menuBtn.setAttribute("aria-label",on?"Close menu":"Menu");
       return;
     }
     if(cdr.classList.contains("open"))cdr.classList.remove("open");
-    if(on){collapseAll();refreshMenuList();root.style.setProperty("--abh",Math.max(0,Math.round(appbar.getBoundingClientRect().bottom))+"px");root.setAttribute("data-menu","open")}
+    if(on){collapseAll();restoreSecs();refreshMenuList();root.style.setProperty("--abh",Math.max(0,Math.round(appbar.getBoundingClientRect().bottom))+"px");root.setAttribute("data-menu","open")}
     else root.removeAttribute("data-menu");
     scrim.hidden=!on;
     menuBtn.innerHTML=svg(on?"close":"menu",24);menuBtn.setAttribute("aria-label",on?"Close menu":"Menu");
@@ -5540,7 +5593,7 @@ async function start(session){
     if(window.__callFrom&&window.waOpen){HIST.pop();window.__callFrom=0;if(window.waSubSync)waSubSync();waOpen("calls");return}
     var o=HIST.pop();NOHIST=true;
     try{
-      if(o==="menu"){if(look==="classic")showTab("home");else{showTab("feed");setMenu(true)}}
+      if(o==="menu"){RESTORE=MENUSAVED;if(look==="classic"){showTab("home");setMenu(true)}else{showTab("feed");setMenu(true)}}
       else{if(o==="profile"&&typeof VIEW!=="undefined"){VIEW=null;PVSET=true;PSIG=""}showTab(o||"home")}
     }finally{NOHIST=false}
   }
@@ -5637,7 +5690,7 @@ async function start(session){
         r.onclick=function(){
           if(e.k==="reminder"){if(typeof PTAB!=="undefined"){PTAB="rem";PSIG=""}showTab("profile");return}
           if(e.k==="event"){showTab("sched");return}
-          if(e.k==="meeting"){showTab("meet");return}
+          if(e.k==="meeting"){openCalPane("vm");return}
           if(e.k==="highlight"){if(typeof PTAB!=="undefined"){PTAB="all";PSIG=""}showTab("profile");return}
           showTab(e.k==="msg"?"msg":e.k==="call"?"call":"feed");
           if((e.k==="comment"||e.k==="react")&&e.post&&typeof openComments==="function"){var pp=S.posts.filter(function(x){return x.id===e.post})[0];if(pp)setTimeout(function(){openComments(pp)},250)}
@@ -5779,12 +5832,12 @@ async function start(session){
     {t:"Expenses and Support",d:function(){return "Expenses with their receipts, monthly support and school fees."+(tabEdit("exp")?(tgrp()==="parent"?" Add an expense with its receipt: Cordial reads it and flags anything that doesn’t match. Monthly support is marked paid by Daddy and confirmed received by Mummy.":" You can add entries here."):" You can view the totals and records but not change them.")},sel:pg("exp"),go:gopg("exp"),ok:function(){return tabOk("exp")}},
     {t:"Documents and notes",d:function(){return "Important documents, proof and notes."+(tabEdit("docs")||tabEdit("notes")?" When you upload, choose who can see it. Anything shared beyond Only me is checked by Cordial first.":" You can view what has been shared with you.")+" Items marked private or for chosen people appear only if you were chosen."},sel:pg("docs"),go:gopg("docs"),ok:function(){return tabOk("docs")||tabOk("notes")}},
     {t:"Privacy you control",d:"“Only me” items are hidden from everyone else, including the owner account, and skip the AI check. Money support and school fees are always visible to both parents so nothing is hidden. Private items travel over a secure connection.",sel:function(){return null},go:gopg("docs"),ok:function(){return tgrp()==="parent"&&tabOk("docs")}},
-    {t:"Meetings",d:"Zoom meetings show a short summary, key points, what was agreed and the to-dos. Tap a meeting to open it. The tick on Zoom connection shows ✅ when everything is working, ⚠️ when something needs attention.",sel:pg("meet"),go:gopg("meet"),ok:function(){return tabOk("meet")}},
+    {t:"Virtual and actual meetings",d:"Both are on the Events and Calendar page, under Virtual and Actual. Zoom meetings show a short summary, key points, what was agreed and the to-dos. Tap a meeting to open it. The tick on Zoom connection shows ✅ when everything is working, ⚠️ when something needs attention.",sel:function(){return "#vmpane .card"},go:function(){openCalPane("vm")},ok:function(){return tabOk("meet")}},
     {t:"To-do and Shopping List",d:"Tasks agreed in meetings: the person responsible marks it done, the other parent confirms, and it moves to the archive. The Shopping list tab is where you ask the other parent to pick something up.",sel:pg("todo"),go:gopg("todo"),ok:function(){return tabOk("todo")}},
     {t:"People",d:function(){return "Everyone in the hub is listed here, grouped under the parent who added them. Tap a name to open their profile."+(tgrp()==="parent"?" Add someone with an email and password and they can sign in straight away; you can remove the people you added, but not the other parent’s. Janet has an AI-run account: Cordial writes her posts, at most twice a week, and Mummy gets a Tuesday and Friday reminder to add photos and news to Janet’s journal, which stays private to the parents.":"")},sel:pg("people"),go:gopg("people"),ok:function(){return tabOk("people")}},
     {t:"Your role",d:function(){return {guardian:"Be kind in comments: everything is on the record. If you need more access, ask the parents.",family:"Be kind in comments: everything is on the record. If you need more access, ask the parents.",nanny:"Use the calendar and messages to stay in step with the parents. If you need to see more, ask them.",lawyer:"Everything you see is time-stamped and cannot be edited or deleted after the fact. Access is set by the parents and can change.",mediator:"Everything you see is time-stamped and cannot be edited or deleted after the fact. Access is set by the parents and can change.",gal:"Everything you see is time-stamped and cannot be edited or deleted after the fact. Access is set by the parents and can change.",therapist:"Only what the parents have opened to you appears here. Access can change at any time."}[tgrp()]||""},sel:function(){return null},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){var g=tgrp();return g!=="parent"&&g!=="owner"}},
     {t:"Safety",d:"Some actions ask for a quick selfie so every entry is tied to a real person. Turn on Face ID lock in Account and Settings so only you can open the hub.",sel:function(){return null},go:function(){showTab(look==="classic"?"home":"feed")}},
-    {t:"Issues and help",d:"Anything that goes wrong is listed under Issues, and you can clear it any time. Help explains each feature, and you can replay this tour from Account and Settings.",sel:pg("issues"),go:gopg("issues")},
+    {t:"Issues and Help",d:"One place for both. Anything that goes wrong is listed under Issues, and you can clear it any time. Help explains each feature, and you can replay this tour from Account and Settings.",sel:pg("issues"),go:gopg("issues")},
     {t:"Access and invites",d:"As the owner you invite people and choose, for each group, what they can view or edit: parents, guardians, family, nannies, lawyers, mediators, counsellors and guardians ad litem.",sel:pg("access"),go:gopg("access"),ok:function(){return isOwner}}
   ];
   function tourEnd(){if(tourEl){tourEl.remove();tourEl=null}try{localStorage.setItem("hubTour_"+(myId||""),"1")}catch(e){}try{window.hubPref&&hubPref("toured",true)}catch(e){}showTab("home")}
