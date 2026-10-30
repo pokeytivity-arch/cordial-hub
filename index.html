@@ -1228,7 +1228,7 @@ function showTab(id){
   var home=id==="home";$("#home").hidden=!home;$("#back").hidden=home;
   var tid=({trips:"meet",notes:"docs",call:"msg"})[id]||id,tt=(TILES||[]).filter(function(t){return t[0]===tid})[0];$("#apptitle").textContent=home?"Home":(tt?tt[1]:"");
   window.scrollTo(0,0);note("");
-  if(READY){if(chg)safe(renderAll)();lockForms();if(!cw&&FEAT[id])logIssue("You can view this section but not change it.","Your access to this section is view-only.",true);if(id==="access")safe(renderAccess)()}
+  if(READY){if(chg)safe(renderAll)();lockForms();if(id==="access")safe(renderAccess)()}
   if(id==="meet"&&typeof zoomCheck==="function")safe(zoomCheck)();
   if(id==="issues")safe(renderIssues)();
   if(id==="help"&&typeof measure==="function"){measure();alertStatus();aiMeter()}
@@ -3567,7 +3567,7 @@ function renderDocs(){
   });
 }
 
-function fail(e){if(e&&e.code==="observer")return logIssue("This account is view only.","The hub admin can see everything but can’t post, comment, like or send.");if(e&&e.code==="selfie")return note(e.message||"A selfie is needed to save this.");return logIssue(e&&e.code==="invalid_argument"?"You have view-only access to this page.":e&&e.code==="quota_exceeded"?"The hub’s storage is full.":"That didn’t save.",e&&e.code==="quota_exceeded"?"Remove old photos or documents, then try again.":"Check your connection and try again.")}
+function fail(e){if(e&&e.code==="observer")return viewOnlyNote();if(e&&e.code==="selfie")return note(e.message||"A selfie is needed to save this.");return logIssue(e&&e.code==="invalid_argument"?"You have view-only access to this page.":e&&e.code==="quota_exceeded"?"The hub’s storage is full.":"That didn’t save.",e&&e.code==="quota_exceeded"?"Remove old photos or documents, then try again.":"Check your connection and try again.")}
 /* timeline */
 var CDRAFT={},FPHOTO=null,FMORE=[];
 var REACTS=[["like","👍","Like","#2078f4"],["love","❤️","Love","#f33e58"],["care","🥰","Care","#f7b125"],["haha","😆","Haha","#f7b125"],["wow","😮","Wow","#f7b125"],["sad","😢","Sad","#f7b125"],["angry","😡","Angry","#e9710f"]];
@@ -4079,7 +4079,7 @@ function mixCards(L){
   }
 }
 function openComposer(){
-  if(!canWrite&&!tabEdit("feed"))return logIssue("You can view this section but not post.","Your access to this section is view-only.");
+  if(!canWrite&&!tabEdit("feed"))return viewOnlyNote();
   var p=PF(myId);
   [["#fcav"],["#fbav"]].forEach(function(a){var e=$(a[0]);e.textContent=(S.me||"?").charAt(0).toUpperCase();e.style.backgroundImage="";e.classList.remove("has");if(p.avatar)setBg(e,p.avatar)});
   $("#fcn").textContent=S.me||"";
@@ -4262,6 +4262,7 @@ function paintIssueBadge(){
     b.textContent=String(n);
   });
 }
+function viewOnlyNote(){try{note("View only.");setTimeout(function(){note("")},1600)}catch(e){}return "View only."}
 function logIssue(title,detail,quiet){
   if(!ISSUES.length)issLoad();
   var last=ISSUES[0];
@@ -4287,10 +4288,10 @@ window.addEventListener("error",function(e){try{if(e&&e.message&&!/ResizeObserve
 window.addEventListener("unhandledrejection",function(e){try{var m=String(e&&e.reason&&(e.reason.message||e.reason)||"");if(m&&!/AbortError|aborted/i.test(m))logIssue("A background task didn’t finish.",m.slice(0,160),true)}catch(x){}});
 setInterval(function(){try{paintIssueBadge()}catch(e){}},2000);
 function fail(e){
-  if(e&&e.code==="observer")return logIssue("This account is view only.","The hub admin can see everything but can’t post, comment, like or send.");
+  if(e&&e.code==="observer")return viewOnlyNote();
   if(e&&e.code==="selfie")return note(e.message||"A selfie is needed to save this.");
   var m=String(e&&e.message||""),c=e&&e.code;
-  if(c==="42501"||/row-level security|permission denied|not allowed/i.test(m))return logIssue("You can view this section but not change it.","Your access to this section is view-only.");
+  if(c==="42501"||/row-level security|permission denied|not allowed/i.test(m))return viewOnlyNote();
   if(/exceeds the maximum|too large|toolarge/i.test(m))return logIssue("That file is too big.","The limit is "+(CFG.MAX_UPLOAD_MB||50)+" MB.");
   logIssue("That didn’t save.","Check your connection and try again."+(m?" ["+m.slice(0,140)+"]":""));
 }
@@ -4298,7 +4299,7 @@ function attachErr(e){
   var m=String(e&&e.message||"");
   if(m==="photo")return "Couldn’t read that photo. Try a JPEG or PNG.";
   if(m==="toolarge"||/exceeds the maximum|too large/i.test(m))return "That file is too big. The limit is "+(CFG.MAX_UPLOAD_MB||50)+" MB.";
-  if(/row-level security|permission|not allowed|unauthorized/i.test(m)||(e&&e.code==="42501")){logIssue("You can view this section but not add to it.","Your access to this section is view-only.",true);return "You can view this section but not add to it. See Issues in the menu."}
+  if(/row-level security|permission|not allowed|unauthorized/i.test(m)||(e&&e.code==="42501")){viewOnlyNote();return "You can view this section but not add to it. See Issues in the menu."}
   logIssue("That didn’t send.","Check your connection and try again."+(m?" ["+m.slice(0,140)+"]":""),true);return "That didn’t send. See Issues in the menu.";
 }
 
@@ -5248,7 +5249,7 @@ async function start(session){
     var list=DS.list;list.textContent="";
     menuIds().forEach(function(id){
       var t=TILES.filter(function(x){return x[0]===id})[0];if(!t||!tabOk(id))return;
-      if(look==="classic"&&id==="feed")return;
+      if(id==="feed"||id==="kids")return;
       var r=mk("div","drow");r.dataset.k=id;
       r.appendChild(mk("span","dg","⠿"));
       var ci=mk("span","ci","<svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>"+t[2]+"</svg>");
@@ -5281,7 +5282,9 @@ async function start(session){
     var so=lsGet("hubDrawerOrder",["menu","fam","acct"]);
     /* Menu and Family Overview can swap places; Account and Settings always stays last and can't be dragged */
     so.concat(["menu","fam"]).filter(function(k,i,a){return a.indexOf(k)===i&&(k==="menu"||k==="fam")}).forEach(function(k){wrap.appendChild(DS.secs[k])});
-    DS.secs.acct.dataset.fixed="1";var ag=DS.secs.acct.querySelector(".dh>.dg");if(ag)ag.style.visibility="hidden";
+    DS.secs.acct.dataset.fixed="1";
+    /* Account and Settings is always open and can't be folded; only Menu and Family Overview fold */
+    (function(a){var b=a.querySelector(".db"),t=a.querySelector(".dt"),c=a.querySelector(".dc");if(b)b.hidden=false;a.classList.add("open");if(t){t.onclick=null;t.style.cursor="default"}if(c)c.style.display="none"})(DS.secs.acct);var ag=DS.secs.acct.querySelector(".dh>.dg");if(ag)ag.style.visibility="hidden";
     wrap.appendChild(DS.secs.acct);
     makeSortable(wrap,".dsec",function(){wrap.appendChild(DS.secs.acct);lsSet("hubDrawerOrder",Array.prototype.map.call(wrap.children,function(c){return c.dataset.k}))});
     makeSortable(list,".drow",function(){
@@ -5292,7 +5295,7 @@ async function start(session){
     makeSortable(famL,".item",function(){lsSet("hubFamOrder",Array.prototype.map.call(famL.children,function(c){return c.dataset.k}))});
     makeSortable(acc,".aunit",function(){lsSet("hubAcctOrder",Array.prototype.map.call(acc.querySelectorAll(":scope>.aunit"),function(c){return c.dataset.k}))});
   }
-  function collapseAll(){if(!DS)return;Array.prototype.forEach.call(DS.wrap.children,function(sec){var b=sec.querySelector(".db");if(b)b.hidden=true;sec.classList.remove("open")})}
+  function collapseAll(){if(!DS)return;Array.prototype.forEach.call(DS.wrap.children,function(sec){if(sec.dataset.fixed)return;var b=sec.querySelector(".db");if(b)b.hidden=true;sec.classList.remove("open")})}
   function placeAcct(){
     var home=document.getElementById("home");if(!home)return;
     buildDrawer();refreshMenuList();
@@ -5936,7 +5939,7 @@ function aiAct(mi,ai,ok){
   function fin(st,err){a.state=st;if(err)a.err=err;else delete a.err;aiSave();botCache.key="";lastSig="";renderChat(true);if(st==="done")toast(err||"Done.")}
   if(!ok)return fin("no");
   var tb=AITAB[a.type];
-  if(tb&&!tabEdit(tb)){a.err="You can view "+AITABN[tb]+" but not add to it.";logIssue("Cordial couldn’t add to "+AITABN[tb]+".","Your access to this section is view-only.",true);botCache.key="";lastSig="";aiSave();renderChat(true);return}
+  if(tb&&!tabEdit(tb)){a.err="You can view "+AITABN[tb]+" but not add to it.";botCache.key="";lastSig="";aiSave();renderChat(true);return}
   delete a.err;a.state="busy";botCache.key="";lastSig="";renderChat(true);
   aiRun(a).then(function(txt){a.err=null;fin("done",txt)},function(e){
     var msg=e&&e.message==="nofile"?"The file is no longer loaded. Attach it again with the + button, then tap Confirm.":e&&e.message==="notrip"?"I couldn’t find that trip. Add the trip first, then attach the file.":attachErr(e);
