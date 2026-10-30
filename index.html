@@ -2502,6 +2502,8 @@ $("#padd").onclick=function(){
   db.collection("people").add({name:n,cat:$("#pc").value,phone:$("#pp").value.trim(),email:$("#pe").value.trim(),role:$("#pr").value.trim(),ts:Date.now(),by:myId||""}).then(function(){["#pn","#pp","#pe","#pr"].forEach(function(x){$(x).value=""});note("")},fail)};
 function renderPeople(){
   var L=$("#pl");L.textContent="";
+  try{var full=(typeof MEMBERS!=="undefined"?MEMBERS:[]).filter(function(x){return x.grp==="parent"}).length>=2;
+    Array.prototype.forEach.call($("#pc").options,function(o){if(o.value==="Parent"){o.disabled=full;o.textContent=full?"Parent (both slots taken)":"Parent";if(full&&$("#pc").value==="Parent")$("#pc").value="Family member"}})}catch(e){}
   /* Baby: Janet's reserved, AI-driven account */
   var bk=(S.kids||[]).filter(function(k){return k.id==="baby"})[0]||{},bc=h("div","card");bc.appendChild(h("h2",null,"Baby"));
   var br=h("div","item");br.style.cssText="display:flex;align-items:center;gap:12px;cursor:pointer";
