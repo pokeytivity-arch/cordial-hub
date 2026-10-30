@@ -48,6 +48,7 @@ button.quiet{background:none;border:0;color:var(--muted);font:inherit;font-size:
 .dow{font-size:.75rem;color:var(--muted);text-align:center}
 .day{min-height:54px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);padding:4px;font:inherit;font-size:.85rem;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;overflow:hidden}
 .day.a{background:var(--a-bg);border-color:var(--a)}.day.b{background:var(--b-bg);border-color:var(--b)}.day.x{background:var(--x-bg);border-color:var(--x)}
+.day.dflt{border-color:var(--line)}
 .day.sel{outline:3px solid var(--ink);outline-offset:1px}.day.today b{text-decoration:underline}
 .day small{font-size:.68rem;line-height:1.15;color:var(--muted);overflow-wrap:anywhere}
 .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
@@ -797,10 +798,12 @@ main{max-width:100%}
   <div class="card" style="padding:10px"><div class="seg" id="evseg"><button type="button" class="on" data-p="cal">Calendar</button><button type="button" data-p="ev">Events</button></div></div>
   <div id="calpane">
   <div class="card">
+    <div id="homerow" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"></div>
     <div class="legend" id="legend"></div>
     <div class="cal-head"><button id="prev" aria-label="Previous month">‹</button><strong id="mlabel"></strong><button id="next" aria-label="Next month">›</button></div>
     <div class="cal" id="cal"></div>
   </div>
+  <div class="card" id="dayview" style="padding:12px 12px 8px"></div>
   <div class="card" id="editor" hidden>
     <h2 id="edate"></h2>
     <div class="row" id="who"></div>
@@ -833,7 +836,6 @@ main{max-width:100%}
   <div class="card"><h2>Balance</h2><div id="bal" class="balance"></div><div id="bal2" class="meta"></div></div>
   <div class="card"><h2>All expenses</h2><div id="xl"></div></div>
   </div>
-  <div id="xs-shop" hidden></div>
   <div id="xs-sup" hidden></div>
   <div id="xs-fee" hidden></div>
 </section>
@@ -892,7 +894,9 @@ main{max-width:100%}
 </section>
 
 <section id="p-todo" hidden>
+  <div class="card" style="padding:10px"><div class="seg" id="tdseg"><button type="button" class="on" data-p="tasks">To-do <span id="tdn1"></span></button><button type="button" data-p="shop">Shopping list <span id="tdn2"></span></button></div></div>
   <div id="todocard"></div>
+  <div id="xs-shop" hidden></div>
 </section>
 <section id="p-meet" hidden>
   <div class="card" id="zoomcard"><button type="button" id="zoomhd" aria-expanded="false" style="display:flex;width:100%;align-items:center;justify-content:space-between;background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer"><span style="font-size:1.15rem;font-weight:700">Zoom connection</span><span><span id="zoomtick" style="font-size:1.2rem">…</span> <span id="zoomch" style="opacity:.6">›</span></span></button><div id="zoomdet" hidden style="margin-top:8px"><div id="zoomsts" class="meta">Checking…</div><button class="quiet" id="zoomchk" type="button" style="padding:4px 0;text-decoration:underline">Check again</button></div></div>
@@ -1181,7 +1185,7 @@ function hubRing(force){
 var OBS=false,STARTED=false,READY=false,isOwner=false,PERM={},CUR="home";
 var FEAT={sched:"calendar",exp:"expenses",notes:"notes",docs:"documents",msg:"messages",call:"calls",people:"people",trips:"documents",meet:"notes",todo:"notes",feed:"messages",chats:"messages",media:"messages",notif:"messages",profile:"messages"};
 S.posts=[];S.wstat=[];S.plikes=[];S.pcom=[];S.mnotes=[];
-var TABS=[["sched","Events and Calendar"],["exp","Expenses and Support"],["notes","Documents and Notes"],["meet","Meetings"],["todo","To-do list"],["docs","Documents"],["msg","Calls and Messages"],["feed","Timeline"],["chats","Chats"],["media","Media"],["notif","Notifications"],["profile","Profile"],["call","Calls"],["people","People"],["trips","Actual meetings"],["issues","Issues"],["access","Access"],["help","Help"]];
+var TABS=[["sched","Events and Calendar"],["exp","Expenses and Support"],["notes","Documents and Notes"],["meet","Meetings"],["todo","To-do and Shopping List"],["docs","Documents"],["msg","Calls and Messages"],["feed","Timeline"],["chats","Chats"],["media","Media"],["notif","Notifications"],["profile","Profile"],["call","Calls"],["people","People"],["trips","Actual meetings"],["issues","Issues"],["access","Access"],["help","Help"]];
 var money=function(n){return Number(n).toLocaleString("en-NG",{style:"currency",currency:"NGN"})};
 var pad=function(n){return String(n).padStart(2,"0")};
 var key=function(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
@@ -1201,6 +1205,7 @@ window.vbadge=function(uid,wa){
 };
 window.roleTitle=function(uid){var o=ownerM(),m=mumM();return o&&uid===o.user_id?"Our Daddy":m&&uid===m.user_id?"Our Mummy":""};
 window.hubRoleColor=function(uid){var o=ownerM(),m=mumM();return o&&uid===o.user_id?"#2f7de1":m&&uid===m.user_id?"#2fa84f":null};
+function homeWho(){var w=S.custody&&S.custody.home;return w==="a"||w==="b"||w==="x"?w:"b"}
 var nm=function(w){return w==="a"?((ownerM()||{}).name||S.names.a):w==="b"?((mumM()||{}).name||S.names.b):"Other"};
 var BLUE="#2f7de1",GREEN="#2fa84f",PINK="#f06fa8";
 /* on a computer or iPad: Return sends, Shift+Return starts a new line (phones keep Return as a new line) */
@@ -1238,7 +1243,18 @@ function renderLegend(){
   var wsel=$("#xw");var cur=wsel.value;wsel.textContent="";
   ["a","b"].forEach(function(w){var o=h("option",null,nm(w));o.value=w;wsel.appendChild(o)});if(cur)wsel.value=cur;
 }
+function renderCustodyRow(){
+  var R=$("#homerow");if(!R)return;R.textContent="";
+  var t=key(new Date()),w=(S.sched[t]||{}).who||homeWho();
+  var a=h("strong",null,"📍 Today, "+(S.names.kid||"Janet")+" is with "+nm(w));R.appendChild(a);
+  if(canWrite){var l=h("label",null,"Usually lives with");l.style.cssText="display:flex;align-items:center;gap:6px;margin-left:auto;font-size:.85rem";
+    var sel=h("select");sel.style.cssText="width:auto;margin:0;padding:4px 8px";
+    [["a",nm("a")],["b",nm("b")],["x","Other"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sel.appendChild(op)});sel.value=homeWho();
+    sel.onchange=function(){if(db)db.doc("settings/custody").set({home:sel.value}).then(function(){note("Saved.")},fail)};
+    l.appendChild(sel);R.appendChild(l)}
+}
 function renderCal(){
+  try{renderCustodyRow()}catch(e){}
   var m=S.month,y=m.getFullYear(),mo=m.getMonth();
   $("#mlabel").textContent=m.toLocaleDateString("en-US",{month:"long",year:"numeric"});
   var C=$("#cal");C.textContent="";
@@ -1247,7 +1263,7 @@ function renderCal(){
   for(var i=0;i<first;i++)C.appendChild(h("div"));
   for(var d=1;d<=days;d++)(function(d){
     var k=y+"-"+pad(mo+1)+"-"+pad(d),e=S.sched[k]||{};
-    var b=h("button","day"+(e.who?" "+e.who:"")+(k===S.sel?" sel":"")+(k===today?" today":""));
+    var b=h("button","day"+(e.who?" "+e.who:" "+homeWho()+" dflt")+(k===S.sel?" sel":"")+(k===today?" today":""));
     b.appendChild(h("b",null,String(d)));
     if(e.who)b.appendChild(h("small",null,nm(e.who)));
     if(e.note)b.appendChild(h("small",null,e.note));
@@ -1258,6 +1274,61 @@ function renderCal(){
     b.onclick=function(){S.sel=k;S.who=e.who||null;openEditor();renderCal()};
     C.appendChild(b);
   })(d);
+  try{renderDay()}catch(err){}
+}
+/* day view: the selected day (today by default) as an hour-by-hour timeline */
+var DV_PX=52;
+function renderDay(){
+  var box=$("#dayview");if(!box)return;
+  var day=S.sel||key(new Date()),today=key(new Date());
+  var scrollKeep=box.querySelector(".dvs")?box.querySelector(".dvs").scrollTop:null;
+  box.textContent="";
+  var hd=h("div");hd.style.cssText="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px";
+  function nb(t,dn,lab){var b=h("button","quiet",t);b.type="button";b.setAttribute("aria-label",lab);b.style.cssText="font-size:1.3rem;padding:2px 12px;text-decoration:none";
+    b.onclick=function(){var d=new Date(day+"T12:00:00");d.setDate(d.getDate()+dn);S.sel=key(d);S.who=(S.sched[S.sel]||{}).who||null;S.month=new Date(d.getFullYear(),d.getMonth(),1);S.dvFor=null;openEditor();renderCal()};return b}
+  var dd=new Date(day+"T12:00:00");
+  var ttl=h("strong",null,(day===today?"Today · ":"")+dd.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}));
+  hd.appendChild(nb("‹",-1,"Previous day"));hd.appendChild(ttl);hd.appendChild(nb("›",1,"Next day"));box.appendChild(hd);
+  var who=(S.sched[day]||{}).who||homeWho();
+  var wb=h("div","meta","📍 "+(S.names.kid||"Janet")+" is with "+nm(who)+((S.sched[day]||{}).note?" · "+(S.sched[day]||{}).note:""));wb.style.cssText="text-align:center;margin-bottom:6px";box.appendChild(wb)
+  /* what is on this day */
+  function mins(t){var m=/^(\d{1,2}):(\d{2})/.exec(t||"");return m?(+m[1])*60+(+m[2]):null}
+  var evs=(S.events||[]).filter(function(e){return e.date===day}).map(function(e){return{id:e.id,title:e.title,zoom:!!e.zoom,start:mins(e.time),dur:e.dur||(e.zoom?60:60),place:e.place,e:e}});
+  if(!(S.events||[]).some(function(x){return x.zoom})){
+    var pl=zplan();if(pl.days.indexOf(dd.getDay())>=0&&day>=pl.from)evs.push({title:"Family Zoom call",zoom:true,start:mins(pl.t),dur:60,place:"Zoom, in the hub"})}
+  var allday=evs.filter(function(e){return e.start==null}),timed=evs.filter(function(e){return e.start!=null}).sort(function(a,b){return a.start-b.start});
+  if(allday.length){var ad=h("div");ad.style.cssText="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px";allday.forEach(function(e){var c=h("span",null,"All day · "+e.title);c.style.cssText="background:rgba(127,127,127,.18);border-radius:8px;padding:3px 9px;font-size:.85rem";ad.appendChild(c)});box.appendChild(ad)}
+  var lo=6,hi=23;timed.forEach(function(e){lo=Math.min(lo,Math.floor(e.start/60));hi=Math.max(hi,Math.min(24,Math.ceil((e.start+e.dur)/60)))});
+  var wrap=h("div","dvs");wrap.style.cssText="position:relative;max-height:340px;overflow-y:auto;border-top:1px solid rgba(127,127,127,.25)";
+  var grid=h("div");grid.style.cssText="position:relative;height:"+((hi-lo)*DV_PX)+"px;margin-left:46px";
+  for(var hr=lo;hr<=hi;hr++){
+    var ln=h("div");ln.style.cssText="position:absolute;left:0;right:0;top:"+((hr-lo)*DV_PX)+"px;border-top:1px solid rgba(127,127,127,.2)";grid.appendChild(ln);
+    var lb=h("span",null,(hr%12||12)+(hr<12||hr===24?" AM":" PM"));lb.style.cssText="position:absolute;left:-46px;top:"+((hr-lo)*DV_PX-8)+"px;width:40px;text-align:right;font-size:.72rem;color:var(--muted,#888)";grid.appendChild(lb)}
+  /* side by side when two things overlap */
+  var cols=[];timed.forEach(function(e){var c=0;while(cols[c]&&cols[c]>e.start)c++;e.col=c;cols[c]=e.start+e.dur});
+  var ncol=Math.max(1,cols.length);
+  timed.forEach(function(e){
+    var b=h("div");var top=(e.start/60-lo)*DV_PX,ht=Math.max(e.zoom?104:34,e.dur/60*DV_PX-3);
+    b.style.cssText="position:absolute;top:"+top+"px;height:"+ht+"px;left:"+(e.col*100/ncol)+"%;width:calc("+(100/ncol)+"% - 4px);box-sizing:border-box;border-radius:8px;padding:5px 8px;overflow:hidden;font-size:.85rem;line-height:1.25;"+(e.zoom?"background:#1f6feb;color:#fff":"background:rgba(240,111,168,.22);border-left:4px solid #f06fa8;")
+    var t12=function(m){var hh=Math.floor(m/60)%24,mm=m%60;return (hh%12||12)+":"+("0"+mm).slice(-2)+(hh<12?" AM":" PM")};
+    var tt=h("div",null,(e.zoom?"📞 ":"")+e.title);tt.style.fontWeight="700";b.appendChild(tt);
+    b.appendChild(h("div",null,t12(e.start)+" – "+t12(e.start+e.dur)));
+    if(e.zoom){
+      var act=h("div");act.style.cssText="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap";
+      if(day>=today){
+        var jb=h("button",null,"Join call");jb.type="button";jb.style.cssText="background:#fff;color:#1f6feb;border:0;border-radius:999px;padding:4px 12px;font:inherit;font-weight:700;cursor:pointer";
+        jb.onclick=function(ev){ev.stopPropagation();openZoomInHub()};act.appendChild(jb);
+        var za=h("a",null,"Open in Zoom");za.href=ZURL;za.target="_blank";za.rel="noopener";za.style.cssText="color:#fff;text-decoration:underline;align-self:center;font-size:.8rem";act.appendChild(za)}
+      else{var nt=(S.mnotes||[]).filter(function(n){return n.start&&new Date(n.start+3600e3).toISOString().slice(0,10)===day})[0];
+        if(nt){var sb=h("button",null,"Summary");sb.type="button";sb.style.cssText="background:#fff;color:#1f6feb;border:0;border-radius:999px;padding:4px 12px;font:inherit;font-weight:700;cursor:pointer";sb.onclick=function(ev){ev.stopPropagation();MOPEN[nt.id]=true;showTab("meet")};act.appendChild(sb)}}
+      b.appendChild(act)}
+    else if(e.place)b.appendChild(h("div","meta",e.place));
+    grid.appendChild(b)});
+  if(day===today){var n=new Date(),nm_=n.getHours()*60+n.getMinutes();if(nm_/60>=lo&&nm_/60<=hi){var nl=h("div");nl.style.cssText="position:absolute;left:-6px;right:0;top:"+((nm_/60-lo)*DV_PX)+"px;border-top:2px solid #e5484d;z-index:2";grid.appendChild(nl)}}
+  wrap.appendChild(grid);box.appendChild(wrap);
+  if(!timed.length&&!allday.length)box.appendChild(h("p","meta","Nothing scheduled this day."));
+  if(S.dvFor!==day&&wrap.clientHeight>0){S.dvFor=day;var nowM=new Date().getHours()*60+new Date().getMinutes(),pick=timed.filter(function(e){return day!==today||e.start+e.dur>nowM})[0]||timed[0];var first=pick?pick.start/60:(day===today?new Date().getHours():8);wrap.scrollTop=Math.max(0,(first-lo-1)*DV_PX)}
+  else if(scrollKeep!=null)wrap.scrollTop=scrollKeep;
 }
 function openEditor(){
   var ed=$("#editor");if(!S.sel){ed.hidden=true;return}
@@ -1342,7 +1413,16 @@ function renderExp(){
 
 /* ---------- Shopping list, monthly support and school fees (saved in the expenses collection, each with a "kind") ---------- */
 var XT={tab:"exp",open:{}};S.xo=[];
-var XTABS=[["exp","Expenses"],["shop","Shopping list"],["sup","Monthly support"],["fee","School fees"]];
+var XTABS=[["exp","Expenses"],["sup","Monthly support"],["fee","School fees"]];
+/* the shopping list now lives on the To-do and Shopping List page */
+var TDT="tasks";
+function tdTabs(){
+  var sg=$("#tdseg");if(!sg)return;
+  Array.prototype.forEach.call(sg.children,function(b){b.className=b.dataset.p===TDT?"on":""});
+  var tc=$("#todocard"),sh=$("#xs-shop");if(tc)tc.hidden=TDT!=="tasks";if(sh)sh.hidden=TDT!=="shop";
+}
+(function(){var sg=document.getElementById("tdseg");if(!sg)return;
+  Array.prototype.forEach.call(sg.children,function(b){b.onclick=function(){TDT=b.dataset.p;tdTabs()}})})();
 function xtMembers(){return typeof MEMBERS!=="undefined"?MEMBERS:[]}
 function xtName(id){if(!id)return "";var t=roleTitle(id);return (id===myId?"You":memberName(id))+(t?" ("+t+")":"")}
 function xtPayerMember(){return xtMembers().filter(function(u){return /onyemachi/i.test(u.name||"")})[0]||null}
@@ -1353,7 +1433,8 @@ function xtDoc(id,patch,base){var cur=(S.xo||[]).filter(function(x){return x.id=
 function xtTabs(){
   var t=$("#xsub");if(!t)return;t.textContent="";
   XTABS.forEach(function(x){var b=h("button",XT.tab===x[0]?"on":"",x[1]);b.type="button";b.style.cssText="flex:1 1 45%;margin-bottom:6px";b.onclick=function(){XT.tab=x[0];renderXtra()};t.appendChild(b)});
-  ["exp","shop","sup","fee"].forEach(function(k){var e=$("#xs-"+k);if(e)e.hidden=XT.tab!==k});
+  ["exp","sup","fee"].forEach(function(k){var e=$("#xs-"+k);if(e)e.hidden=XT.tab!==k});
+  tdTabs();
   var q=document.querySelector("#p-exp .cordq");if(q)q.hidden=XT.tab!=="exp";
 }
 function renderXtra(){
@@ -1816,13 +1897,36 @@ function todoNotify(x,what){
     var o=ownerM(),m=mumM(),other=what==="done"?(myRole()==="daddy"?(m&&m.user_id):(o&&o.user_id)):x.doneBy;
     var me=xtName(myId).replace(/^You \(/,"").replace(/\)$/,"")||"A parent";var mine=myRole()==="daddy"?"Our Daddy":myRole()==="mummy"?"Our Mummy":"A parent";
     var title=what==="done"?"✅ "+mine+" marked a task done":"✅ "+mine+" confirmed a task";
-    var body=what==="done"?"“"+x.title+"”. Please open the To-do list and confirm.":"“"+x.title+"” is confirmed and moved to the archive.";
+    var body=what==="done"?"“"+x.title+"”. Please open To-do and Shopping List and confirm.":"“"+x.title+"” is confirmed and moved to the archive.";
     db.collection("messages").add({kind:"text",text:(what==="done"?"✅ "+mine+" marked this task as done: “"+x.title+"”. Waiting for the other parent to confirm.":"✅ "+mine+" confirmed that this task is done: “"+x.title+"”. It has moved to the archive."),ts:Date.now(),by:"cordial_ai"}).catch(function(){});
     if(other)sb.auth.getSession().then(function(ss){var tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)return;
       fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:"task",to:[other],title:title,body:body,tag:x.id})}).catch(function(){})}).catch(function(){});
   }catch(e){}
 }
+function todoLeft(){return (S.xo||[]).filter(function(x){return (x.kind==="todo"&&(x.status==="open"||!x.status))||(x.kind==="shop"&&(x.status==="requested"||!x.status))}).length}
+function updTodoBadge(){
+  var n=todoLeft();
+  Array.prototype.forEach.call(document.querySelectorAll("#grid [data-t=todo], .drow[data-k=todo]"),function(el){
+    var b=el.querySelector(".todobdg");
+    if(!n){if(b)b.remove();return}
+    if(!b){b=document.createElement("span");b.className="todobdg";
+      var row=el.classList.contains("drow");
+      b.style.cssText="background:#e5484d;color:#fff;border-radius:999px;font-size:.72rem;font-weight:800;line-height:1;min-width:20px;padding:4px 7px;text-align:center;box-sizing:border-box;"+(row?"margin-left:auto":"position:absolute;top:2px;right:6px");
+      b.setAttribute("aria-label","tasks left to do");
+      if(!row)el.style.position="relative";
+      el.appendChild(b)}
+    b.textContent=n>99?"99+":String(n)});
+  /* also on the collapsed Menu heading, so the count shows before it is opened */
+  var mh=document.querySelector(".dsec[data-k=menu] .dt");
+  if(mh){var hb=mh.querySelector(".todobdg");
+    if(!n){if(hb)hb.remove()}
+    else{if(!hb){hb=document.createElement("span");hb.className="todobdg";hb.style.cssText="background:#e5484d;color:#fff;border-radius:999px;font-size:.72rem;font-weight:800;line-height:1;min-width:20px;padding:4px 7px;text-align:center;box-sizing:border-box;margin-left:auto;margin-right:10px";mh.insertBefore(hb,mh.querySelector(".dc"))}
+      hb.textContent=n>99?"99+":String(n)}}
+}
 function renderTodos(){
+  try{updTodoBadge()}catch(e){}
+  try{var c1=(S.xo||[]).filter(function(x){return x.kind==="todo"&&(x.status==="open"||!x.status)}).length,c2=(S.xo||[]).filter(function(x){return x.kind==="shop"&&(x.status==="requested"||!x.status)}).length;
+    if($("#tdn1"))$("#tdn1").textContent=c1?"("+c1+")":"";if($("#tdn2"))$("#tdn2").textContent=c2?"("+c2+")":""}catch(e){}
   var box=$("#todocard");if(!box)return;box.textContent="";
   var all=(S.xo||[]).filter(function(x){return x.kind==="todo"}).sort(function(a,b){return (b.ts||0)-(a.ts||0)});
   var c=h("div","card");c.appendChild(h("h2",null,"Agreed tasks"));
@@ -2148,8 +2252,8 @@ var TILES=[
   ["sched","Events and Calendar","<rect x='3' y='4' width='18' height='18' rx='2'/><path d='M8 2v4M16 2v4M3 10h18'/>","#e3c070,#caa550","#5a4310"],
   ["docs","Documents and Notes","<path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><path d='M14 2v6h6M12 18v-6M9 15h6'/>","#8a73a6,#6f5a8a"],
   ["meet","Meetings","<rect x='2' y='5' width='14' height='14' rx='2'/><path d='M16 10l6-3v10l-6-3z'/>","#5f8fb0,#487596"],
-  ["todo","To-do list","<path d='M9 6h11M9 12h11M9 18h11'/><path d='M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11M3.5 18l1.5 1.5L7.5 17'/>","#6fae8b,#4f9370"],
-  ["exp","Expenses","<path d='M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z'/><path d='M8 8h8M8 12h8'/>","#8dbba0,#76a58b","#1f3a2c"],
+  ["todo","To-do and Shopping List","<path d='M9 6h11M9 12h11M9 18h11'/><path d='M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11M3.5 18l1.5 1.5L7.5 17'/>","#6fae8b,#4f9370"],
+  ["exp","Expenses and Support","<path d='M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z'/><path d='M8 8h8M8 12h8'/>","#8dbba0,#76a58b","#1f3a2c"],
   ["people","People","<path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M19 8v6M22 11h-6'/>","#6f9a8a,#557f70"],
   ["access","Access","<rect x='4' y='11' width='16' height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/>","#7d8b5a,#657245"],
   ["issues","Issues","<path d='M12 2 1 21h22z'/><path d='M12 9v5M12 17.5v.5'/>","#d9825b,#c46a43"],
@@ -2160,6 +2264,7 @@ TILES.forEach(function(t){
   ic.style.background="linear-gradient(160deg,"+t[3]+")";if(t[4])ic.style.color=t[4];
   ic.innerHTML="<svg viewBox='0 0 24 24' width='34' height='34' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>"+t[2]+"</svg>";
   b.dataset.t=t[0];b.appendChild(ic);b.appendChild(h("span","tl",t[1]));b.onclick=function(){showTab(t[0])};$("#grid").appendChild(b)});
+try{updTodoBadge()}catch(e){}
 
 /* customizable menu: Edit, then move tiles with the arrows */
 (function(){
@@ -2239,7 +2344,7 @@ async function loadMe(){
 function renderHome(){
   var e=S.sched[key(new Date())],L=$("#fam");L.textContent="";
   var last=S.msgs.length?previewText(S.msgs[S.msgs.length-1]):"";
-  [["Today",e&&e.who?"With "+nm(e.who)+(e.note?" – "+e.note:""):"No schedule set for today"],
+  [["Today","Janet is with "+nm((e&&e.who)||homeWho())+(e&&e.note?" – "+e.note:"")],
    ["Expenses",$("#bal").textContent||"No expenses yet"],
    ["Latest message",last?(last.length>80?last.slice(0,80)+"…":last):"No messages yet"]].filter(function(r){return tabOk({"Today":"sched","Expenses":"exp","Latest message":"msg"}[r[0]])}).forEach(function(r){
     var row=h("div","item"),c=h("div");c.style.flex="1";c.appendChild(h("div","meta",r[0]));c.appendChild(h("div",null,r[1]));
@@ -5156,6 +5261,7 @@ function subscribeAll(){
   db.collection("calls").limit(100).onSnapshot(function(s){S.calls=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});if(window.waCalls)waCalls()},err);
   db.doc("settings/callplan").onSnapshot(function(s){S.callplan=s.exists?s.data():null;renderZoomCard();renderCal()},err);
   db.doc("settings/calllink").onSnapshot(function(s){S.link=s.exists?(s.data().url||""):"";renderCall()},err);
+  db.doc("settings/custody").onSnapshot(function(s){S.custody=s.exists?s.data():null;renderAll()},err);
   db.doc("settings/names").onSnapshot(function(s){if(s.exists){S.names=Object.assign({a:"Parent 1",b:"Parent 2"},s.data())}$("#na").value=S.names.a;$("#nb").value=S.names.b;renderAll()},err);
 }
 
@@ -5286,6 +5392,7 @@ async function start(session){
       r.onclick=function(e){if(e.target.closest&&e.target.closest(".dg"))return;showTab(id);setMenu(false)};
       list.appendChild(r);
     });
+    try{updTodoBadge()}catch(e){}
   }
   function buildDrawer(){
     if(DS)return;
@@ -5669,11 +5776,11 @@ async function start(session){
     {t:"Chats and calls",d:function(){return "Family chat"+(tabEdit("chats")?", private chats and groups":"")+(tabEdit("call")?", plus voice and video calls":"")+". Messages can’t be edited or deleted, so the record stays honest."+(tabEdit("msg")?" A tone check can warn you before you send something heated. Tap the speech icon to start.":" You can read messages but not send them.")},sel:function(){return look==="classic"?"#grid":"#fbnav [data-t=chats]"},go:function(){showTab("msg")},ok:function(){return !OBS&&tabOk("msg")}},
     {t:"Cordial, the AI helper",d:"Open Cordial from the chat list. Ask a question or send it a receipt and it fills in an expense for you to confirm. It is an AI, not a person, and not a lawyer.",sel:function(){return null},go:function(){showTab("msg")},ok:function(){return !OBS&&tabEdit("msg")&&tgrp()==="parent"}},
     {t:"Calendar",d:function(){return "Custody days, events and appointments."+(tabEdit("sched")?" Add an event and the others see it, with reminders.":" You can view it but not change it.")},sel:pg("sched"),go:gopg("sched"),ok:function(){return tabOk("sched")}},
-    {t:"Expenses and Support",d:function(){return "Expenses with their receipts, monthly support, school fees and the shopping list."+(tabEdit("exp")?(tgrp()==="parent"?" Add an expense with its receipt: Cordial reads it and flags anything that doesn’t match. Monthly support is marked paid by Daddy and confirmed received by Mummy.":" You can add entries here."):" You can view the totals and records but not change them.")},sel:pg("exp"),go:gopg("exp"),ok:function(){return tabOk("exp")}},
+    {t:"Expenses and Support",d:function(){return "Expenses with their receipts, monthly support and school fees."+(tabEdit("exp")?(tgrp()==="parent"?" Add an expense with its receipt: Cordial reads it and flags anything that doesn’t match. Monthly support is marked paid by Daddy and confirmed received by Mummy.":" You can add entries here."):" You can view the totals and records but not change them.")},sel:pg("exp"),go:gopg("exp"),ok:function(){return tabOk("exp")}},
     {t:"Documents and notes",d:function(){return "Important documents, proof and notes."+(tabEdit("docs")||tabEdit("notes")?" When you upload, choose who can see it. Anything shared beyond Only me is checked by Cordial first.":" You can view what has been shared with you.")+" Items marked private or for chosen people appear only if you were chosen."},sel:pg("docs"),go:gopg("docs"),ok:function(){return tabOk("docs")||tabOk("notes")}},
     {t:"Privacy you control",d:"“Only me” items are hidden from everyone else, including the owner account, and skip the AI check. Money support and school fees are always visible to both parents so nothing is hidden. Private items travel over a secure connection.",sel:function(){return null},go:gopg("docs"),ok:function(){return tgrp()==="parent"&&tabOk("docs")}},
     {t:"Meetings",d:"Zoom meetings show a short summary, key points, what was agreed and the to-dos. Tap a meeting to open it. The tick on Zoom connection shows ✅ when everything is working, ⚠️ when something needs attention.",sel:pg("meet"),go:gopg("meet"),ok:function(){return tabOk("meet")}},
-    {t:"To-do list",d:"Tasks agreed in meetings. The person responsible marks it done, the other parent confirms, and it moves to the archive.",sel:pg("todo"),go:gopg("todo"),ok:function(){return tabOk("todo")}},
+    {t:"To-do and Shopping List",d:"Tasks agreed in meetings: the person responsible marks it done, the other parent confirms, and it moves to the archive. The Shopping list tab is where you ask the other parent to pick something up.",sel:pg("todo"),go:gopg("todo"),ok:function(){return tabOk("todo")}},
     {t:"People",d:function(){return "Everyone in the hub is listed here, grouped under the parent who added them. Tap a name to open their profile."+(tgrp()==="parent"?" Add someone with an email and password and they can sign in straight away; you can remove the people you added, but not the other parent’s. Janet has an AI-run account: Cordial writes her posts, at most twice a week, and Mummy gets a Tuesday and Friday reminder to add photos and news to Janet’s journal, which stays private to the parents.":"")},sel:pg("people"),go:gopg("people"),ok:function(){return tabOk("people")}},
     {t:"Your role",d:function(){return {guardian:"Be kind in comments: everything is on the record. If you need more access, ask the parents.",family:"Be kind in comments: everything is on the record. If you need more access, ask the parents.",nanny:"Use the calendar and messages to stay in step with the parents. If you need to see more, ask them.",lawyer:"Everything you see is time-stamped and cannot be edited or deleted after the fact. Access is set by the parents and can change.",mediator:"Everything you see is time-stamped and cannot be edited or deleted after the fact. Access is set by the parents and can change.",gal:"Everything you see is time-stamped and cannot be edited or deleted after the fact. Access is set by the parents and can change.",therapist:"Only what the parents have opened to you appears here. Access can change at any time."}[tgrp()]||""},sel:function(){return null},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){var g=tgrp();return g!=="parent"&&g!=="owner"}},
     {t:"Safety",d:"Some actions ask for a quick selfie so every entry is tied to a real person. Turn on Face ID lock in Account and Settings so only you can open the hub.",sel:function(){return null},go:function(){showTab(look==="classic"?"home":"feed")}},
