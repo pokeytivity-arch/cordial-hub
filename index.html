@@ -1185,15 +1185,19 @@ function hubRing(force){
     if(navigator.vibrate)navigator.vibrate([300,150,300]);
   }catch(e){}
 }
-var STARTED=false,READY=false,isOwner=false,PERM={},CUR="home";
+var OBS=false,STARTED=false,READY=false,isOwner=false,PERM={},CUR="home";
 var FEAT={sched:"calendar",exp:"expenses",notes:"notes",kids:"children",docs:"documents",msg:"messages",call:"calls",people:"people",trips:"documents",meet:"notes",feed:"messages",chats:"messages",media:"messages",notif:"messages",profile:"messages"};
 S.posts=[];S.wstat=[];S.plikes=[];S.pcom=[];S.mnotes=[];
 var TABS=[["sched","Events and Calendar"],["exp","Expenses"],["notes","Documents and Notes"],["meet","Meetings"],["kids","Kids"],["docs","Documents"],["msg","Calls and Messages"],["feed","Timeline"],["chats","Chats"],["media","Media"],["notif","Notifications"],["profile","Profile"],["call","Calls"],["people","People"],["trips","Actual meetings"],["issues","Issues"],["access","Access"],["help","Help"]];
 var money=function(n){return Number(n).toLocaleString("en-NG",{style:"currency",currency:"NGN"})};
 var pad=function(n){return String(n).padStart(2,"0")};
 var key=function(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
-function ownerM(){return (typeof MEMBERS!=="undefined"?MEMBERS:[]).filter(function(m){return m.is_owner})[0]||null}
-function mumM(){return (typeof MEMBERS!=="undefined"?MEMBERS:[]).filter(function(m){return m.grp==="parent"&&!m.is_owner})[0]||null}
+function parentsM(){return (typeof MEMBERS!=="undefined"?MEMBERS:[]).filter(function(m){return m.grp==="parent"})}
+/* Our Mummy = the parent named Glory; Our Daddy = the other parent (the father). The hub admin is never a parent. */
+function mumM(){var ps=parentsM();return ps.filter(function(m){return /glory|mngutyo/i.test(m.name||"")})[0]||ps.filter(function(m){return !m.is_owner&&!/onyemachi/i.test(m.name||"")})[0]||null}
+function ownerM(){var ps=parentsM(),mu=mumM();return ps.filter(function(m){return m!==mu&&/onyemachi/i.test(m.name||"")})[0]||ps.filter(function(m){return m!==mu})[0]||null}
+function memberRole(m){return m&&m.is_owner&&m.grp!=="parent"?"Cordial Co-Parenting":glabel(m&&m.grp)}
+
 /* verified tick for the two parents: blue in the Facebook-style pages, green in the WhatsApp-style pages */
 window.vbadge=function(uid,wa){
   var o=ownerM(),m=mumM();if(!uid||!((o&&uid===o.user_id)||(m&&uid===m.user_id)))return null;
@@ -1347,7 +1351,7 @@ var XTABS=[["exp","Expenses"],["shop","Shopping list"],["sup","Monthly support"]
 function xtMembers(){return typeof MEMBERS!=="undefined"?MEMBERS:[]}
 function xtName(id){if(!id)return "";var t=roleTitle(id);return (id===myId?"You":memberName(id))+(t?" ("+t+")":"")}
 function xtPayerMember(){return xtMembers().filter(function(u){return /onyemachi/i.test(u.name||"")})[0]||null}
-function xtIsPayer(){var p=xtPayerMember();return !!(isOwner||(p&&p.user_id===myId))}
+function xtIsPayer(){var p=xtPayerMember();return !!((isOwner&&!OBS)||(p&&p.user_id===myId))}
 function xtChip(t,c){var e=h("span",null,t);e.style.cssText="display:inline-block;font-size:.75rem;font-weight:700;padding:2px 9px;border-radius:999px;color:#fff;background:"+c;return e}
 function xtBtn(t,fn,cls){var b=h("button",cls||"go",t);b.type="button";b.style.cssText="padding:7px 14px;font-size:.9rem;margin:6px 8px 0 0";b.onclick=fn;return b}
 function xtDoc(id,patch,base){var cur=(S.xo||[]).filter(function(x){return x.id===id})[0]||{};var d=Object.assign({},cur,base||{},patch);delete d.id;return db.doc("expenses/"+id).set(d).catch(fail)}
@@ -1494,8 +1498,8 @@ function aiBadge(rec,coll){
   if(!checks.length&&!rv)return null;
   var w=h("div");w.style.cssText="margin-top:4px;font-size:.88rem";
   var line=h("div");
-  if(rv&&rv.state==="approved"){line.textContent="✅ Approved by owner";line.style.color="#1f8a4c"}
-  else if(rv&&rv.state==="rejected"){line.textContent="❌ Rejected by owner";line.style.color="#d93025"}
+  if(rv&&rv.state==="approved"){line.textContent="✅ Approved";line.style.color="#1f8a4c"}
+  else if(rv&&rv.state==="rejected"){line.textContent="❌ Rejected";line.style.color="#d93025"}
   else if(flagged.length||(rv&&rv.state==="pending")){line.textContent="⚠️ Needs review";line.style.color="#c07a00";line.style.fontWeight="700"}
   else if(checks.some(function(c){return c.status==="pass"})){line.textContent="✅ Checked by Cordial";line.style.color="#1f8a4c"}
   else return null;
@@ -1509,7 +1513,7 @@ function aiBadge(rec,coll){
         var b=h("button",null,a[0]);b.type="button";b.style.cssText="border:0;border-radius:999px;padding:6px 14px;font:inherit;font-weight:700;font-size:.85rem;color:#fff;background:"+a[2];
         b.onclick=function(){if(a[1]==="rejected"&&!confirm("Reject this entry? It stays in the record, marked as rejected."))return;db.doc(coll+"/"+rec.id).update({review:{state:a[1],by:myId,ts:Date.now()}}).catch(fail)};row.appendChild(b)});
       w.appendChild(row);
-    }else w.appendChild(h("div","meta","Waiting for the owner to review."));
+    }else w.appendChild(h("div","meta","Waiting for review."));
   }
   return w;
 }
@@ -1588,7 +1592,7 @@ function xtMonths(startKey){
 function xtSup(){
   var box=$("#xs-sup");if(!box)return;box.textContent="";
   var cfg=(S.xo||[]).filter(function(x){return x.id==="support_cfg"})[0]||{};
-  var dad=ownerM(),mum=mumM(),canSet=isOwner&&canWrite,to=mum?mum.user_id:"";
+  var dad=ownerM(),mum=mumM(),canSet=myRole()==="daddy"&&canWrite,to=mum?mum.user_id:"";
   var c=h("div","card");c.appendChild(h("h2",null,"Monthly support"));
   var dir=h("div");dir.style.cssText="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 8px;font-weight:700";
   var f1=h("span",null,"Our Daddy"+(dad?" · "+dad.name:""));f1.style.color=BLUE;
@@ -1775,7 +1779,7 @@ document.getElementById("zoomchk").onclick=function(){zoomCheck(true)};
     var L=selfieRecords(0,Date.now()+1e9).sort(function(a,b){return b.ts-a.ts}).slice(0,60);
     var sg=JSON.stringify(L.map(function(x){return x.path+x.what}));if(sg===last&&!card.hidden)return;last=sg;
     card.hidden=false;card.textContent="";card.appendChild(h("h2",null,"Verification selfies"));
-    card.appendChild(h("p","meta","Only you, the owner, can see these. Each photo was taken when the entry was saved."));
+    card.appendChild(h("p","meta","Only you can see these. Each photo was taken when the entry was saved."));
     if(!L.length)card.appendChild(h("p","empty","No selfies yet."));
     L.forEach(function(d){
       var r=h("div","item");r.style.cssText+=";align-items:center;gap:12px;cursor:pointer";
@@ -2021,7 +2025,7 @@ function renderProf(force){
   var avw=h("div","pfavw");avw.appendChild(av);if(own)avw.appendChild(ab);box.appendChild(avw);
   var pfn=h("div","pfname",nm0||"You"),vbp=vbadge(vid,false);if(vbp)pfn.appendChild(vbp);box.appendChild(pfn);
   var mm=own?MEMBER:MEMBERS.filter(function(x){return x.user_id===vid})[0];var g=(typeof GROUPS!=="undefined"&&mm)?(GROUPS.filter(function(x){return x[0]===mm.grp})[0]||[])[1]:"";
-  box.appendChild(h("div","meta",(g||"Member")+(mm&&mm.is_owner?" · Owner":"")+" · "+myPosts.length+(myPosts.length===1?" post":" posts")));
+  box.appendChild(h("div","meta",(mm&&mm.is_owner&&mm.grp!=="parent"?"Cordial Co-Parenting":(g||"Member"))+" · "+myPosts.length+(myPosts.length===1?" post":" posts")));
   box.appendChild(h("div","pfbio",p.bio||(own?"Add a bio so everyone knows who you are.":"")));
   var d2=[];if(p.work)d2.push("💼 "+p.work);if(p.loc)d2.push("📍 "+p.loc);
   if(d2.length)box.appendChild(h("div","pfchips",d2.join("  ·  ")));
@@ -3450,7 +3454,7 @@ function renderDocs(){
   });
 }
 
-function fail(e){if(e&&e.code==="selfie")return note(e.message||"A selfie is needed to save this.");return logIssue(e&&e.code==="invalid_argument"?"You have view-only access to this page.":e&&e.code==="quota_exceeded"?"The hub’s storage is full.":"That didn’t save.",e&&e.code==="quota_exceeded"?"Remove old photos or documents, then try again.":"Check your connection and try again.")}
+function fail(e){if(e&&e.code==="observer")return logIssue("This account is view only.","The hub admin can see everything but can’t post, comment, like or send.");if(e&&e.code==="selfie")return note(e.message||"A selfie is needed to save this.");return logIssue(e&&e.code==="invalid_argument"?"You have view-only access to this page.":e&&e.code==="quota_exceeded"?"The hub’s storage is full.":"That didn’t save.",e&&e.code==="quota_exceeded"?"Remove old photos or documents, then try again.":"Check your connection and try again.")}
 /* timeline */
 var CDRAFT={},FPHOTO=null,FMORE=[];
 var REACTS=[["like","👍","Like","#2078f4"],["love","❤️","Love","#f33e58"],["care","🥰","Care","#f7b125"],["haha","😆","Haha","#f7b125"],["wow","😮","Wow","#f7b125"],["sad","😢","Sad","#f7b125"],["angry","😡","Angry","#e9710f"]];
@@ -4170,6 +4174,7 @@ window.addEventListener("error",function(e){try{if(e&&e.message&&!/ResizeObserve
 window.addEventListener("unhandledrejection",function(e){try{var m=String(e&&e.reason&&(e.reason.message||e.reason)||"");if(m&&!/AbortError|aborted/i.test(m))logIssue("A background task didn’t finish.",m.slice(0,160),true)}catch(x){}});
 setInterval(function(){try{paintIssueBadge()}catch(e){}},2000);
 function fail(e){
+  if(e&&e.code==="observer")return logIssue("This account is view only.","The hub admin can see everything but can’t post, comment, like or send.");
   if(e&&e.code==="selfie")return note(e.message||"A selfie is needed to save this.");
   var m=String(e&&e.message||""),c=e&&e.code;
   if(c==="42501"||/row-level security|permission denied|not allowed/i.test(m))return logIssue("You can view this section but not change it.","Your access to this section is view-only.");
@@ -4239,22 +4244,31 @@ function mkDb(sb){
     var o2=clone(o);delete o2._selfie;
     return window.hubSelfie(label).then(function(sf){if(sf)o2[field]=sf;return o2});
   }
+  /* the hub admin is an observer: can look at everything, cannot post, comment, like, upload or send */
+  var OBSOK={settings:1,profiles:1,aiuse:1};
+  function obsBlocked(c,o,del){
+    if(!window.HUB_OBS||OBSOK[c])return false;
+    if(!del&&o){var ks=Object.keys(o).filter(function(k){return k!=="_selfie"});if(ks.length&&ks.every(function(k){return k==="review"}))return false}
+    return true;
+  }
+  function obsErr(){return Promise.reject({code:"observer",message:"observer"})}
   function wr(res){if(res.error)throw res.error;return res}
   function need(res){wr(res);if(!res.data||!res.data.length)throw {code:"42501",message:"row-level security"};return res}
   function docRef(coll,id){
     var key=coll+"/"+id;
     return {
       id:id,
-      set:function(o){return gated(coll,o,false).then(function(o2){return sb.from("docs").upsert({key:key,collection:coll,id:id,data:Object.assign({_u:myId||undefined},clone(o2))}).then(wr).then(function(){touch(coll)})})},
+      set:function(o){if(obsBlocked(coll,o))return obsErr();return gated(coll,o,false).then(function(o2){return sb.from("docs").upsert({key:key,collection:coll,id:id,data:Object.assign({_u:myId||undefined},clone(o2))}).then(wr).then(function(){touch(coll)})})},
       get:function(){return sb.from("docs").select("data").eq("key",key).maybeSingle().then(wr).then(function(r){return {exists:!!r.data,id:id,data:function(){return r.data?clone(r.data.data):undefined}}})},
       update:function(o){
+        if(obsBlocked(coll,o))return obsErr();
         return gated(coll,o,false).then(function(o2){
         return sb.from("docs").select("data").eq("key",key).maybeSingle().then(wr).then(function(r){
           if(!r.data)throw {message:"missing"};
           return sb.from("docs").update({data:Object.assign({},r.data.data,o2)}).eq("key",key).select("key");
         }).then(need).then(function(){touch(coll)})});
       },
-      delete:function(){return sb.from("docs").delete().eq("key",key).select("key").then((coll==="plikes"||coll==="media")?wr:need).then(function(){touch(coll)})},
+      delete:function(){if(obsBlocked(coll,null,true))return obsErr();return sb.from("docs").delete().eq("key",key).select("key").then((coll==="plikes"||coll==="media")?wr:need).then(function(){touch(coll)})},
       onSnapshot:function(cb,err){return listen({coll:coll,id:id,cb:cb,err:err})}
     };
   }
@@ -4811,7 +4825,7 @@ function tabOk(id){
   return isOwner||!!(PERM[FEAT[id]]&&PERM[FEAT[id]].v);
 }
 function tabEdit(id){
-  if(!STARTED||!FEAT[id])return false;
+  if(!STARTED||!FEAT[id]||OBS)return false;
   return isOwner||!!(PERM[FEAT[id]]&&PERM[FEAT[id]].e);
 }
 function applyAccess(){
@@ -4831,6 +4845,7 @@ async function loadAccess(){
   PERMROWS=r[2].data||[];
   MEMBER=MEMBERS.filter(function(m){return m.user_id===myId})[0]||null;
   isOwner=!!(MEMBER&&MEMBER.is_owner);
+  OBS=!!(MEMBER&&MEMBER.is_owner&&MEMBER.grp!=="parent");window.HUB_OBS=OBS;
   PERM={};
   if(MEMBER)PERMROWS.forEach(function(p){if(p.grp===MEMBER.grp)PERM[p.feature]={v:!!(p.can_view||p.can_edit),e:!!p.can_edit}});
   return MEMBER;
@@ -4877,7 +4892,7 @@ function renderAccess(){
     var ni=h("input");ni.value=m.name;ni.maxLength=40;ni.setAttribute("aria-label","Name");if(m.grp==="parent")ni.disabled=true;
     ni.onchange=function(){var v=ni.value.trim();if(!v)return;sb.from("members").update({name:v}).eq("user_id",m.user_id).then(function(x){if(x.error)fail(x.error);else loadAccess().then(function(){renderAccess();renderAll()})})};
     c.appendChild(ni);
-    c.appendChild(h("div","meta",(EMAILS[m.user_id]||"")+(m.is_owner?" · Owner":"")+(roleTitle(m.user_id)?" · "+roleTitle(m.user_id):"")));
+    c.appendChild(h("div","meta",(EMAILS[m.user_id]||"")+(roleTitle(m.user_id)?" · "+roleTitle(m.user_id):"")));
     var gs=h("select");gs.setAttribute("aria-label","Group");gs.disabled=!!m.is_owner;
     GROUPS.forEach(function(g){var o=h("option",null,g[1]);o.value=g[0];if(g[0]==="parent"&&m.grp!=="parent"&&MEMBERS.filter(function(x){return x.grp==="parent"}).length>=2){o.disabled=true;o.textContent="Parent (slots taken)"}gs.appendChild(o)});gs.value=m.grp;
     gs.onchange=function(){sb.from("members").update({grp:gs.value}).eq("user_id",m.user_id).then(function(x){if(x.error)fail(x.error);loadAccess().then(renderAccess)})};
@@ -4933,7 +4948,7 @@ function parentSlots(){
 /* account card (Help page) */
 function renderAcct(){
   if(!MEMBER)return;
-  $("#acct").textContent="Signed in as "+(EMAILS[myId]||"you")+" · "+glabel(MEMBER.grp)+(MEMBER.is_owner?" · Owner":"");
+  $("#acct").textContent="Signed in as "+(EMAILS[myId]||"you")+" · "+memberRole(MEMBER)+(OBS?" · view only":"");
   if(document.activeElement!==$("#myname"))$("#myname").value=MEMBER.name;
   var lk=nameLocked();$("#myname").disabled=lk;$("#savename").hidden=lk;
   var nn=document.getElementById("namelock");if(nn)nn.hidden=!lk;
@@ -5847,7 +5862,7 @@ function getChats(){
     if(k.indexOf("chat_")===0&&d&&d.chatmeta&&(d.members||[]).indexOf(myId)>=0)out[k.slice(5)]={id:k.slice(5),type:"group",name:d.name||"Group",members:d.members,by:d.by,ts:d.ts||0};
   });
   Object.keys(by).forEach(function(c){
-    if(c.indexOf("dm_")===0&&c.indexOf(myId)>=0&&!out[c]){var ms=dmMembers(c);out[c]={id:c,type:"dm",name:mname(ms.filter(function(x){return x!==myId})[0]||myId),members:ms}}
+    if(c.indexOf("dm_")===0&&c.indexOf(myId)>=0&&!out[c]&&!OBS){var ms=dmMembers(c);out[c]={id:c,type:"dm",name:mname(ms.filter(function(x){return x!==myId})[0]||myId),members:ms}}
   });
   var lp=LPf();
   return Object.keys(out).map(function(k){
@@ -6033,7 +6048,7 @@ function moreMenu(c){
 }
 
 /* ---------- new chat / group ---------- */
-function people(){return MEMBERS.filter(function(u){return u.user_id!==myId&&canMsg(u)})}
+function people(){if(OBS)return [];return MEMBERS.filter(function(u){return u.user_id!==myId&&canMsg(u)&&!(u.is_owner&&u.grp!=="parent")})}
 function page(title,build,onBack){
   var pg=E("div");pg.style.cssText="position:absolute;inset:0;background:var(--wbg);z-index:30;display:flex;flex-direction:column";
   var hd=E("div","wch");hd.style.background="var(--wbg)";
@@ -6050,7 +6065,7 @@ function newChat(){
     if(!ps.length)B.appendChild(T("div","wempty","No one else has joined the hub yet."));
     ps.forEach(function(u){
       var b=E("button","wlist","");var a=avatar({type:"dm",id:dmId(myId,u.user_id),members:[myId,u.user_id]},"");b.appendChild(a);
-      var t=E("div","t");t.appendChild(T("b",null,u.name));t.appendChild(T("small",null,u.is_owner?"Owner":u.grp));b.appendChild(t);
+      var t=E("div","t");t.appendChild(T("b",null,u.name));t.appendChild(T("small",null,memberRole(u)));b.appendChild(t);
       b.onclick=function(){pg.remove();openChat(dmId(myId,u.user_id))};B.appendChild(b);
     });
   });
@@ -6094,7 +6109,7 @@ function info(c){
     a.style.boxShadow="none";a.onclick=null;ring.appendChild(a);top.appendChild(ring);
     var n=T("div",null,c.name);n.style.cssText="font-size:1.6rem;font-weight:700";top.appendChild(n);
     var sub="";
-    if(c.type==="dm"){var ou=c.members.filter(function(x){return x!==myId})[0],mu=MEMBERS.filter(function(x){return x.user_id===ou})[0];sub=roleTitle(ou)||(mu?(mu.is_owner?"Hub owner":(mu.grp||"Member")):"Member")}
+    if(c.type==="dm"){var ou=c.members.filter(function(x){return x!==myId})[0],mu=MEMBERS.filter(function(x){return x.user_id===ou})[0];sub=roleTitle(ou)||(mu?(mu.is_owner&&mu.grp!=="parent"?"Cordial Co-Parenting":(mu.grp||"Member")):"Member")}
     else sub=(c.type==="group"?"Group · ":"")+c.members.length+" members";
     var sb2=T("div",null,sub);sb2.style.cssText="color:var(--wmut);margin-top:2px";top.appendChild(sb2);B.appendChild(top);
     var tl=E("div");tl.style.cssText="display:flex;gap:10px;padding:14px 14px 6px";
@@ -6121,7 +6136,7 @@ function info(c){
     row(c3,"📤","Export chat",null,function(){chatExport(c)});
     if(c.type==="group"||c.type==="family"){
       B.appendChild(T("div","wsec",c.members.length+" members"));
-      c.members.forEach(function(id){var b=E("div","wlist","");b.appendChild(avatar({type:"dm",id:"x",members:[myId,id]},"sm"));var t=E("div","t");t.appendChild(T("b",null,mname(id)));var u=MEMBERS.filter(function(x){return x.user_id===id})[0];if(u&&u.is_owner)t.appendChild(T("small",null,"Hub owner"));b.appendChild(t);B.appendChild(b)});
+      c.members.forEach(function(id){var b=E("div","wlist","");b.appendChild(avatar({type:"dm",id:"x",members:[myId,id]},"sm"));var t=E("div","t");t.appendChild(T("b",null,mname(id)));var u=MEMBERS.filter(function(x){return x.user_id===id})[0];if(u&&u.is_owner&&u.grp!=="parent")t.appendChild(T("small",null,"Cordial Co-Parenting"));b.appendChild(t);B.appendChild(b)});
     }
     if(c.type==="group"){
       var lv=E("button","wlist","");var t=E("div","t");var b=T("b",null,"Leave group");b.style.color="#ea0038";t.appendChild(b);lv.appendChild(t);
