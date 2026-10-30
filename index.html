@@ -917,10 +917,6 @@ main{max-width:100%}
   <div class="card"><h2>Log</h2><div id="nl"></div></div>
 </section>
 
-<section id="p-kids" hidden>
-  <div class="card" id="kidhint"><h2>Children and family</h2><p class="meta" style="margin:0">To add a child, go to the People page.</p><button class="go" type="button" id="kgo" style="margin-top:8px">Go to People</button></div>
-  <div id="kl"></div>
-</section>
 
 <section id="p-trips" hidden>
   <div class="card" id="tform">
@@ -937,14 +933,6 @@ main{max-width:100%}
 </section>
 
 <section id="p-people" hidden>
-  <div class="card" id="kform" style="display:none">
-    <h2>Add a child</h2>
-    <label>Name<input id="kn" maxlength="60"></label>
-    <label>School and grade<input id="ks" maxlength="100"></label>
-    <label>Medical (doctor, allergies, medications)<textarea id="km" maxlength="800"></textarea></label>
-    <label>Emergency contacts and other details<textarea id="kc" maxlength="800"></textarea></label>
-    <button class="go" id="kadd">Save child</button>
-  </div>
   <div class="card" id="pform">
     <h2>Add a person</h2>
     <label>Name<input id="pn" maxlength="60"></label>
@@ -1191,9 +1179,9 @@ function hubRing(force){
   }catch(e){}
 }
 var OBS=false,STARTED=false,READY=false,isOwner=false,PERM={},CUR="home";
-var FEAT={sched:"calendar",exp:"expenses",notes:"notes",kids:"children",docs:"documents",msg:"messages",call:"calls",people:"people",trips:"documents",meet:"notes",todo:"notes",feed:"messages",chats:"messages",media:"messages",notif:"messages",profile:"messages"};
+var FEAT={sched:"calendar",exp:"expenses",notes:"notes",docs:"documents",msg:"messages",call:"calls",people:"people",trips:"documents",meet:"notes",todo:"notes",feed:"messages",chats:"messages",media:"messages",notif:"messages",profile:"messages"};
 S.posts=[];S.wstat=[];S.plikes=[];S.pcom=[];S.mnotes=[];
-var TABS=[["sched","Events and Calendar"],["exp","Expenses and Support"],["notes","Documents and Notes"],["meet","Meetings"],["todo","To-do list"],["kids","Kids"],["docs","Documents"],["msg","Calls and Messages"],["feed","Timeline"],["chats","Chats"],["media","Media"],["notif","Notifications"],["profile","Profile"],["call","Calls"],["people","People"],["trips","Actual meetings"],["issues","Issues"],["access","Access"],["help","Help"]];
+var TABS=[["sched","Events and Calendar"],["exp","Expenses and Support"],["notes","Documents and Notes"],["meet","Meetings"],["todo","To-do list"],["docs","Documents"],["msg","Calls and Messages"],["feed","Timeline"],["chats","Chats"],["media","Media"],["notif","Notifications"],["profile","Profile"],["call","Calls"],["people","People"],["trips","Actual meetings"],["issues","Issues"],["access","Access"],["help","Help"]];
 var money=function(n){return Number(n).toLocaleString("en-NG",{style:"currency",currency:"NGN"})};
 var pad=function(n){return String(n).padStart(2,"0")};
 var key=function(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())};
@@ -1264,7 +1252,9 @@ function renderCal(){
     if(e.who)b.appendChild(h("small",null,nm(e.who)));
     if(e.note)b.appendChild(h("small",null,e.note));
     var dt=new Date(y,mo,d);
-    if(k>=today&&zplan().days.indexOf(dt.getDay())>=0)b.appendChild(h("small","dcall","📞 "+zLocalTime(zplan().t)));
+    if(k>=today){var zv=(S.events||[]).filter(function(x){return x.zoom});
+      if(zv.length){var ze=zv.filter(function(x){return x.date===k})[0];if(ze)b.appendChild(h("small","dcall","📞 "+zLocalTime(ze.time||zplan().t)))}
+      else if(k>=zplan().from&&zplan().days.indexOf(dt.getDay())>=0)b.appendChild(h("small","dcall","📞 "+zLocalTime(zplan().t)))}
     b.onclick=function(){S.sel=k;S.who=e.who||null;openEditor();renderCal()};
     C.appendChild(b);
   })(d);
@@ -1742,9 +1732,16 @@ function renderEvents(){
       var dt=new Date(e.date+"T12:00:00");
       l.appendChild(h("div","meta",dt.toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long",year:"numeric"})+(e.time?" · "+e.time:"")+(e.place?" · "+e.place:"")));
       if(e.notes)l.appendChild(h("div","meta",e.notes));
-      l.appendChild(h("div","meta","Added by "+(e.by===myId?"you":memberName(e.by))));
+      l.appendChild(h("div","meta",e.zoom?"From the Zoom schedule":"Added by "+(e.by===myId?"you":memberName(e.by))));
+      if(e.zoom){
+        var zb=h("div");zb.style.cssText="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap";
+        if(e.date>=today){var jb=h("button","go sm","📞 Join call");jb.type="button";jb.onclick=function(){openZoomInHub()};zb.appendChild(jb)}
+        else{var nt=(S.mnotes||[]).filter(function(n){return n.start&&new Date(n.start+3600e3).toISOString().slice(0,10)===e.date})[0];
+          if(nt){var sb=h("button","go sm","📝 Summary");sb.type="button";sb.onclick=function(){MOPEN[nt.id]=true;showTab("meet")};zb.appendChild(sb)}
+          else zb.appendChild(h("span","meta","No summary for this call"))}
+        l.appendChild(zb)}
       r.appendChild(l);
-      if(canWrite&&(e.by===myId||isOwner)){var rm=h("button","quiet","Remove");rm.type="button";rm.onclick=function(){if(confirm("Remove this event?"))db.doc("schedule/"+e.id).delete().catch(fail)};r.appendChild(rm)}
+      if(!e.zoom&&canWrite&&(e.by===myId||isOwner)){var rm=h("button","quiet","Remove");rm.type="button";rm.onclick=function(){if(confirm("Remove this event?"))db.doc("schedule/"+e.id).delete().catch(fail)};r.appendChild(rm)}
       c.appendChild(r)});
     box.appendChild(c);
   }
@@ -2144,22 +2141,6 @@ function renderNotes(){
   if(userCap&&ids.length)Promise.resolve(userCap.profiles(ids)).then(go,function(){go(null)});else go(null);
 }
 
-/* kids */
-$("#kadd").onclick=function(){
-  var n=$("#kn").value.trim();if(!db||!n)return note("Add the child’s name first.");
-  db.collection("kids").add({name:n,school:$("#ks").value.trim(),medical:$("#km").value.trim(),contacts:$("#kc").value.trim()}).then(function(){["#kn","#ks","#km","#kc"].forEach(function(s){$(s).value=""});note("")},fail)};
-function renderKids(){
-  var L=$("#kl");L.textContent="";
-  if(!S.kids.filter(function(k){return k.id!=="baby"}).length)L.appendChild(h("p","empty","Janet has her own place in the People page. Other children you add will show here. Add names, school, medical details, and emergency contacts."));
-  S.kids.filter(function(k){return k.id!=="baby"}).forEach(function(k){
-    var c=h("div","card");c.style.borderLeft="6px solid "+PINK;var kh=h("h2",null,k.name);kh.style.color=PINK;c.appendChild(kh);
-    if(k.permanent)c.appendChild(h("div","meta","Our baby"));
-    [["School",k.school],["Medical",k.medical],["Contacts and details",k.contacts]].forEach(function(p){
-      if(!p[1])return;c.appendChild(h("div","meta",p[0]));c.appendChild(h("div","pre",p[1])).style.marginBottom="8px"});
-    if(canWrite&&!k.permanent){var rm=h("button","quiet","Remove "+k.name);rm.onclick=function(){db.doc("kids/"+k.id).delete().catch(fail)};c.appendChild(rm)}
-    L.appendChild(c)});
-}
-
 /* home */
 var TILES=[
   ["msg","Calls and Messages","<path d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/><path d='M8 8h8M8 12h5'/>","#4b7aa3,#3a6088"],
@@ -2169,14 +2150,12 @@ var TILES=[
   ["meet","Meetings","<rect x='2' y='5' width='14' height='14' rx='2'/><path d='M16 10l6-3v10l-6-3z'/>","#5f8fb0,#487596"],
   ["todo","To-do list","<path d='M9 6h11M9 12h11M9 18h11'/><path d='M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11M3.5 18l1.5 1.5L7.5 17'/>","#6fae8b,#4f9370"],
   ["exp","Expenses","<path d='M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z'/><path d='M8 8h8M8 12h8'/>","#8dbba0,#76a58b","#1f3a2c"],
-  ["kids","Children and family","<path d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8'/>","#e0a58f,#cf8c76","#4a2418"],
   ["people","People","<path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M19 8v6M22 11h-6'/>","#6f9a8a,#557f70"],
   ["access","Access","<rect x='4' y='11' width='16' height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/>","#7d8b5a,#657245"],
   ["issues","Issues","<path d='M12 2 1 21h22z'/><path d='M12 9v5M12 17.5v.5'/>","#d9825b,#c46a43"],
   ["help","Help","<path d='M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z'/>","#86a3bd,#6c8aa6"]
 ];
 TILES.forEach(function(t){
-  if(t[0]==="kids")return;
   var b=h("button","tile"),ic=h("span","ic");
   ic.style.background="linear-gradient(160deg,"+t[3]+")";if(t[4])ic.style.color=t[4];
   ic.innerHTML="<svg viewBox='0 0 24 24' width='34' height='34' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>"+t[2]+"</svg>";
@@ -2239,7 +2218,6 @@ addSeg("p-docs",[["docs","Documents"],["notes","Notes"]],"docs");
 addSeg("p-notes",[["docs","Documents"],["notes","Notes"]],"notes");
 addSeg("p-meet",[["meet","Virtual meetings"],["trips","Actual meetings"]],"meet");
 addSeg("p-trips",[["meet","Virtual meetings"],["trips","Actual meetings"]],"trips");
-$("#kgo")&&($("#kgo").onclick=function(){hubSub("people")});
 $("#back").onclick=function(){if(window.__callFrom&&window.waOpen){window.__callFrom=0;if(window.waSubSync)waSubSync();waOpen("calls");return}showTab("home")};
 var ADD=[["Post","feed","#ft"],["Message","msg","#mt"],["Expense","exp","#xd"],["Note","notes","#nt"],["Document","docs","#dt"],["Person","people","#pn"],["Calendar day","sched",null]];
 ADD.forEach(function(a){
@@ -2263,8 +2241,7 @@ function renderHome(){
   var last=S.msgs.length?previewText(S.msgs[S.msgs.length-1]):"";
   [["Today",e&&e.who?"With "+nm(e.who)+(e.note?" – "+e.note:""):"No schedule set for today"],
    ["Expenses",$("#bal").textContent||"No expenses yet"],
-   ["Children",S.kids.length?S.kids.map(function(k){return k.name}).join(", "):"None added yet"],
-   ["Latest message",last?(last.length>80?last.slice(0,80)+"…":last):"No messages yet"]].filter(function(r){return tabOk({"Today":"sched","Expenses":"exp","Children":"kids","Latest message":"msg"}[r[0]])}).forEach(function(r){
+   ["Latest message",last?(last.length>80?last.slice(0,80)+"…":last):"No messages yet"]].filter(function(r){return tabOk({"Today":"sched","Expenses":"exp","Latest message":"msg"}[r[0]])}).forEach(function(r){
     var row=h("div","item"),c=h("div");c.style.flex="1";c.appendChild(h("div","meta",r[0]));c.appendChild(h("div",null,r[1]));
     var g=h("span","dg","⠿");g.style.cssText="width:26px;flex:none;align-self:center";row.dataset.k=r[0];row.appendChild(g);row.appendChild(c);row.style.justifyContent="flex-start";L.appendChild(row)});
   var ord=lsGet("hubFamOrder",[]);
@@ -2601,7 +2578,7 @@ async function measure(){
 }
 $("#stref").onclick=measure;
 /* court-ready report */
-var RPOPTS=[["cal","Calendar and custody days",1],["msg","Family chat messages",1],["exp","Expenses and Support (with totals)",1],["mtg","Meetings and attendance",1],["nts","Notes",1],["doc","List of documents",1],["trp","Trips and visits",1],["kid","Children’s information",0]];
+var RPOPTS=[["cal","Calendar and custody days",1],["msg","Family chat messages",1],["exp","Expenses and Support (with totals)",1],["mtg","Meetings and attendance",1],["nts","Notes",1],["doc","List of documents",1],["trp","Trips and visits",1]];
 (function(){var o=$("#rpopts");if(!o)return;RPOPTS.forEach(function(x){var l=document.createElement("label");l.style.cssText="display:flex;align-items:center;gap:8px;font-weight:400";var c=document.createElement("input");c.type="checkbox";c.checked=!!x[2];c.dataset.k=x[0];c.style.cssText="width:auto;margin:0";l.appendChild(c);l.appendChild(document.createTextNode(x[1]));o.appendChild(l)});
   var t=new Date(),f=new Date(t.getTime()-90*864e5);$("#rpto").value=key(t);$("#rpfrom").value=key(f)})();
 
@@ -2699,9 +2676,6 @@ function rpBuild(from,to,inc){
   if(inc.trp){
     var tr=(S.docs||[]).filter(function(d){return d.cat==="Trip"&&(inD(d.start||"")||inD(d.end||""))}).sort(function(a,b){return String(a.start).localeCompare(String(b.start))});
     sec("Trips and visits",tr.map(function(t){var fl=(S.docs||[]).filter(function(f){return f.cat==="TripFile"&&f.trip===t.id}).length;return [t.type||"Trip",t.title||"",[t.place,t.who&&"With "+t.who].filter(Boolean).join(" · "),fd(t.start)+(t.end&&t.end!==t.start?" to "+fd(t.end):""),fl+" file(s)"]}),["Type","Title","Details","Dates","Files"]);
-  }
-  if(inc.kid){
-    sec("Children’s information",(S.kids||[]).map(function(k){return [k.name||"",k.school||"",k.medical||"",k.contacts||""]}),["Name","School","Medical","Emergency contacts"],"Current details as saved in the hub (not limited to the dates above).");
   }
   if(window.__rpSelf&&window.__rpSelf.length){
     out.push("<h2>Identity verification photos</h2><div class='meta'>A photo of the person was taken at the moment each entry below was saved in the hub.</div>"+window.__rpSelf.map(function(d){
@@ -3417,15 +3391,15 @@ async function openZoomInHub(){
 }
 
 var ZNUM="81051139171",ZURL="https://us06web.zoom.us/j/81051139171?pwd=JXEuVJy2WoefoMiakLSYBJRh7TLeDC.1",ZDN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-function zplan(){var p=S.callplan||{};return{days:Array.isArray(p.days)?p.days:[2,4,6],t:p.t||"18:30"}}
+function zplan(){var p=S.callplan||{};return{days:Array.isArray(p.days)?p.days:[0,2,5],t:p.t||"18:30",from:p.from||"2026-11-03"}}
 function zutc(t,dayOff){var a=t.split(":"),h=(+a[0]||0)-1,m=+a[1]||0;return{h:((h%24)+24)%24,m:m,back:h<0}}
 function zLocalTime(t){var u=zutc(t),d=new Date(Date.UTC(2026,0,5,u.h,u.m));return d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
 function zNext(){
   var pl=zplan(),u=zutc(pl.t),now=new Date();
-  for(var i=0;i<9;i++){
+  for(var i=0;i<40;i++){
     var d=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()+i,u.h,u.m));
     var wd=new Date(d.getTime()+3600*1000).getUTCDay();
-    if(pl.days.indexOf(wd)>=0&&d.getTime()+3600*1000>now.getTime())return d;
+    if(pl.days.indexOf(wd)>=0&&d.getTime()+3600*1000>now.getTime()&&new Date(d.getTime()+3600*1000).toISOString().slice(0,10)>=pl.from)return d;
   }
   return null;
 }
@@ -3434,7 +3408,7 @@ function renderZoomCard(){
   var pl=zplan(),D=$("#zdays");if(!D)return;D.textContent="";
   [1,2,3,4,5,6,0].forEach(function(n){
     var b=h("button","quiet"+(pl.days.indexOf(n)>=0?" on":""),ZDN[n]);b.type="button";
-    b.onclick=function(){var a=zplan().days.slice(),i=a.indexOf(n);if(i>=0)a.splice(i,1);else a.push(n);S.callplan={days:a,t:$("#ztime").value||pl.t};renderZoomCard()};
+    b.onclick=function(){var a=zplan().days.slice(),i=a.indexOf(n);if(i>=0)a.splice(i,1);else a.push(n);S.callplan={days:a,t:$("#ztime").value||pl.t,from:pl.from};renderZoomCard()};
     D.appendChild(b)});
   if(document.activeElement!==$("#ztime"))$("#ztime").value=pl.t;
   var nx=zNext();
@@ -3446,7 +3420,7 @@ function renderZoomCard(){
 $("#zphone").onclick=function(e){e.preventDefault();openZoomInHub()};
 $("#zsave").onclick=function(){
   if(!db)return;var pl=zplan();
-  db.doc("settings/callplan").set({days:pl.days,t:$("#ztime").value||pl.t}).then(function(){note("Call schedule saved.")},fail)};
+  db.doc("settings/callplan").set({days:pl.days,t:$("#ztime").value||pl.t,from:pl.from}).then(function(){note("Call schedule saved.")},fail)};
 $("#zics").onclick=function(){
   var pl=zplan(),nx=zNext()||new Date(),en=new Date(nx.getTime()+1800*1000);
   var days=pl.days.map(function(n){return["SU","MO","TU","WE","TH","FR","SA"][n]}).join(",");
@@ -4277,8 +4251,8 @@ function renderFeed(){
   if(CS.post)renderCS(false);
 }
 
-function renderAll(){safe(renderTodos)();safe(renderLegend)();safe(renderCal)();safe(openEditor)();safe(renderExp)();safe(renderNotes)();safe(renderMeet)();safe(renderProf)();safe(renderKids)();safe(renderDocs)();safe(renderTrips)();safe(renderMsgs)();safe(renderFeed)();safe(renderCall)();safe(renderPeople)();safe(renderHome)()}
-function lockForms(){["#fbar","#exform","#nform","#mnform","#editor","#mform","#fform","#cstart","#pform","#dform","#tform"].forEach(function(s){var e=$(s);if(e)e.style.display=canWrite?"":"none"});var kf=$("#kform");if(kf)kf.style.display="none";var kh=$("#kidhint");if(kh){var kb=$("#kgo");if(kb)kb.style.display=tabOk("people")?"":"none"}}
+function renderAll(){safe(renderTodos)();safe(renderLegend)();safe(renderCal)();safe(openEditor)();safe(renderExp)();safe(renderNotes)();safe(renderMeet)();safe(renderProf)();safe(renderDocs)();safe(renderTrips)();safe(renderMsgs)();safe(renderFeed)();safe(renderCall)();safe(renderPeople)();safe(renderHome)()}
+function lockForms(){["#fbar","#exform","#nform","#mnform","#editor","#mform","#fform","#cstart","#pform","#dform","#tform"].forEach(function(s){var e=$(s);if(e)e.style.display=canWrite?"":"none"});}
 
 READY=true;
 renderAll();
@@ -4287,7 +4261,7 @@ renderAll();
 var CFG=window.HUB_CONFIG||{};
 var sb=null,MEMBERS=[],EMAILS={},PERMROWS=[],MEMBER=null,OPENG=null,SIGSIG="";
 var GROUPS=[["parent","Parent","Parents"],["guardian","Guardian","Guardians"],["family","Family member","Family members"],["nanny","Nanny","Nannies"],["lawyer","Lawyer","Lawyers"],["mediator","Mediator","Mediators"],["therapist","Counsellor or therapist","Counsellors and therapists"],["gal","Guardian ad litem / social worker","Guardians ad litem and social workers"],["owner","Owner","Owner"]];
-var FLAB=[["calendar","Calendar"],["messages","Messages"],["calls","Calls"],["documents","Documents"],["notes","Notes"],["expenses","Expenses and Support"],["children","Children and family"],["people","People"]];
+var FLAB=[["calendar","Calendar"],["messages","Messages"],["calls","Calls"],["documents","Documents"],["notes","Notes"],["expenses","Expenses and Support"],["people","People"]];
 function glabel(g){var x=GROUPS.filter(function(r){return r[0]===g})[0];return x?x[1]:g}
 
 
@@ -5166,7 +5140,7 @@ function subscribeAll(){
   db.collection("highlights").limit(500).onSnapshot(function(s){S.hl=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderProf()},err);
   db.collection("meetingnotes").limit(300).onSnapshot(function(s){S.mnotes=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderMeet()},err);
   db.collection("notes").orderBy("ts","desc").limit(200).onSnapshot(function(s){S.notes=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderNotes()},err);
-  db.collection("kids").onSnapshot(function(s){S.kids=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderKids();if(isOwner&&READY&&!S.kids.some(function(k){return k.id==="baby"}))db.doc("kids/baby").set({name:"Janet Onyemachi Chuku",permanent:true,school:"",medical:"",contacts:"",ts:Date.now()}).catch(function(){})},err);
+  db.collection("kids").onSnapshot(function(s){S.kids=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});if(isOwner&&READY&&!S.kids.some(function(k){return k.id==="baby"}))db.doc("kids/baby").set({name:"Janet Onyemachi Chuku",permanent:true,school:"",medical:"",contacts:"",ts:Date.now()}).catch(function(){})},err);
   db.collection("messages").orderBy("ts","desc").limit(1500).onSnapshot(function(s){S.allmsgs=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})}).reverse();S.msgs=S.allmsgs.filter(function(m){return !m.chat});
     var mxi=0;S.allmsgs.forEach(function(m){if(m.by!==myId&&m.kind!=="sys"&&m.ts>mxi)mxi=m.ts});
     if(S._inTs!=null&&mxi>S._inTs)hubSound("msg");S._inTs=Math.max(S._inTs||0,mxi);renderMsgs();if(window.waRender)waRender()},err);
@@ -5303,7 +5277,7 @@ async function start(session){
     var list=DS.list;list.textContent="";
     menuIds().forEach(function(id){
       var t=TILES.filter(function(x){return x[0]===id})[0];if(!t||!tabOk(id))return;
-      if(id==="feed"||id==="kids")return;
+      if(id==="feed")return;
       var r=mk("div","drow");r.dataset.k=id;
       r.appendChild(mk("span","dg","⠿"));
       var ci=mk("span","ci","<svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>"+t[2]+"</svg>");
@@ -5491,8 +5465,7 @@ async function start(session){
       ["Messages",S.msgs.filter(function(m){return has(previewText(m))}),function(m){return previewText(m)},"msg"],
       ["Notes",S.notes.filter(function(n){return has(n.text)}),function(n){return n.text},"notes"],
       ["People",S.people.filter(function(p){return has([p.name,p.role,p.email,p.phone].join(" "))}),function(p){return p.name+(p.role?" – "+p.role:"")},"people"],
-      ["Documents",S.docs.filter(function(d){return has((d.title||"")+" "+(d.name||""))}),function(d){return d.title||d.name},"docs"],
-      ["Children",S.kids.filter(function(k){return has(k.name)}),function(k){return k.name},"kids"]
+      ["Documents",S.docs.filter(function(d){return has((d.title||"")+" "+(d.name||""))}),function(d){return d.title||d.name},"docs"]
     ],any=false;
     G.forEach(function(g){
       if(!g[1].length)return;any=true;
@@ -5699,7 +5672,6 @@ async function start(session){
     {t:"Expenses and Support",d:function(){return "Expenses with their receipts, monthly support, school fees and the shopping list."+(tabEdit("exp")?(tgrp()==="parent"?" Add an expense with its receipt: Cordial reads it and flags anything that doesn’t match. Monthly support is marked paid by Daddy and confirmed received by Mummy.":" You can add entries here."):" You can view the totals and records but not change them.")},sel:pg("exp"),go:gopg("exp"),ok:function(){return tabOk("exp")}},
     {t:"Documents and notes",d:function(){return "Important documents, proof and notes."+(tabEdit("docs")||tabEdit("notes")?" When you upload, choose who can see it. Anything shared beyond Only me is checked by Cordial first.":" You can view what has been shared with you.")+" Items marked private or for chosen people appear only if you were chosen."},sel:pg("docs"),go:gopg("docs"),ok:function(){return tabOk("docs")||tabOk("notes")}},
     {t:"Privacy you control",d:"“Only me” items are hidden from everyone else, including the owner account, and skip the AI check. Money support and school fees are always visible to both parents so nothing is hidden. Private items travel over a secure connection.",sel:function(){return null},go:gopg("docs"),ok:function(){return tgrp()==="parent"&&tabOk("docs")}},
-    {t:"Children",d:function(){return "Information about the children the parents have chosen to share."+(tabEdit("kids")?" You can update it.":" You can view it but not change it.")},sel:pg("kids"),go:gopg("kids"),ok:function(){return tabOk("kids")}},
     {t:"Meetings",d:"Zoom meetings show a short summary, key points, what was agreed and the to-dos. Tap a meeting to open it. The tick on Zoom connection shows ✅ when everything is working, ⚠️ when something needs attention.",sel:pg("meet"),go:gopg("meet"),ok:function(){return tabOk("meet")}},
     {t:"To-do list",d:"Tasks agreed in meetings. The person responsible marks it done, the other parent confirms, and it moves to the archive.",sel:pg("todo"),go:gopg("todo"),ok:function(){return tabOk("todo")}},
     {t:"People",d:function(){return "Everyone in the hub is listed here, grouped under the parent who added them. Tap a name to open their profile."+(tgrp()==="parent"?" Add someone with an email and password and they can sign in straight away; you can remove the people you added, but not the other parent’s. Janet has an AI-run account: Cordial writes her posts, at most twice a week, and Mummy gets a Tuesday and Friday reminder to add photos and news to Janet’s journal, which stays private to the parents.":"")},sel:pg("people"),go:gopg("people"),ok:function(){return tabOk("people")}},
