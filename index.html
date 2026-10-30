@@ -93,7 +93,7 @@ a.go{display:inline-block;text-decoration:none;background:var(--btn);color:var(-
 .pfav.has{color:transparent}
 #prh{text-align:center}
 .pfname{font-size:1.45rem;font-weight:800;padding:0 14px}
-.pfbio{padding:8px 18px 0;font-size:.98rem}
+.pfbio{padding:8px 18px 0;font-size:.98rem;white-space:pre-line}
 .pfchips{padding:8px 18px 0;font-size:.88rem;color:var(--muted)}
 .pfbtns{display:flex;gap:8px;padding:14px 14px 16px}
 .pfedit{flex:1;border:0;border-radius:8px;padding:10px;font:inherit;font-weight:700;background:var(--bgrey,#e4e6eb);color:var(--ink);cursor:pointer}
@@ -1201,7 +1201,7 @@ function memberRole(m){return m&&m.is_owner&&m.grp!=="parent"?"Cordial Co-Parent
 
 /* verified tick for the two parents: blue in the Facebook-style pages, green in the WhatsApp-style pages */
 window.vbadge=function(uid,wa){
-  var o=ownerM(),m=mumM();if(!uid||!((o&&uid===o.user_id)||(m&&uid===m.user_id)))return null;
+  var o=ownerM(),m=mumM(),ad=(typeof MEMBERS!=="undefined"?MEMBERS:[]).filter(function(x){return x.is_owner&&x.grp!=="parent"})[0];if(!uid||!((o&&uid===o.user_id)||(m&&uid===m.user_id)||(ad&&uid===ad.user_id)||uid==="cordial_ai"))return null;
   var sp=document.createElement("span");sp.setAttribute("aria-label","Verified");sp.title="Verified";
   sp.style.cssText="display:inline-flex;vertical-align:-3px;margin-left:4px;flex:none";
   sp.innerHTML="<svg viewBox='0 0 24 24' width='"+(wa?16:17)+"' height='"+(wa?16:17)+"' aria-hidden='true'><path fill='"+(wa?"#1da851":"#1877f2")+"' d='M12 1.5l2.6 1.9 3.2-.1 1 3.1 2.6 1.9-1 3.1 1 3.1-2.6 1.9-1 3.1-3.2-.1L12 22.5l-2.6-1.9-3.2.1-1-3.1L2.6 15.7l1-3.1-1-3.1 2.6-1.9 1-3.1 3.2.1z'/><path fill='none' stroke='#fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' d='M8 12.3l2.8 2.8L16.3 9.5'/></svg>";
@@ -1296,7 +1296,7 @@ $("#xadd").onclick=async function(){
     var blob=f,name=f.name,type=f.type||"application/octet-stream";
     if(/^image\//.test(type)){try{var sh=await shrinkBlob(f);blob=sh.blob;type="image/jpeg";name=(f.name||"receipt").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
     var path=await upload("docs",blob,name);
-    var chk=await aiVerify(f,{kind:"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
+    var chk=await aiVerify(f,{slot:"exp",kind:"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
     var xrec=withShare({desc:d,amount:a,by:$("#xw").value,date:$("#xt").value||key(new Date()),proof:{path:path,name:name,type:type,size:blob.size||f.size},aicheck:chk},"exp");if(chk.status==="review")xrec.review={state:"pending"};
     await db.collection("expenses").add(xrec);
     $("#xd").value="";$("#xa").value="";$("#xf").value="";note("");
@@ -1449,14 +1449,14 @@ function shareWidget(slot,onChange){
   sel.onchange=function(){box.style.display=sel.value==="pick"?"block":"none";
     if(sel.value==="all")st.v=null;else if(sel.value==="me")st.v=[myId];else{build();st.v=null}
     if(onChange)onChange()};
-  w.appendChild(h("div","meta","Private items are hidden from everyone you don’t choose. The owner can always see everything. Money support and school fees stay visible to both parents."));
+  w.appendChild(h("div","meta","Private items are hidden from the other people in the hub unless you choose them. Money support and school fees stay visible to both parents."));
   st.reset=function(){sel.value="all";sel.onchange()};
   return w;
 }
 function shareLine(rec,coll){
   if(!rec||!rec.share)return null;
   var names=rec.share.filter(function(u){return u!==(rec._u||rec.by)}).map(function(u){var m=(MEMBERS||[]).filter(function(x){return x.user_id===u})[0];return m?m.name:"someone"});
-  var w=h("div","meta");w.textContent="🔒 "+(names.length?"Shared with "+names.join(", "):"Only "+((rec._u||rec.by)===myId?"you":"the uploader")+" and the owner can see this")+" ";
+  var w=h("div","meta");w.textContent="🔒 "+(names.length?"Shared with "+names.join(", "):"Private: only "+((rec._u||rec.by)===myId?"you":"the uploader")+" and the people you chose can see this")+" ";
   if(rec.id&&(rec._u||rec.by)===myId&&coll){var b=h("button","quiet sm","Change");b.type="button";b.style.marginLeft="4px";
     b.onclick=function(){
       var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px";
@@ -1474,6 +1474,8 @@ function mountShare(anchorSel,slot){var a=document.querySelector(anchorSel);if(a
 function blobB64(blob){return new Promise(function(res){var fr=new FileReader();fr.onload=function(){res(String(fr.result).split(",")[1]||"")};fr.onerror=function(){res("")};fr.readAsDataURL(blob)})}
 async function aiVerify(file,ctx){
   var unchecked={status:"unchecked",reasons:[],ts:Date.now()};
+  /* only items kept for yourself (Only me) skip the AI check. Anything shared with the co-parent or everyone is checked first */
+  try{if(ctx&&ctx.slot){var sv0=shareVal(ctx.slot);if(sv0&&sv0.every(function(x){return x===myId}))return unchecked}}catch(e){}
   try{
     note("Cordial is checking this file…");
     var type=file.type||"",att=null;
@@ -2027,12 +2029,12 @@ function renderProf(force){
   var avw=h("div","pfavw");avw.appendChild(av);if(own)avw.appendChild(ab);box.appendChild(avw);
   var pfn=h("div","pfname",nm0||"You"),vbp=vbadge(vid,false);if(vbp)pfn.appendChild(vbp);box.appendChild(pfn);
   var mm=own?MEMBER:MEMBERS.filter(function(x){return x.user_id===vid})[0];var g=(typeof GROUPS!=="undefined"&&mm)?(GROUPS.filter(function(x){return x[0]===mm.grp})[0]||[])[1]:"";
-  box.appendChild(h("div","meta",(mm&&mm.is_owner&&mm.grp!=="parent"?"Cordial Co-Parenting":(g||"Member"))+" · "+myPosts.length+(myPosts.length===1?" post":" posts")));
-  box.appendChild(h("div","pfbio",p.bio||(own?"Add a bio so everyone knows who you are.":"")));
+  box.appendChild(h("div","meta",(vid===BABY_ID?"Our Baby · AI agent account":mm&&mm.is_owner&&mm.grp!=="parent"?"Cordial Co-Parenting":(g||"Member"))+" · "+myPosts.length+(myPosts.length===1?" post":" posts")));
+  box.appendChild(h("div","pfbio",vid===BABY_ID?"Born 22 August 2024 · "+babyAge()+" old\nAI agent account. Cordial writes her posts and has no email or login. A real account is reserved for her from 22 August 2036, when she turns 12.":(p.bio||(own?"Add a bio so everyone knows who you are.":""))));
   var d2=[];if(p.work)d2.push("💼 "+p.work);if(p.loc)d2.push("📍 "+p.loc);
   if(d2.length)box.appendChild(h("div","pfchips",d2.join("  ·  ")));
   var br=h("div","pfbtns");
-  var eb=own?h("button","pfedit","✏️ Edit profile"):h("button","pfedit","💬 Message");eb.onclick=own?editProfile:function(){showTab("msg")};br.appendChild(eb);if(!own){var bb=h("button","pfedit","← My profile");bb.onclick=function(){openProfile(null)};br.appendChild(bb)}box.appendChild(br);
+  var eb=own?h("button","pfedit","✏️ Edit profile"):h("button","pfedit","💬 Message");eb.onclick=own?editProfile:function(){showTab("msg")};if(vid!==BABY_ID&&!(typeof OBS!=="undefined"&&OBS))br.appendChild(eb);if(!own){var bb=h("button","pfedit","← My profile");bb.onclick=function(){openProfile(null)};br.appendChild(bb)}box.appendChild(br);
   // tabs
   var tb=$("#prtabs");tb.textContent="";
   [["all","All"],["photos","Photos"],["rem","Reminders"],["ev","Events"]].forEach(function(t){
@@ -2160,6 +2162,7 @@ var TILES=[
   ["help","Help","<path d='M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z'/>","#86a3bd,#6c8aa6"]
 ];
 TILES.forEach(function(t){
+  if(t[0]==="kids")return;
   var b=h("button","tile"),ic=h("span","ic");
   ic.style.background="linear-gradient(160deg,"+t[3]+")";if(t[4])ic.style.color=t[4];
   ic.innerHTML="<svg viewBox='0 0 24 24' width='34' height='34' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>"+t[2]+"</svg>";
@@ -2349,7 +2352,7 @@ function renderMsgs(){
 
 /* reply and reactions */
 var PROF={},EMOJI=["👍","❤️","😂","😮","😢","🙏"];
-/* Janet's journal: Cordial asks Mummy twice a week for photos and news, to document Janet's journey. The journal is private to the parents and the owner. */
+/* Janet's journal: Cordial asks Mummy twice a week for photos and news, to document Janet's journey. The journal is private to the parents. */
 function janetEntries(){return Object.keys(S.prof||{}).filter(function(k){return k.indexOf("janet_")===0&&S.prof[k]&&S.prof[k].kind==="janetlog"}).map(function(k){return Object.assign({},S.prof[k],{id:k})}).sort(function(a,b){return (b.ts||0)-(a.ts||0)})}
 function janetWhat(e){var mood=["","a bit down","not her best","okay","happy","very happy"][e.mood||0]||"";var a=[];if(e.activities)a.push("What she has been up to: "+e.activities);if(e.school)a.push("School: "+e.school);if(mood)a.push("She has been "+mood);return a.join(". ")}
 async function janetPostFrom(e,quiet){
@@ -2363,7 +2366,7 @@ function openJanetJournal(){
   var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto";
   var bx=h("div","card");bx.style.cssText="max-width:440px;width:100%;margin:auto";
   bx.appendChild(h("h3",null,"Janet’s journal 📝"));
-  bx.appendChild(h("p","meta","Cordial is helping document Janet’s journey. Share a photo and a quick update. Janet’s own account (run by Cordial) can then post on her behalf. Her school, health and notes below stay private to you, Daddy and the hub owner."));
+  bx.appendChild(h("p","meta","Cordial is helping document Janet’s journey. Share a photo and a quick update. Janet’s own account (run by Cordial) can then post on her behalf. Her school, health and notes below stay private to you and Daddy."));
   var ph=h("input");ph.type="file";ph.accept="image/*";ph.multiple=true;bx.appendChild(h("label","meta","Photos (up to 3)"));bx.appendChild(ph);
   function ta(lbl,ph0){bx.appendChild(h("label","meta",lbl));var t=h("textarea");t.rows=2;t.placeholder=ph0||"";t.style.width="100%";bx.appendChild(t);return t}
   var act=ta("What has Janet been up to?","New words, games, outings…"),sch=ta("How is school going?","");
@@ -2475,12 +2478,10 @@ $("#padd").onclick=function(){
 function renderPeople(){
   var L=$("#pl");L.textContent="";
   /* Baby: Janet's reserved, AI-driven account */
-  var bk=(S.kids||[]).filter(function(k){return k.id==="baby"})[0]||{},bc=h("div","card");bc.appendChild(h("h2",null,"Baby (1)"));
+  var bk=(S.kids||[]).filter(function(k){return k.id==="baby"})[0]||{},bc=h("div","card");bc.appendChild(h("h2",null,"Baby"));
   var br=h("div","item");br.style.cssText="display:flex;align-items:center;gap:12px;cursor:pointer";
   var bav=avatarEl(BABY_ID,"pav",BABY.name);bav.style.cssText+=";flex:0 0 auto;width:44px;height:44px;font-size:1.1rem";
-  var bl=h("div");bl.style.minWidth="0";var bst=h("strong",null,BABY.name),bt=h("span",null," · Our Baby");bt.style.cssText="font-weight:600;opacity:.75";bst.appendChild(bt);bl.appendChild(bst);
-  bl.appendChild(h("div","meta","Born 22 August 2024 · "+babyAge()+" old"));
-  bl.appendChild(h("div","meta","AI agent account. Cordial writes her posts and has no email or login. A real account is reserved for her from 22 August 2036, when she turns 12."+(babyUnlocked()?" It is available now.":"")));
+  var bl=h("div");bl.style.cssText="min-width:0;flex:1;text-align:left";var bst=h("strong",null,BABY.name),bt=h("span",null," · Our Baby");bt.style.cssText="font-weight:600;opacity:.75";bst.appendChild(bt);bl.appendChild(bst);
   [["School",bk.school],["Medical",bk.medical],["Contacts and details",bk.contacts]].forEach(function(q){if(!q[1])return;bl.appendChild(h("div","meta",q[0]));var pre=h("div","pre",q[1]);bl.appendChild(pre)});
   br.appendChild(bav);br.appendChild(bl);br.onclick=function(e){if(e.target.closest&&e.target.closest(".babyact"))return;openProfile(BABY_ID)};
   bc.appendChild(br);
@@ -2504,9 +2505,9 @@ function renderPeople(){
       r.style.cssText="display:flex;align-items:center;gap:12px;cursor:pointer";
       var av=avatarEl(m.user_id==="x"?"":m.user_id,"pav",nmx);av.style.cssText+=";flex:0 0 auto;width:44px;height:44px;font-size:1.1rem";
       var st=h("strong",null,nmx);
-      try{var vb=vbadge(m.user_id,true);if(vb)st.appendChild(vb)}catch(e){}
+      try{var vb=vbadge(m.user_id,false);if(vb)st.appendChild(vb)}catch(e){}
       l.appendChild(st);if(rt){var rl=h("span",null," · "+rt);rl.style.cssText="font-weight:600;opacity:.75";st.appendChild(rl)}
-      l.style.minWidth="0";r.appendChild(av);r.appendChild(l);
+      l.style.cssText="min-width:0;flex:1;text-align:left";r.appendChild(av);r.appendChild(l);
       r.onclick=function(){openProfile(m.user_id)};
       hc.appendChild(r)});
     L.appendChild(hc);
@@ -3539,7 +3540,7 @@ $("#dup").onclick=async function(){
   var btn=$("#dup");btn.disabled=true;btn.textContent="Uploading…";
   try{
     var nn=stdName($("#dcat").value,t,f.name),path=await upload("docs",f,nn);
-    var chk=await aiVerify(f,{kind:"document",title:t||nn,category:$("#dcat").value,date:key(new Date())});
+    var chk=await aiVerify(f,{slot:"docs",kind:"document",title:t||nn,category:$("#dcat").value,date:key(new Date())});
     var drec=withShare({title:t||nn,cat:$("#dcat").value,path:path,name:nn,orig:f.name,type:f.type||"application/octet-stream",size:f.size,by:myId||"",ts:Date.now(),aicheck:chk},"docs");if(chk.status==="review")drec.review={state:"pending"};
     await db.collection("documents").add(drec);
     $("#df").value="";$("#dt").value="";note("");
@@ -4829,7 +4830,7 @@ function renderTrips(){
             var f=items[k].f,blob=f,fname=f.name,ftype=f.type||"application/octet-stream",cat=items[k].cat;
             if(/^image\//.test(ftype)){try{var sh=await shrinkBlob(f);blob=sh.blob;ftype="image/jpeg";fname=(f.name||"photo").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
             var path=await upload("docs",blob,fname);
-            var chk=await aiVerify(f,{kind:"trip "+cat,title:(t.title||"Trip")+" – "+fname,amount:items.length===1?(parseFloat(am.value)||null):null,date:t.start||key(new Date())});
+            var chk=await aiVerify(f,{slot:"trip",kind:"trip "+cat,title:(t.title||"Trip")+" – "+fname,amount:items.length===1?(parseFloat(am.value)||null):null,date:t.start||key(new Date())});
             var trec=withShare({cat:"TripFile",trip:t.id,tcat:cat,title:items[k].label||fname,amount:items.length===1?(parseFloat(am.value)||0):0,path:path,name:fname,type:ftype,size:blob.size||f.size,by:myId||"",ts:Date.now()+k,aicheck:chk},slot);if(chk.status==="review")trec.review={state:"pending"};
             await db.collection("documents").add(trec);
           }
@@ -4863,7 +4864,7 @@ $("#tadd").onclick=function(){
        var f=items[k].f,blob=f,fname=f.name,ftype=f.type||"application/octet-stream",cat=items[k].cat;
        if(/^image\//.test(ftype)){try{var sh=await shrinkBlob(f);blob=sh.blob;ftype="image/jpeg";fname=(f.name||"photo").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
        var path=await upload("docs",blob,fname);
-       var chk=await aiVerify(f,{kind:"trip "+cat,title:ti+" – "+fname,date:$("#tfr").value||key(new Date())});
+       var chk=await aiVerify(f,{slot:"trip",kind:"trip "+cat,title:ti+" – "+fname,date:$("#tfr").value||key(new Date())});
        var rec=withShare({cat:"TripFile",trip:tid,tcat:cat,title:items[k].label||fname,amount:0,path:path,name:fname,type:ftype,size:blob.size||f.size,by:myId||"",ts:Date.now()+k,aicheck:chk},"trip");if(chk.status==="review")rec.review={state:"pending"};
        await db.collection("documents").add(rec);
      }
