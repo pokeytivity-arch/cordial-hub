@@ -4983,6 +4983,7 @@ if($("#swbtn"))$("#swbtn").onclick=swGo;
 window.hubSwRole=swRole;window.hubSwLabel=swLabel;window.hubSwGo=swGo;
 setTimeout(function(){swSave();swUi()},2500);
 setInterval(function(){swSave();swUi()},600000);
+var swSeen=null;setInterval(function(){var r=swRole();swUi();if(r&&r!==swSeen){swSeen=r;swSave()}},2000);
 $("#signout").onclick=function(){try{localStorage.removeItem("hubFid");localStorage.removeItem(SW_K+"admin");localStorage.removeItem(SW_K+"father")}catch(e){}sb.auth.signOut().then(function(){location.reload()})};
 $("#signout2").onclick=$("#signout").onclick;
 
