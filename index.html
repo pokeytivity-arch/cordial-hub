@@ -2369,6 +2369,33 @@ function ownerOnlyCards(){var c=document.getElementById("stcard");if(c)c.hidden=
 function segAccess(){var v=document.querySelector('#evseg button[data-p="vm"]'),a=document.querySelector('#evseg button[data-p="am"]');
   if(v)v.hidden=!tabOk("meet");if(a)a.hidden=!tabOk("trips")}
 var EVALL=false;
+function evReschedule(e,host,btn){
+  btn.hidden=true;
+  var f=h("div");f.style.cssText="margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px";
+  var row=h("div","row");
+  var d=h("input");d.type="date";d.value=e.date;d.min=key(new Date());
+  var t=h("input");t.type="time";t.value=e.time||"";
+  var l1=h("label",null,"New date");l1.appendChild(d);var l2=h("label",null,"New time");l2.appendChild(t);
+  row.appendChild(l1);row.appendChild(l2);f.appendChild(row);
+  f.appendChild(h("p","meta",e.zoom?"This moves the call on Zoom too, and sends a phone alert to both parents.":"This moves the event and sends a phone alert to both parents."));
+  var msg=h("div","meta");msg.style.color="#b3261e";f.appendChild(msg);
+  var bar=h("div");bar.style.cssText="display:flex;gap:8px";
+  var go=h("button","go sm","Reschedule and notify");go.type="button";
+  var cx=h("button","quiet sm","Cancel");cx.type="button";cx.onclick=function(){f.remove();btn.hidden=false};
+  go.onclick=async function(){
+    if(!d.value)return void(msg.textContent="Pick a date.");
+    if(e.zoom&&!t.value)return void(msg.textContent="Pick a time.");
+    go.disabled=true;go.textContent="Moving…";msg.textContent="";
+    try{
+      var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;
+      var r=await fetch("/api/reschedule",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({id:e.id,date:d.value,time:t.value})});
+      var j={};try{j=await r.json()}catch(x){}
+      if(!r.ok){msg.textContent=j.message||"That didn’t work. Make sure the latest reschedule.js is uploaded to Netlify.";go.disabled=false;go.textContent="Reschedule and notify";return}
+      f.remove();note("Rescheduled."+(j.zoom?" Zoom was updated.":"")+" Both parents were notified.");
+    }catch(x){msg.textContent="Couldn’t reach the server. Check your connection and try again.";go.disabled=false;go.textContent="Reschedule and notify"}
+  };
+  bar.appendChild(go);bar.appendChild(cx);f.appendChild(bar);host.appendChild(f);
+}
 function renderEvents(){
   var box=document.getElementById("evpane");if(!box||box.hidden)return;
   var ae=document.activeElement;if(ae&&ae.matches&&ae.matches("input,textarea")&&box.contains(ae))return;
@@ -2410,6 +2437,10 @@ function renderEvents(){
           if(nt){var sb=h("button","go sm","📝 Summary");sb.type="button";sb.onclick=function(){MOPEN[nt.id]=true;openCalPane("vm")};zb.appendChild(sb)}
           else zb.appendChild(h("span","meta","No summary for this call"))}
         l.appendChild(zb)}
+      if(e.moved)l.appendChild(h("div","meta","Rescheduled by "+(e.moved.byName||"a parent")+" (was "+e.moved.fromDate+(e.moved.fromTime?" "+e.moved.fromTime:"")+")"));
+      if(e.date>=today&&canWrite&&(isOwner||myRole()||e.by===myId)){
+        var rsb=h("button","quiet sm","Reschedule");rsb.type="button";rsb.style.marginTop="6px";
+        rsb.onclick=function(){evReschedule(e,l,rsb)};l.appendChild(rsb)}
       r.appendChild(l);
       if(!e.zoom&&canWrite&&(e.by===myId||isOwner)){var rm=h("button","quiet","Remove");rm.type="button";rm.onclick=function(){if(confirm("Remove this event?"))db.doc("schedule/"+e.id).delete().catch(fail)};r.appendChild(rm)}
       c.appendChild(r)});
@@ -6288,6 +6319,7 @@ async function start(session){
       if(x.status==="done"&&x.doneBy&&x.doneBy!==myId&&myRole())E.push({ts:x.doneAt||x.ts||0,k:"reminder",go:"todo",lead:"Task",text:": "+xtName(x.doneBy)+" marked “"+x.title+"” done. Please confirm."});
       else if(x.status==="confirmed"&&x.doneBy===myId)E.push({ts:x.confirmedAt||x.ts||0,k:"reminder",go:"todo",lead:"Task",text:": “"+x.title+"” was confirmed by "+xtName(x.confirmedBy)+"."});
     });
+    (S.events||[]).forEach(function(ev){var mv=ev.moved;if(mv&&mv.by&&mv.by!==myId&&myRole()&&Date.now()-mv.ts<14*864e5)E.push({ts:mv.ts,k:"reminder",go:"sched",lead:"Rescheduled",text:": "+(ev.title||"Meeting")+" moved by "+(mv.byName||"a parent")+" to "+ev.date+(ev.time?" "+ev.time:"")+"."})});
     try{chkPending().forEach(function(l){E.push({ts:l.ts,k:"reminder",go:"chk",lead:"Checklist",text:": "+l.t+" was checked by "+l.who+". Please confirm it."})})}catch(e){}
     try{chkLow().forEach(function(l){E.push({ts:Math.min(Date.now(),l.ts),k:"reminder",go:"chk",lead:l.left<=0?"Finished":"Running low",text:": "+l.t+(l.left<=0?" has run out. Time to restock (Checklist).":" – about "+l.dl+(l.dl===1?" day":" days")+" left (Checklist).")})})}catch(e){}
     (S.mnotes||[]).forEach(function(m){E.push({ts:m.ts||m.start||0,k:"meeting",lead:"Meeting summary",text:": "+(m.topic||"Meeting")+" is ready"})});
@@ -6315,6 +6347,7 @@ async function start(session){
         var sysm=e.k==="msg"&&e.by==="cordial_ai";if(!sysm)b.appendChild(h("b",null,who));b.appendChild(document.createTextNode(sysm?String(t).replace(/^: /,""):t));b.appendChild(h("div","meta",ago(e.ts)));
         r.appendChild(b);
         r.onclick=function(){
+          if(e.go==="sched"){showTab("sched");window.scrollTo(0,0);return}
           if(e.go==="chk"){showTab("todo");TDT="chk";tdTabs();window.scrollTo(0,0);return}
           if(e.go==="todo"){showTab("todo");TDT="tasks";tdTabs();window.scrollTo(0,0);return}
           if((e.k==="tag"||e.k==="post")&&e.post){showTab("feed");var pq=S.posts.filter(function(x){return x.id===e.post})[0];if(pq&&typeof openComments==="function")setTimeout(function(){openComments(pq)},250);return}
