@@ -68,6 +68,14 @@ exports.handler = async (event) => {
   let zoomDone = false;
   if (ev.zoom) {
     if (!time) return out(400, { error: "bad", message: "Pick a time for the call." });
+    {
+      const [y0, m0, d0] = ev.date.split("-").map((x) => parseInt(x, 10)), [h0, n0] = (ev.time || "00:00").split(":").map((x) => parseInt(x, 10));
+      if (Date.UTC(y0, m0 - 1, d0, h0, n0) - WAT < Date.now())
+        return out(400, { error: "past", message: "That call has already started or passed, so Zoom won’t let it be moved. You can reschedule upcoming calls (for example the next one)." });
+      const [y1, m1, d1] = date.split("-").map((x) => parseInt(x, 10)), [h1, n1] = time.split(":").map((x) => parseInt(x, 10));
+      if (Date.UTC(y1, m1 - 1, d1, h1, n1) - WAT < Date.now() + 60e3)
+        return out(400, { error: "past", message: "Pick a time that is still ahead. Zoom can’t move a call into the past." });
+    }
     const tk = await zoomToken();
     if (!tk) return out(501, { error: "zoom_not_configured", message: "Zoom isn’t connected to the hub yet (the Zoom keys are missing on the server), so the call wasn’t moved." });
     const [Y, M, D] = date.split("-").map((x) => parseInt(x, 10)), [hh, mm] = time.split(":").map((x) => parseInt(x, 10));
@@ -78,7 +86,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({ start_time: iso, timezone: "UTC" }),
     });
     if (!(zr.status >= 200 && zr.status < 300)) {
-      let detail = ""; try { detail = (await zr.json()).message || ""; } catch {}
+      let detail = ""; try { const zj = await zr.json(); detail = (zj.message || "") + (zj.code ? " [code " + zj.code + "]" : ""); } catch {}
       return out(502, { error: "zoom_failed", message: `Zoom wouldn’t move the call (${zr.status}${detail ? ": " + detail : ""}). Nothing was changed.` });
     }
     zoomDone = true;
