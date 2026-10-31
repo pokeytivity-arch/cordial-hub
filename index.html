@@ -1496,6 +1496,48 @@ var CHKSHUT={},CHKASK=null;
 /* things that get used up: ticking one starts a meter that drains over the time you say it will last */
 var CHKCONS=["Milk or formula","Baby cereal and foods","Yogurt and snacks","Diapers","Wipes","Rash cream","Baby soap, shampoo and lotion","Powder","Sunscreen","Mosquito repellent for babies","Hair products and a soft detangler","Training pants","Children’s fever syrup"];
 function chkDur(d){return d%30===0?(d/30)+(d===30?" month":" months"):d%7===0?(d/7)+(d===7?" week":" weeks"):d+" days"}
+/* an older tick has only by/ts: show it as that parent's tick */
+function chkNorm(d){
+  if(!d)return null;if(d.dad||d.mum)return d;
+  var o=ownerM(),r=(o&&d.by===o.user_id)?"dad":"mum",n=Object.assign({},d);n[r]={by:d.by,ts:d.ts};return n;
+}
+function chkCsv(){
+  var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},extra=st.extra||{};
+  function q(v){v=v==null?"":String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+  function dt(ts){return ts?new Date(ts).toISOString().slice(0,10):""}
+  var rows=[["Section","Item","Type","Ticked by Daddy (blue)","Ticked by Mummy (green)","Status","First ticked on","Lasts","Days left","Meter left %"]];
+  CHK.forEach(function(c,ci){
+    var items=c[2].map(function(it,ii){return {k:ci+"_"+ii,t:it[0]}}).concat((extra[ci]||[]).map(function(t,ii){return {k:"x"+ci+"_"+ii,t:t}}));
+    items.forEach(function(i){
+      var d=chkNorm(done[i.k]),cons=CHKCONS.indexOf(i.t)>=0,status="Not bought",lasts="",dl="",pc="";
+      if(d){status=d.dad&&d.mum?"Bought (both ticked)":"Bought (one tick)";
+        if(cons&&d.days){var tot=d.days*86400000,left=Math.max(0,tot-(Date.now()-d.ts)),p=left/tot;lasts=chkDur(d.days);dl=Math.ceil(left/86400000);pc=Math.round(p*100);status=left<=0?"Depleted":p<=0.3?"Running low":"In use"}}
+      rows.push([c[1],i.t,cons?"Gets used up":"One-off",d&&d.dad?dt(d.dad.ts):"",d&&d.mum?dt(d.mum.ts):"",status,d?dt(d.ts):"",lasts,dl,pc])})});
+  return "﻿"+rows.map(function(r){return r.map(q).join(",")}).join("\r\n");
+}
+function chkDownload(){
+  var blob=new Blob([chkCsv()],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="Janet-checklist-"+new Date().toISOString().slice(0,10)+".csv";document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1500);
+}
+function chkPdf(){
+  var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},extra=st.extra||{};
+  function dt(ts){return ts?new Date(ts).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):"–"}
+  var body="",nb=0,nt=0;
+  CHK.forEach(function(c,ci){
+    var items=c[2].map(function(it,ii){return {k:ci+"_"+ii,t:it[0]}}).concat((extra[ci]||[]).map(function(t,ii){return {k:"x"+ci+"_"+ii,t:t}}));
+    var rows="";
+    items.forEach(function(i){
+      var d=chkNorm(done[i.k]),cons=CHKCONS.indexOf(i.t)>=0,status="Not bought",meter="";nt++;
+      if(d){nb++;status=d.dad&&d.mum?"Bought (both ticked)":"Bought (one tick)";
+        if(cons&&d.days){var tot=d.days*86400000,left=Math.max(0,tot-(Date.now()-d.ts)),p=left/tot,col=p>0.5?"#1fa855":p>0.3?"#e0a100":"#d93025";
+          status=left<=0?"Depleted":p<=0.3?"Running low":"In use";
+          meter="<div class='mt'><i style='width:"+Math.round(p*100)+"%;background:"+col+"'></i></div><small>"+Math.round(p*100)+"% left · about "+Math.ceil(left/86400000)+" days · lasts "+chkDur(d.days)+"</small>"}}
+      rows+="<tr><td>"+rpEsc(i.t)+(cons?" ⏳":"")+"</td><td class='c'>"+(d&&d.dad?"<span class='tk b'>✓</span><small>"+dt(d.dad.ts)+"</small>":"")+"</td><td class='c'>"+(d&&d.mum?"<span class='tk g'>✓</span><small>"+dt(d.mum.ts)+"</small>":"")+"</td><td>"+status+meter+"</td></tr>"});
+    body+="<h2>"+c[0]+" "+rpEsc(c[1])+"</h2><table><tr><th>Item</th><th class='c'>Daddy</th><th class='c'>Mummy</th><th>Status</th></tr>"+rows+"</table>"});
+  var css="body{font:14px/1.4 -apple-system,Helvetica,Arial,sans-serif;color:#111;margin:24px}h1{margin:0 0 4px}h2{margin:22px 0 6px;font-size:1.05rem}.m{color:#555}table{width:100%;border-collapse:collapse;page-break-inside:auto}tr{page-break-inside:avoid}th,td{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left;vertical-align:top}th{background:#f3f4f6;font-size:.8rem}.c{text-align:center;width:90px}small{display:block;color:#666}.tk{display:inline-block;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:800;line-height:22px;text-align:center}.b{background:#2f7de1}.g{background:#2fa84f}.mt{height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden;margin:4px 0 2px}.mt i{display:block;height:100%}";
+  var html="<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Janet’s checklist</title><style>"+css+"</style></head><body><h1>Janet’s checklist</h1><div class='m'>Prepared on "+rpEsc(new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}))+" · "+nb+" of "+nt+" items bought</div>"+body+"</body></html>";
+  rpShow(html,"Janet-checklist-"+new Date().toISOString().slice(0,10)+".html");
+}
 function chkLow(){
   var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},out=[];
   Object.keys(done).forEach(function(k){var d=done[k];if(!d||!d.days)return;
@@ -1507,12 +1549,13 @@ function chkLow(){
 function xtChk(){
   var box=$("#xs-chk");if(!box)return;box.textContent="";
   var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},extra=st.extra||{};
-  var total=0,got=0;
-  CHK.forEach(function(c,ci){total+=c[2].length+(extra[ci]||[]).length;c[2].forEach(function(it,ii){if(done[ci+"_"+ii])got++});(extra[ci]||[]).forEach(function(t,ii){if(done["x"+ci+"_"+ii])got++})});
+  var total=0,got=0,both=0;
+  CHK.forEach(function(c,ci){total+=c[2].length+(extra[ci]||[]).length;c[2].forEach(function(it,ii){var d=chkNorm(done[ci+"_"+ii]);if(d){got++;if(d.dad&&d.mum)both++}});(extra[ci]||[]).forEach(function(t,ii){var d=chkNorm(done["x"+ci+"_"+ii]);if(d){got++;if(d.dad&&d.mum)both++}})});
   var top=h("div","card");top.appendChild(h("h2",null,"Janet’s checklist"));
-  top.appendChild(h("p","meta","Things a toddler needs. Tick an item when it has been bought; the hub shows who got it. Items marked ⏳ get used up: say how long they will last and a meter drains over that time."));
+  top.appendChild(h("p","meta","Both parents can add items. Each parent ticks with their own colour: blue for Our Daddy, green for Our Mummy. Items marked ⏳ get used up and share one meter."));
   var bar=h("div");bar.style.cssText="height:10px;border-radius:5px;background:rgba(128,128,128,.25);overflow:hidden";var fi=h("i");fi.style.cssText="display:block;height:100%;background:#1fa855;width:"+(total?got/total*100:0)+"%";bar.appendChild(fi);top.appendChild(bar);
-  top.appendChild(h("div","meta",got+" of "+total+" done"));box.appendChild(top);
+  top.appendChild(h("div","meta",got+" of "+total+" bought · "+both+" ticked by both parents"));
+  top.appendChild(xtBtn("📄 PDF",chkPdf));top.appendChild(xtBtn("⬇️ Spreadsheet (.csv)",chkDownload));box.appendChild(top);
   function save(patch){return xtDoc("chk_state",Object.assign({kind:"chk"},patch))}
   CHK.forEach(function(c,ci){
     var card=h("div","card"),items=c[2].map(function(it,ii){return {k:ci+"_"+ii,t:it[0],n:it[1]}}).concat((extra[ci]||[]).map(function(t,ii){return {k:"x"+ci+"_"+ii,t:t,n:""}}));
@@ -1522,29 +1565,38 @@ function xtChk(){
     hd.onclick=function(){CHKSHUT[ci]=!shut;xtChk()};card.appendChild(hd);
     if(!shut){
       items.forEach(function(i){
-        var d=done[i.k],cons=CHKCONS.indexOf(i.t)>=0,row=h("div","item");row.style.cssText="display:flex;gap:12px;align-items:flex-start";
-        var cb=h("input");cb.type="checkbox";cb.checked=!!d;cb.disabled=!canWrite;cb.style.cssText="width:22px;height:22px;flex:none;margin-top:1px";
-        cb.onchange=function(){
-          if(cb.checked){if(cons){CHKASK={k:i.k,t:i.t};xtChk()}else{var nd=Object.assign({},done);nd[i.k]={by:myId,ts:Date.now()};save({done:nd})}}
-          else{var nd2=Object.assign({},done);delete nd2[i.k];save({done:nd2})}};
-        var sp=h("div");sp.style.flex="1";var t=h("div",null,i.t+(cons?" ⏳":""));if(d&&!cons)t.style.cssText="text-decoration:line-through;opacity:.7";sp.appendChild(t);
+        var d=chkNorm(done[i.k]),cons=CHKCONS.indexOf(i.t)>=0,row=h("div","item");row.style.cssText="display:flex;gap:12px;align-items:flex-start";
+        var tk=h("div");tk.style.cssText="display:flex;gap:6px;flex:none;margin-top:1px";
+        [["dad","Daddy",BLUE],["mum","Mummy",GREEN]].forEach(function(rl){
+          var on=!!(d&&d[rl[0]]),mine=myRole()===(rl[0]==="dad"?"daddy":"mummy");
+          var bt=h("button",null,on?"✓":"");bt.type="button";bt.setAttribute("aria-label",rl[1]+(on?" ticked":" not ticked"));
+          bt.style.cssText="width:26px;height:26px;border-radius:50%;padding:0;font-size:.95rem;font-weight:800;line-height:1;display:flex;align-items:center;justify-content:center;cursor:"+(canWrite&&mine?"pointer":"default")+";border:2px solid "+rl[2]+";background:"+(on?rl[2]:"transparent")+";color:#fff;opacity:"+(canWrite&&mine||on?1:.45);
+          if(canWrite&&mine)bt.onclick=function(){
+            var nd=Object.assign({},done),cur=chkNorm(done[i.k]);
+            if(on){cur=Object.assign({},cur);delete cur[rl[0]];if(!cur.dad&&!cur.mum)delete nd[i.k];else nd[i.k]=cur;save({done:nd});return}
+            if(!cur){if(cons){CHKASK={k:i.k,t:i.t,r:rl[0]};xtChk();return}nd[i.k]={by:myId,ts:Date.now(),t:i.t};nd[i.k][rl[0]]={by:myId,ts:Date.now()};save({done:nd});return}
+            nd[i.k]=Object.assign({},cur);nd[i.k][rl[0]]={by:myId,ts:Date.now()};save({done:nd})};
+          else bt.disabled=true;
+          tk.appendChild(bt)});
+        var sp=h("div");sp.style.flex="1";var t=h("div",null,i.t+(cons?" ⏳":""));if(d&&d.dad&&d.mum&&!cons)t.style.cssText="text-decoration:line-through;opacity:.7";sp.appendChild(t);
+        var dmy={day:"numeric",month:"short"};
+        if(d){var who=[];if(d.dad)who.push("Daddy "+new Date(d.dad.ts).toLocaleDateString(undefined,dmy));if(d.mum)who.push("Mummy "+new Date(d.mum.ts).toLocaleDateString(undefined,dmy));
+          sp.appendChild(h("div","meta",(d.dad&&d.mum?"✅ Both ticked · ":"")+who.join(" · ")))}
         if(d&&cons&&d.days){
           var tot=d.days*86400000,left=Math.max(0,tot-(Date.now()-d.ts)),pc=left/tot,dl=Math.ceil(left/86400000);
           var mt=h("div");mt.style.cssText="height:10px;border-radius:5px;background:rgba(128,128,128,.25);overflow:hidden;margin-top:6px";
           var mf=h("i");mf.style.cssText="display:block;height:100%;width:"+Math.round(pc*100)+"%;background:"+(pc>0.5?"#1fa855":pc>0.2?"#e0a100":"#d93025");mt.appendChild(mf);sp.appendChild(mt);
-          var lt=h("div","meta",left<=0?"Finished. Time to restock.":(pc<=0.2?"Running low: about "+dl+(dl===1?" day":" days")+" left":"About "+dl+" days left"));if(pc<=0.2)lt.style.color=left<=0?"#d93025":"#c07a00";sp.appendChild(lt);
-          sp.appendChild(h("div","meta","Got by "+xtName(d.by)+" on "+new Date(d.ts).toLocaleDateString(undefined,{day:"numeric",month:"short"})+" · lasts "+chkDur(d.days)));
-          if(canWrite)sp.appendChild(xtBtn(pc<=0.2?"Restock":"Restock early",function(){CHKASK={k:i.k,t:i.t,re:1};xtChk()},"quiet"));
-        }else if(d)sp.appendChild(h("div","meta","Got by "+xtName(d.by)+" on "+new Date(d.ts).toLocaleDateString(undefined,{day:"numeric",month:"short"})));
-        else if(i.n)sp.appendChild(h("div","meta",i.n));
+          var lt=h("div","meta",left<=0?"Finished. Time to restock.":(pc<=0.3?"Running low: about "+dl+(dl===1?" day":" days")+" left":"About "+dl+" days left")+" · lasts "+chkDur(d.days));if(pc<=0.3)lt.style.color=left<=0?"#d93025":"#c07a00";sp.appendChild(lt);
+          if(canWrite&&myRole())sp.appendChild(xtBtn(pc<=0.3?"Restock":"Restock early",function(){CHKASK={k:i.k,t:i.t,re:1,r:myRole()==="daddy"?"dad":"mum"};xtChk()},"quiet"));
+        }else if(!d&&i.n)sp.appendChild(h("div","meta",i.n));
         if(CHKASK&&CHKASK.k===i.k){
           var ask=h("div");ask.style.cssText="margin-top:8px;padding:10px;border-radius:12px;background:rgba(128,128,128,.12)";
-          ask.appendChild(h("div","meta","How long will this last?"));
-          var sel=h("select");sel.style.cssText="width:100%;margin:6px 0";[[7,"1 week"],[14,"2 weeks"],[30,"1 month"],[60,"2 months"],[90,"3 months"],[180,"6 months"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sel.appendChild(op)});sel.value=(done[i.k]&&done[i.k].days)||30;
+          ask.appendChild(h("div","meta","How long will this last? One meter is shared by both parents."));
+          var sel=h("select");sel.style.cssText="width:100%;margin:6px 0";[[7,"1 week"],[14,"2 weeks"],[30,"1 month"],[60,"2 months"],[90,"3 months"],[180,"6 months"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sel.appendChild(op)});sel.value=(d&&d.days)||30;
           ask.appendChild(sel);
-          ask.appendChild(xtBtn("Start meter",function(){var nd=Object.assign({},done);nd[i.k]={by:myId,ts:Date.now(),days:parseInt(sel.value,10),t:i.t};CHKASK=null;save({done:nd})}));
+          ask.appendChild(xtBtn("Start meter",function(){var nd=Object.assign({},done),n0={by:myId,ts:Date.now(),days:parseInt(sel.value,10),t:i.t};if(CHKASK.r)n0[CHKASK.r]={by:myId,ts:Date.now()};nd[i.k]=n0;CHKASK=null;save({done:nd})}));
           ask.appendChild(xtBtn("Cancel",function(){CHKASK=null;xtChk()},"quiet"));sp.appendChild(ask)}
-        row.appendChild(cb);row.appendChild(sp);card.appendChild(row)});
+        row.appendChild(tk);row.appendChild(sp);card.appendChild(row)});
       if(canWrite){
         var ad=h("div");ad.style.cssText="display:flex;gap:8px;margin-top:8px";
         var inp=h("input");inp.type="text";inp.maxLength=80;inp.placeholder="Add your own item";inp.style.flex="1";
