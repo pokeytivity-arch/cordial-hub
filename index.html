@@ -899,9 +899,10 @@ main{max-width:100%}
 </section>
 
 <section id="p-todo" hidden>
-  <div class="card" style="padding:10px"><div class="seg" id="tdseg"><button type="button" class="on" data-p="tasks">To-do <span id="tdn1"></span></button><button type="button" data-p="shop">Shopping list <span id="tdn2"></span></button></div></div>
+  <div class="card" style="padding:10px"><div class="seg" id="tdseg"><button type="button" class="on" data-p="tasks">To-do <span id="tdn1"></span></button><button type="button" data-p="shop">Shopping list <span id="tdn2"></span></button><button type="button" data-p="chk">Janet’s checklist</button></div></div>
   <div id="todocard"></div>
   <div id="xs-shop" hidden></div>
+  <div id="xs-chk" hidden></div>
 </section>
 <section id="p-meet" hidden>
   <div class="card" id="zoomcard"><button type="button" id="zoomhd" aria-expanded="false" style="display:flex;width:100%;align-items:center;justify-content:space-between;background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer"><span style="font-size:1.15rem;font-weight:700">Zoom connection</span><span><span id="zoomtick" style="font-size:1.2rem">…</span> <span id="zoomch" style="opacity:.6">›</span></span></button><div id="zoomdet" hidden style="margin-top:8px"><div id="zoomsts" class="meta">Checking…</div><button class="quiet" id="zoomchk" type="button" style="padding:4px 0;text-decoration:underline">Check again</button></div></div>
@@ -1475,10 +1476,56 @@ var TDT="tasks";
 function tdTabs(){
   var sg=$("#tdseg");if(!sg)return;
   Array.prototype.forEach.call(sg.children,function(b){b.className=b.dataset.p===TDT?"on":""});
-  var tc=$("#todocard"),sh=$("#xs-shop");if(tc)tc.hidden=TDT!=="tasks";if(sh)sh.hidden=TDT!=="shop";
+  var tc=$("#todocard"),sh=$("#xs-shop");if(tc)tc.hidden=TDT!=="tasks";if(sh)sh.hidden=TDT!=="shop";var ck=$("#xs-chk");if(ck){ck.hidden=TDT!=="chk";if(TDT==="chk")safe(xtChk)()}
 }
 (function(){var sg=document.getElementById("tdseg");if(!sg)return;
   Array.prototype.forEach.call(sg.children,function(b){b.onclick=function(){TDT=b.dataset.p;tdTabs()}})})();
+/* Janet's checklist: things a toddler needs. Ticks are saved in one record (kind "chk") so both parents see who got what */
+var CHK=[
+["🍼","Feeding",[["Milk or formula","Aptamil, Nido, etc."],["Baby cereal and foods"],["Yogurt and snacks"],["Bowls, plates and cutlery"],["Sippy cup and water bottle"],["Bibs"]]],
+["🧷","Diapers and changing",[["Diapers","Check the size often"],["Wipes"],["Rash cream","e.g. Sudocrem"],["Changing mat and disposal bags"],["Potty or toilet-training seat"],["Training pants"]]],
+["🛁","Bathing and skin care",[["Baby soap, shampoo and lotion"],["Powder"],["Towel and washcloths"],["Sunscreen"],["Mosquito repellent for babies"],["Hair products and a soft detangler"]]],
+["👕","Clothing",[["Everyday outfits"],["Sleepwear"],["Socks"],["Shoes","Re-check size every few months"],["Light and warm layers"]]],
+["🛏️","Sleep",[["Bed or cot and mattress"],["Bedding"],["Mosquito net","Important"],["Night light"],["Comfort toy"]]],
+["🩺","Health and safety",[["Thermometer"],["First-aid basics"],["Children’s fever syrup","Dose exactly as the label says"],["Immunisation card up to date"],["Socket covers and child-proofing"],["Safety gate if you have stairs"]]],
+["🧸","Play and learning",[["Building blocks"],["Picture books"],["Puzzles"],["Crayons and paper"],["Soft toys"]]],
+["🚗","Travel and outings",[["Car seat","Most important for rides"],["Stroller"],["Diaper bag"],["Small backpack"]]],
+["🎒","School items",[["Uniform"],["School bag"],["Lunch box and water bottle"],["School shoes"],["Stationery"]]]
+];
+var CHKSHUT={};
+function xtChk(){
+  var box=$("#xs-chk");if(!box)return;box.textContent="";
+  var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},extra=st.extra||{};
+  var total=0,got=0;
+  CHK.forEach(function(c,ci){total+=c[2].length+(extra[ci]||[]).length;c[2].forEach(function(it,ii){if(done[ci+"_"+ii])got++});(extra[ci]||[]).forEach(function(t,ii){if(done["x"+ci+"_"+ii])got++})});
+  var top=h("div","card");top.appendChild(h("h2",null,"Janet’s checklist"));
+  top.appendChild(h("p","meta","Things a toddler needs. Tick an item when it has been bought; the hub shows who got it. Add anything of your own."));
+  var bar=h("div");bar.style.cssText="height:10px;border-radius:5px;background:rgba(128,128,128,.25);overflow:hidden";var fi=h("i");fi.style.cssText="display:block;height:100%;background:#1fa855;width:"+(total?got/total*100:0)+"%";bar.appendChild(fi);top.appendChild(bar);
+  top.appendChild(h("div","meta",got+" of "+total+" done"));box.appendChild(top);
+  function save(patch){return xtDoc("chk_state",Object.assign({kind:"chk"},patch))}
+  CHK.forEach(function(c,ci){
+    var card=h("div","card"),items=c[2].map(function(it,ii){return {k:ci+"_"+ii,t:it[0],n:it[1]}}).concat((extra[ci]||[]).map(function(t,ii){return {k:"x"+ci+"_"+ii,t:t,n:""}}));
+    var n=items.filter(function(i){return done[i.k]}).length,shut=!!CHKSHUT[ci];
+    var hd=h("button","quiet");hd.type="button";hd.style.cssText="display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;padding:0;background:none;text-decoration:none";
+    hd.appendChild(h("b",null,c[0]+" "+c[1]));hd.appendChild(h("span","meta",n+"/"+items.length+(shut?" ▸":" ▾")));
+    hd.onclick=function(){CHKSHUT[ci]=!shut;xtChk()};card.appendChild(hd);
+    if(!shut){
+      items.forEach(function(i){
+        var d=done[i.k],row=h("label","item");row.style.cssText="display:flex;gap:12px;align-items:flex-start;cursor:"+(canWrite?"pointer":"default");
+        var cb=h("input");cb.type="checkbox";cb.checked=!!d;cb.disabled=!canWrite;cb.style.cssText="width:22px;height:22px;flex:none;margin-top:1px";
+        cb.onchange=function(){var nd=Object.assign({},done);if(cb.checked)nd[i.k]={by:myId,ts:Date.now()};else delete nd[i.k];save({done:nd})};
+        var sp=h("span");var t=h("div",null,i.t);if(d)t.style.cssText="text-decoration:line-through;opacity:.7";sp.appendChild(t);
+        if(d)sp.appendChild(h("div","meta","Got by "+xtName(d.by)+" on "+new Date(d.ts).toLocaleDateString(undefined,{day:"numeric",month:"short"})));
+        else if(i.n)sp.appendChild(h("div","meta",i.n));
+        row.appendChild(cb);row.appendChild(sp);card.appendChild(row)});
+      if(canWrite){
+        var ad=h("div");ad.style.cssText="display:flex;gap:8px;margin-top:8px";
+        var inp=h("input");inp.type="text";inp.maxLength=80;inp.placeholder="Add your own item";inp.style.flex="1";
+        var bt=xtBtn("Add",function(){var v=inp.value.trim();if(!v)return;var ne=Object.assign({},extra);ne[ci]=(ne[ci]||[]).concat([v]);save({extra:ne})});bt.style.margin="0";
+        ad.appendChild(inp);ad.appendChild(bt);card.appendChild(ad)}
+    }
+    box.appendChild(card)});
+}
 function xtMembers(){return typeof MEMBERS!=="undefined"?MEMBERS:[]}
 function xtName(id){if(!id)return "";var t=roleTitle(id);return (id===myId?"You":memberName(id))+(t?" ("+t+")":"")}
 function xtPayerMember(){return xtMembers().filter(function(u){return /onyemachi/i.test(u.name||"")})[0]||null}
@@ -1495,8 +1542,8 @@ function xtTabs(){
 }
 function renderXtra(){
   xtTabs();
-  var ae=document.activeElement;if(ae&&ae.matches&&ae.matches("input,select,textarea")&&ae.closest&&ae.closest("#xs-shop,#xs-sup,#xs-fee"))return;
-  safe(xtShop)();safe(xtSup)();safe(xtFee)();
+  var ae=document.activeElement;if(ae&&ae.matches&&ae.matches("input,select,textarea")&&ae.closest&&ae.closest("#xs-shop,#xs-sup,#xs-fee,#xs-chk"))return;
+  safe(xtShop)();safe(xtChk)();safe(xtSup)();safe(xtFee)();
 }
 
 async function xtUp(file){
