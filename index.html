@@ -1397,9 +1397,8 @@ $("#xadd").onclick=async function(){
       var ff=fl[fi],blob=ff,name=ff.name,type=ff.type||"application/octet-stream";
       if(/^image\//.test(type)){try{var sh=await shrinkBlob(ff);blob=sh.blob;type="image/jpeg";name=(ff.name||"receipt").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
       var path=await upload("docs",blob,name);ups.push({path:path,name:name,type:type,size:blob.size||ff.size});
-      var c1=await aiVerify(ff,{slot:"exp",kind:"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
-      if(!chk||(c1&&c1.status==="review"))chk=c1;
     }
+    chk=await aiVerifyMany(fl,{slot:"exp",kind:"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
     var xrec=withShare({desc:d,amount:a,by:$("#xw").value,date:$("#xt").value||key(new Date()),proof:ups[0],aicheck:chk},"exp");if(ups.length>1)xrec.proofs=ups;if(chk.status==="review")xrec.review={state:"pending"};
     await db.collection("expenses").add(xrec);
     $("#xd").value="";$("#xa").value="";$("#xf").value="";note("");
@@ -1605,11 +1604,38 @@ async function aiVerify(file,ctx){
     return {status:j.status||"unchecked",reasons:j.reasons||[],read:j.read||{},ts:Date.now()};
   }catch(e){note("");return unchecked}
 }
+/* several files that belong together (receipt + photos of the items): Cordial looks at them as one set of proof */
+async function aiVerifyMany(files,ctx){
+  files=Array.prototype.slice.call(files||[]);
+  if(files.length<2)return aiVerify(files[0],ctx);
+  var unchecked={status:"unchecked",reasons:[],ts:Date.now()};
+  try{if(ctx&&ctx.slot){var sv0=shareVal(ctx.slot);if(sv0&&sv0.every(function(x){return x===myId}))return unchecked}}catch(e){}
+  try{
+    note("Cordial is checking your files together…");
+    var atts=[],total=0;
+    for(var i=0;i<files.length&&atts.length<6;i++){
+      var f=files[i],type=f.type||"",att=null;
+      if(/^image\//.test(type)){var sh=await shrinkBlob(f);att={kind:"image",media:"image/jpeg",data:await blobB64(sh.blob),name:f.name}}
+      else if(type==="application/pdf"&&f.size<3400000)att={kind:"pdf",media:"application/pdf",data:await blobB64(f),name:f.name};
+      if(att&&att.data&&total+att.data.length<4600000){atts.push(att);total+=att.data.length}
+    }
+    if(!atts.length){note("");return unchecked}
+    var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;
+    if(!tk){note("");return unchecked}
+    var ctl=new AbortController();var to=setTimeout(function(){ctl.abort()},45000);
+    var r=await fetch("/api/cordial",{method:"POST",signal:ctl.signal,headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({verify:ctx,attachments:atts})});
+    clearTimeout(to);note("");
+    if(!r.ok)return unchecked;
+    var j=await r.json();
+    return {status:j.status||"unchecked",reasons:j.reasons||[],read:j.read||{},ts:Date.now(),files:files.length};
+  }catch(e){note("");return unchecked}
+}
 function aiFlag(list){return (list||[]).some(function(c){return c&&c.status==="review"})}
 function aiBadge(rec,coll){
   if(!rec)return null;
   var checks=[];if(rec.aicheck)checks.push(rec.aicheck);
   (rec.receipts||[]).forEach(function(x){if(x&&x.aicheck)checks.push(x.aicheck)});if(rec.receipt&&rec.receipt.aicheck)checks.push(rec.receipt.aicheck);
+  checks=checks.filter(function(c,i,arr){return arr.findIndex(function(x){return x.ts===c.ts&&x.status===c.status})===i});
   var rv=rec.review,flagged=checks.filter(function(c){return c.status==="review"});
   if(!checks.length&&!rv)return null;
   var w=h("div");w.style.cssText="margin-top:4px;font-size:.88rem";
@@ -1760,7 +1786,7 @@ function xtSup(){
       var lb=h("div","meta","Attach the transaction receipt or receipts (required)");lb.style.marginTop="6px";acts.appendChild(lb);acts.appendChild(fl);
       var pb=xtBtn("Mark as paid",async function(){
         if(!fl.files||!fl.files[0])return note("Attach the transaction receipt first.");note("");pb.disabled=true;
-        try{var rcs=[],rflag=false;for(var qi=0;qi<fl.files.length;qi++){var rq=await xtUp(fl.files[qi]);rq.aicheck=await aiVerify(fl.files[qi],{kind:"support",title:"Support "+lbl,amount:cfg.amount,date:key(new Date())});if(rq.aicheck.status==="review")rflag=true;rcs.push(rq)}var rc=rcs[0];
+        try{var rcs=[];for(var qi=0;qi<fl.files.length;qi++)rcs.push(await xtUp(fl.files[qi]));var sck=await aiVerifyMany(fl.files,{kind:"support",title:"Support "+lbl,amount:cfg.amount,date:key(new Date())});rcs.forEach(function(q){q.aicheck=sck});var rflag=sck.status==="review";var rc=rcs[0];
           var pt={kind:"sup",date:mm.y+"-"+pad(mm.m)+"-"+(wk?pad(mm.d):"01"),amount:cfg.amount,paidAt:Date.now(),paidBy:myId,receipt:rc,_selfie:"paid"};if(rcs.length>1)pt.receipts=rcs;if(rflag)pt.review={state:"pending"};
           await xtDoc(id,pt);{var who2=myRole();setTimeout(function(){babyPost(who2||"daddy",wk?"sent this week’s support for Janet":"sent this month’s support for Janet",true)},2500)}}catch(e){fail(e)}
         pb.disabled=false});acts.appendChild(pb);
@@ -1830,7 +1856,7 @@ function xtFee(){
         var rf=h("input");rf.type="file";rf.accept="image/*,application/pdf";rf.multiple=true;rf.style.cssText="flex:1;min-width:150px";
         var rb=xtBtn("Add receipts",async function(){
           if(!rf.files||!rf.files.length)return note("Choose one or more receipts first.");note("");rb.disabled=true;
-          try{var add=[];for(var i=0;i<rf.files.length;i++){var rc2=await xtUp(rf.files[i]);rc2.aicheck=await aiVerify(rf.files[i],{kind:"fee",title:"School fee "+y+"/"+(y+1)+" term "+(t+1),amount:r.amount||null,date:key(new Date())});add.push(rc2)}
+          try{var add=[];for(var i=0;i<rf.files.length;i++)add.push(await xtUp(rf.files[i]));var fck=await aiVerifyMany(rf.files,{kind:"fee",title:"School fee "+y+"/"+(y+1)+" term "+(t+1),amount:r.amount||null,date:key(new Date())});add.forEach(function(q){q.aicheck=fck});
             var ft={kind:"fee",date:yr+"-"+pad(t===0?9:t===1?1:5)+"-01",year:y,term:t+1,receipts:(r.receipts||[]).concat(add)};if(aiFlag(add.map(function(x){return x.aicheck}))&&!(r.review&&r.review.state==="approved"&&false))ft.review={state:"pending"};
             await xtDoc(id,ft);rf.value=""}catch(e){fail(e)}
           rb.disabled=false});
