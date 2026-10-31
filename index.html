@@ -1337,7 +1337,7 @@ function renderDay(){
   if(!(S.events||[]).some(function(x){return x.zoom})){
     var pl=zplan();if(pl.days.indexOf(dd.getDay())>=0&&day>=pl.from)evs.push({title:"Family Zoom call",zoom:true,start:mins(pl.t),dur:60,place:"Zoom, in the hub"})}
   var allday=evs.filter(function(e){return e.start==null}),timed=evs.filter(function(e){return e.start!=null}).sort(function(a,b){return a.start-b.start});
-  if(allday.length){var ad=h("div");ad.style.cssText="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px";allday.forEach(function(e){var c=h("span",null,"All day · "+e.title);c.style.cssText="background:rgba(127,127,127,.18);border-radius:8px;padding:3px 9px;font-size:.85rem";ad.appendChild(c)});box.appendChild(ad)}
+  if(allday.length){var ad=h("div");ad.style.cssText="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px";allday.forEach(function(e){var c=h("span",null,"All day · "+e.title+(evCanMove(e.e,day)?" · Reschedule":""));c.style.cssText="background:rgba(127,127,127,.18);border-radius:8px;padding:3px 9px;font-size:.85rem"+(evCanMove(e.e,day)?";cursor:pointer;text-decoration:underline":"");if(evCanMove(e.e,day))c.onclick=function(){evResDialog(e.e)};ad.appendChild(c)});box.appendChild(ad)}
   var lo=6,hi=23;timed.forEach(function(e){lo=Math.min(lo,Math.floor(e.start/60));hi=Math.max(hi,Math.min(24,Math.ceil((e.start+e.dur)/60)))});
   var wrap=h("div","dvs");wrap.style.cssText="position:relative;max-height:340px;overflow-y:auto;border-top:1px solid rgba(127,127,127,.25)";
   var grid=h("div");grid.style.cssText="position:relative;height:"+((hi-lo)*DV_PX)+"px;margin-left:46px";
@@ -1348,7 +1348,7 @@ function renderDay(){
   var cols=[];timed.forEach(function(e){var c=0;while(cols[c]&&cols[c]>e.start)c++;e.col=c;cols[c]=e.start+e.dur});
   var ncol=Math.max(1,cols.length);
   timed.forEach(function(e){
-    var b=h("div");var top=(e.start/60-lo)*DV_PX,ht=Math.max(e.zoom?104:34,e.dur/60*DV_PX-3);
+    var b=h("div");var top=(e.start/60-lo)*DV_PX,ht=Math.max(e.zoom?(evCanMove(e.e,day)?130:104):(evCanMove(e.e,day)?60:34),e.dur/60*DV_PX-3);
     b.style.cssText="position:absolute;top:"+top+"px;height:"+ht+"px;left:"+(e.col*100/ncol)+"%;width:calc("+(100/ncol)+"% - 4px);box-sizing:border-box;border-radius:8px;padding:5px 8px;overflow:hidden;font-size:.85rem;line-height:1.25;"+(e.zoom?"background:#1f6feb;color:#fff":"background:rgba(240,111,168,.22);border-left:4px solid #f06fa8;")
     var t12=function(m){var hh=Math.floor(m/60)%24,mm=m%60;return (hh%12||12)+":"+("0"+mm).slice(-2)+(hh<12?" AM":" PM")};
     var tt=h("div",null,(e.zoom?"📞 ":"")+e.title);tt.style.fontWeight="700";b.appendChild(tt);
@@ -1363,6 +1363,7 @@ function renderDay(){
         if(nt){var sb=h("button",null,"Summary");sb.type="button";sb.style.cssText="background:#fff;color:#1f6feb;border:0;border-radius:999px;padding:4px 12px;font:inherit;font-weight:700;cursor:pointer";sb.onclick=function(ev){ev.stopPropagation();MOPEN[nt.id]=true;openCalPane("vm")};act.appendChild(sb)}}
       b.appendChild(act)}
     else if(e.place)b.appendChild(h("div","meta",e.place));
+    if(evCanMove(e.e,day)){var rs=h("button",null,"Reschedule");rs.type="button";rs.style.cssText=e.zoom?"margin-top:4px;background:transparent;color:#fff;border:1px solid #fff;border-radius:999px;padding:3px 12px;font:inherit;font-size:.8rem;font-weight:700;cursor:pointer":"margin-top:3px;background:transparent;color:inherit;border:1px solid currentColor;border-radius:999px;padding:2px 10px;font:inherit;font-size:.78rem;font-weight:700;cursor:pointer";rs.onclick=function(ev){ev.stopPropagation();evResDialog(e.e)};b.appendChild(rs)}
     grid.appendChild(b)});
   if(day===today){var n=new Date(),nm_=n.getHours()*60+n.getMinutes();if(nm_/60>=lo&&nm_/60<=hi){var nl=h("div");nl.style.cssText="position:absolute;left:-6px;right:0;top:"+((nm_/60-lo)*DV_PX)+"px;border-top:2px solid #e5484d;z-index:2";grid.appendChild(nl)}}
   wrap.appendChild(grid);box.appendChild(wrap);
@@ -2369,19 +2370,20 @@ function ownerOnlyCards(){var c=document.getElementById("stcard");if(c)c.hidden=
 function segAccess(){var v=document.querySelector('#evseg button[data-p="vm"]'),a=document.querySelector('#evseg button[data-p="am"]');
   if(v)v.hidden=!tabOk("meet");if(a)a.hidden=!tabOk("trips")}
 var EVALL=false;
-function evReschedule(e,host,btn){
+function evReschedule(e,host,btn,done){
   btn.hidden=true;
   var f=h("div");f.style.cssText="margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px";
-  var row=h("div","row");
+  var row=h("div","row");row.style.cssText="display:grid;grid-template-columns:1fr 1fr;gap:8px";
   var d=h("input");d.type="date";d.value=e.date;d.min=key(new Date());
   var t=h("input");t.type="time";t.value=e.time||"";
+  [d,t].forEach(function(x){x.style.cssText="width:100%;min-width:0;box-sizing:border-box"});
   var l1=h("label",null,"New date");l1.appendChild(d);var l2=h("label",null,"New time");l2.appendChild(t);
   row.appendChild(l1);row.appendChild(l2);f.appendChild(row);
   f.appendChild(h("p","meta",e.zoom?"This moves the call on Zoom too, and sends a phone alert to both parents.":"This moves the event and sends a phone alert to both parents."));
   var msg=h("div","meta");msg.style.color="#b3261e";f.appendChild(msg);
   var bar=h("div");bar.style.cssText="display:flex;gap:8px";
   var go=h("button","go sm","Reschedule and notify");go.type="button";
-  var cx=h("button","quiet sm","Cancel");cx.type="button";cx.onclick=function(){f.remove();btn.hidden=false};
+  var cx=h("button","quiet sm","Cancel");cx.type="button";cx.onclick=function(){f.remove();btn.hidden=false;if(done)done()};
   go.onclick=async function(){
     if(!d.value)return void(msg.textContent="Pick a date.");
     if(e.zoom&&!t.value)return void(msg.textContent="Pick a time.");
@@ -2391,11 +2393,21 @@ function evReschedule(e,host,btn){
       var r=await fetch("/api/reschedule",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({id:e.id,date:d.value,time:t.value})});
       var j={};try{j=await r.json()}catch(x){}
       if(!r.ok){msg.textContent=j.message||"That didn’t work. Make sure the latest reschedule.js is uploaded to Netlify.";go.disabled=false;go.textContent="Reschedule and notify";return}
-      f.remove();note("Rescheduled."+(j.zoom?" Zoom was updated.":"")+" Both parents were notified.");
+      f.remove();if(done)done();note("Rescheduled."+(j.zoom?" Zoom was updated.":"")+" Both parents were notified.");
     }catch(x){msg.textContent="Couldn’t reach the server. Check your connection and try again.";go.disabled=false;go.textContent="Reschedule and notify"}
   };
   bar.appendChild(go);bar.appendChild(cx);f.appendChild(bar);host.appendChild(f);
 }
+function evResDialog(e){
+  var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px";
+  var c=h("div","card");c.style.cssText="width:min(94vw,380px);max-height:90vh;overflow:auto";
+  c.appendChild(h("h2",null,"Reschedule"));c.appendChild(h("div",null,e.title)).style.fontWeight="700";
+  c.appendChild(h("div","meta",e.date+(e.time?" · "+e.time:"")));
+  ov.appendChild(c);document.body.appendChild(ov);
+  ov.onclick=function(x){if(x.target===ov)ov.remove()};
+  evReschedule(e,c,{hidden:false},function(){ov.remove()});
+}
+function evCanMove(e,day){return !!e&&e.id&&day>=key(new Date())&&canWrite&&(isOwner||!!myRole()||e.by===myId)}
 function renderEvents(){
   var box=document.getElementById("evpane");if(!box||box.hidden)return;
   var ae=document.activeElement;if(ae&&ae.matches&&ae.matches("input,textarea")&&box.contains(ae))return;
