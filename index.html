@@ -2380,7 +2380,8 @@ async function zoomRefresh(force){
   try{var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)return;
     var r=await fetch("/api/zoom-sync",{method:"POST",headers:{Authorization:"Bearer "+tk}});
     var j={};try{j=await r.json()}catch(x){}
-    if(force)note(j&&j.ok?"Calendar refreshed from Zoom.":"Couldn’t reach Zoom right now. Make sure the latest zoom-sync.js is uploaded.");
+    if(force){var rs=j&&j.reason||"";
+      note(j&&j.ok?"Calendar refreshed from Zoom.":!r.ok&&!rs?"The hub can’t refresh yet: upload the latest zoom-sync.js to netlify/functions (error "+r.status+").":rs==="no_zoom_api"?"Zoom keys aren’t set on the server.":/^zoom_4/.test(rs)?"Zoom refused the request ("+rs.slice(5)+"). The Zoom app probably needs the permission to view meetings: meeting:read:meeting:admin.":"Couldn’t read the schedule from Zoom right now ("+(rs||"unknown")+").")}
   }catch(e){if(force)note("Couldn’t refresh from Zoom.")}
 }
 var EVALL=false;
