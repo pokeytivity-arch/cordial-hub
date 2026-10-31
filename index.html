@@ -1523,16 +1523,37 @@ function chkAgo(ts){var n=Math.floor((Date.now()-ts)/86400000);return n<=0?"toda
 function chkLastMap(){var m={};chkHist().forEach(function(p){if(!m[p.k])m[p.k]=p});return m}
 var CHKLAST=[[0,"Not sure / one-off"],[7,"1 week"],[14,"2 weeks"],[30,"1 month"],[60,"2 months"],[90,"3 months"],[180,"6 months"]];
 function chkRoleOf(id){var o=ownerM(),m=mumM();return o&&o.user_id===id?"dad":m&&m.user_id===id?"mum":""}
-/* bought + confirmed on the shopping list: record it on the checklist (both parents' ticks, brand, quantity, how long it lasts) */
-function chkFromShop(x){
+/* shopping list <-> checklist stay in step:
+   an item is bought (ticked), confirmed by the other parent, and only then lands on the checklist (blue by the buyer, green by the confirmer) */
+function shopByPid(pid){return pid?(S.xo||[]).filter(function(y){return y.kind==="shop"&&y.chkPid===pid})[0]:null}
+function chkState(){return (S.xo||[]).filter(function(y){return y.id==="chk_state"})[0]||{}}
+function chkShopCheck(x,buyerId){
+  var done=Object.assign({},chkState().done||{}),c=x.chk||{},ts=Date.now(),pid="chkb_"+ts.toString(36)+Math.random().toString(36).slice(2,5);
+  var cur={by:buyerId,ts:ts,t:c.item,pid:pid},rec={kind:"chkbuy",k:c.k,item:c.item,section:c.section||"",ts:ts,by:buyerId,shop:x.id};
+  if(x.store){cur.store=x.store;rec.store=x.store}if(x.brand){cur.brand=x.brand;rec.brand=x.brand}if(x.qty){cur.qty=x.qty;rec.qty=x.qty}if(x.days){cur.days=x.days;rec.days=x.days}
+  var r=chkRoleOf(buyerId);if(r){cur[r]={by:buyerId,ts:ts};rec[r]=cur[r]}
+  done[c.k]=cur;xtDoc(pid,rec);xtDoc("chk_state",{kind:"chk",done:done});return pid;
+}
+function chkFromShop(x){try{chkShopCheck(x,x.fulfilledBy||myId)}catch(e){}}
+function shopCheck(x){
+  db.doc("expenses/"+x.id).update({status:"fulfilled",fulfilledBy:myId,fulfilledAt:Date.now(),chkPid:null,_selfie:"fulfilled"}).then(function(){
+    if(!x.share)setTimeout(function(){babyPost("both",x.title+" was just bought for Janet"+(x.store?" from "+x.store:"")+". Shopping done!",true,{tone:"funny"})},1500)}).catch(fail);
+}
+function shopConfirm(x){
+  var cr=chkRoleOf(myId),ts=Date.now(),pid=x.chkPid||null;
   try{
-    var st=(S.xo||[]).filter(function(y){return y.id==="chk_state"})[0]||{},done=Object.assign({},st.done||{}),c=x.chk||{};
-    var ts=Date.now(),pid="chkb_"+ts.toString(36)+Math.random().toString(36).slice(2,5),cur={by:x.fulfilledBy||myId,ts:ts,t:c.item,pid:pid},rec={kind:"chkbuy",k:c.k,item:c.item,section:c.section||"",ts:ts,by:x.fulfilledBy||myId,shop:x.id};
-    if(x.store){cur.store=x.store;rec.store=x.store}if(x.brand){cur.brand=x.brand;rec.brand=x.brand}if(x.qty){cur.qty=x.qty;rec.qty=x.qty}if(x.days){cur.days=x.days;rec.days=x.days}
-    var fr=chkRoleOf(x.fulfilledBy),cr=chkRoleOf(x.by);
-    if(fr){cur[fr]={by:x.fulfilledBy,ts:x.fulfilledAt||ts};rec[fr]=cur[fr]}if(cr){cur[cr]={by:x.by,ts:ts};rec[cr]=cur[cr]}
-    done[c.k]=cur;xtDoc(pid,rec);xtDoc("chk_state",{kind:"chk",done:done});
+    if(x.chk){
+      if(pid){var st=chkState(),done=Object.assign({},st.done||{}),cur=done[x.chk.k];
+        if(cr){var pp={};pp[cr]={by:myId,ts:ts};xtDoc(pid,pp);if(cur&&cur.pid===pid){var n=Object.assign({},cur);n[cr]={by:myId,ts:ts};done[x.chk.k]=n;xtDoc("chk_state",{kind:"chk",done:done})}}}
+      else{ /* confirmed: now it lands on the checklist, checked by the buyer (blue) and confirmed by you (green) */
+        pid=chkShopCheck(x,x.fulfilledBy||myId);
+        if(cr&&pid){var p2={};p2[cr]={by:myId,ts:ts};xtDoc(pid,p2);var d2=Object.assign({},chkState().done||{});if(d2[x.chk.k]){d2[x.chk.k]=Object.assign({},d2[x.chk.k]);d2[x.chk.k][cr]={by:myId,ts:ts};xtDoc("chk_state",{kind:"chk",done:d2})}}}}
   }catch(e){}
+  db.doc("expenses/"+x.id).update({status:"confirmed",confirmedAt:ts,confirmedBy:myId,chkPid:pid,_selfie:"confirmed"}).catch(fail);
+}
+function shopUndoCheck(x){
+  try{if(x.chkPid){db.doc("expenses/"+x.chkPid).delete().catch(function(){});var done=Object.assign({},chkState().done||{});if(x.chk&&done[x.chk.k]&&done[x.chk.k].pid===x.chkPid){delete done[x.chk.k];xtDoc("chk_state",{kind:"chk",done:done})}}}catch(e){}
+  db.doc("expenses/"+x.id).update({status:"requested",fulfilledBy:null,fulfilledAt:null,chkPid:null,confirmedAt:null,confirmedBy:null,selfie_fulfilled:null}).catch(fail);
 }
 /* every purchase is kept as its own permanent record (kind "chkbuy"), so the history lasts for years */
 function chkBuy(nd,i,sec,role,days){
@@ -1553,7 +1574,22 @@ function chkHist(){
 function chkNow(p,done){
   var d=chkNorm(done[p.k]);if(!d||!(d.pid===p.id||(!d.pid&&String(p.id).indexOf("legacy_")===0)))return p.days?"Used up / replaced":"Bought earlier";
   if(d.days){var tot=d.days*86400000,left=Math.max(0,tot-(Date.now()-d.ts)),pc=left/tot;return left<=0?"Depleted":pc<=0.3?"Running low":"In use"}
-  return d.dad&&d.mum?"Bought (both ticked)":"Bought (one tick)";
+  return chkSides(d).confirmed?"Bought and confirmed":"Bought, waiting for confirmation";
+}
+/* one parent checks an item (blue); the other parent confirms it (green) */
+function chkSides(d){
+  if(!d)return {chk:"",cf:"",confirmed:false};
+  var br=chkRoleOf(d.by),chk=(br&&d[br])?br:(d.dad&&!d.mum?"dad":d.mum&&!d.dad?"mum":(br||"dad"));
+  var oth=chk==="dad"?"mum":"dad";
+  return {chk:chk,cf:oth,confirmed:!!d[oth]};
+}
+function chkRName(r){return r==="dad"?"Daddy":r==="mum"?"Mummy":""}
+function chkPending(){
+  var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},me=myRole()==="daddy"?"dad":myRole()==="mummy"?"mum":"",out=[];
+  Object.keys(done).forEach(function(k){var d=chkNorm(done[k]);if(!d)return;var sd=chkSides(d);if(sd.confirmed||!d[sd.chk]||sd.cf!==me)return;
+    var m=k.match(/^(\d+)_(\d+)$/),nm=d.t;if(!nm&&m&&CHK[m[1]]&&CHK[m[1]][2][m[2]])nm=CHK[m[1]][2][m[2]][0];
+    out.push({k:k,t:nm||"An item",ts:d[sd.chk].ts||d.ts,who:chkRName(sd.chk)})});
+  return out;
 }
 /* an older tick has only by/ts: show it as that parent's tick */
 function chkNorm(d){
@@ -1564,9 +1600,9 @@ function chkCsv(){
   var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{};
   function q(v){v=v==null?"":String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
   function dt(ts){return ts?new Date(ts).toISOString().slice(0,10):""}
-  var rows=[["Date bought","Item","Brand","Quantity","Bought at","Section","Type","Bought by","Ticked by Daddy (blue)","Ticked by Mummy (green)","Lasts","Status now"]];
+  var rows=[["Date bought","Item","Brand","Quantity","Bought at","Section","Type","Bought by","Checked by (blue)","Confirmed by (green)","Lasts","Status now"]];
   chkHist().forEach(function(p){
-    rows.push([dt(p.ts),p.item,p.brand||"",p.qty||"",p.store||"",p.section,CHKCONS.indexOf(p.item)>=0?"Gets used up":"One-off",memberName(p.by)||"",p.dad?dt(p.dad.ts):"",p.mum?dt(p.mum.ts):"",p.days?chkDur(p.days):"",chkNow(p,done)])});
+    rows.push([dt(p.ts),p.item,p.brand||"",p.qty||"",p.store||"",p.section,CHKCONS.indexOf(p.item)>=0?"Gets used up":"One-off",memberName(p.by)||"",chkSides(p).chk&&p[chkSides(p).chk]?chkRName(chkSides(p).chk)+" "+dt(p[chkSides(p).chk].ts):"",chkSides(p).confirmed?chkRName(chkSides(p).cf)+" "+dt(p[chkSides(p).cf].ts):"",p.days?chkDur(p.days):"",chkNow(p,done)])});
   return "﻿"+rows.map(function(r){return r.map(q).join(",")}).join("\r\n");
 }
 function chkDownload(){
@@ -1582,15 +1618,15 @@ function chkPdf(){
     var rows="";
     items.forEach(function(i){
       var d=chkNorm(done[i.k]),cons=CHKCONS.indexOf(i.t)>=0,status="Not bought",meter="";nt++;
-      if(d){nb++;status=d.dad&&d.mum?"Bought (both ticked)":"Bought (one tick)";
+      if(d){nb++;status=chkSides(d).confirmed?"Bought and confirmed":"Bought, waiting for confirmation";
         if(cons&&d.days){var tot=d.days*86400000,left=Math.max(0,tot-(Date.now()-d.ts)),p=left/tot,col=p>0.5?"#1fa855":p>0.3?"#e0a100":"#d93025";
           status=left<=0?"Depleted":p<=0.3?"Running low":"In use";
           meter="<div class='mt'><i style='width:"+Math.round(p*100)+"%;background:"+col+"'></i></div><small>"+Math.round(p*100)+"% left · about "+Math.ceil(left/86400000)+" days · lasts "+chkDur(d.days)+"</small>"}}
-      rows+="<tr><td>"+rpEsc(i.t)+(cons?" ⏳":"")+"</td><td class='c'>"+(d&&d.dad?"<span class='tk b'>✓</span><small>"+dt(d.dad.ts)+"</small>":"")+"</td><td class='c'>"+(d&&d.mum?"<span class='tk g'>✓</span><small>"+dt(d.mum.ts)+"</small>":"")+"</td><td>"+status+meter+"</td></tr>"});
-    body+="<h2>"+c[0]+" "+rpEsc(c[1])+"</h2><table><tr><th>Item</th><th class='c'>Daddy</th><th class='c'>Mummy</th><th>Status</th></tr>"+rows+"</table>"});
+      rows+="<tr><td>"+rpEsc(i.t)+(cons?" ⏳":"")+"</td><td class='c'>"+(d?(function(){var q=chkSides(d);return d[q.chk]?"<span class='tk b'>✓</span><small>"+chkRName(q.chk)+" "+dt(d[q.chk].ts)+"</small>":""})():"")+"</td><td class='c'>"+(d&&chkSides(d).confirmed?(function(){var q=chkSides(d);return "<span class='tk g'>✓</span><small>"+chkRName(q.cf)+" "+dt(d[q.cf].ts)+"</small>"})():"")+"</td><td>"+status+meter+"</td></tr>"});
+    body+="<h2>"+c[0]+" "+rpEsc(c[1])+"</h2><table><tr><th>Item</th><th class='c'>Checked</th><th class='c'>Confirmed</th><th>Status</th></tr>"+rows+"</table>"});
   var H=chkHist(),hr="";
-  H.forEach(function(p){hr+="<tr><td>"+dt(p.ts)+"</td><td>"+rpEsc(p.item)+"<small>"+rpEsc(p.section||"")+"</small></td><td>"+rpEsc((p.brand||"")+(p.qty?" × "+p.qty:""))+(p.store?"<small>"+rpEsc(p.store)+"</small>":"")+"</td><td>"+rpEsc(memberName(p.by)||"")+"</td><td>"+(p.dad?"<span class='tk b'>✓</span>":"")+(p.mum?" <span class='tk g'>✓</span>":"")+"</td><td>"+(p.days?chkDur(p.days):"")+"</td><td>"+rpEsc(chkNow(p,done))+"</td></tr>"});
-  body+="<h2 style='page-break-before:always'>Purchase history ("+H.length+")</h2><table><tr><th>Date</th><th>Item</th><th>Brand / qty / shop</th><th>Bought by</th><th>Ticks</th><th>Lasts</th><th>Status now</th></tr>"+(hr||"<tr><td colspan='7'>Nothing bought yet.</td></tr>")+"</table>";
+  H.forEach(function(p){hr+="<tr><td>"+dt(p.ts)+"</td><td>"+rpEsc(p.item)+"<small>"+rpEsc(p.section||"")+"</small></td><td>"+rpEsc((p.brand||"")+(p.qty?" × "+p.qty:""))+(p.store?"<small>"+rpEsc(p.store)+"</small>":"")+"</td><td>"+rpEsc(memberName(p.by)||"")+"</td><td>"+(p.dad||p.mum?"<span class='tk b'>✓</span>":"")+(chkSides(p).confirmed?" <span class='tk g'>✓</span>":"")+"</td><td>"+(p.days?chkDur(p.days):"")+"</td><td>"+rpEsc(chkNow(p,done))+"</td></tr>"});
+  body+="<h2 style='page-break-before:always'>Purchase history ("+H.length+")</h2><table><tr><th>Date</th><th>Item</th><th>Brand / qty / shop</th><th>Bought by</th><th>Checked / confirmed</th><th>Lasts</th><th>Status now</th></tr>"+(hr||"<tr><td colspan='7'>Nothing bought yet.</td></tr>")+"</table>";
   var css="body{font:14px/1.4 -apple-system,Helvetica,Arial,sans-serif;color:#111;margin:24px}h1{margin:0 0 4px}h2{margin:22px 0 6px;font-size:1.05rem}.m{color:#555}table{width:100%;border-collapse:collapse;page-break-inside:auto}tr{page-break-inside:avoid}th,td{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left;vertical-align:top}th{background:#f3f4f6;font-size:.8rem}.c{text-align:center;width:90px}small{display:block;color:#666}.tk{display:inline-block;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:800;line-height:22px;text-align:center}.b{background:#2f7de1}.g{background:#2fa84f}.mt{height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden;margin:4px 0 2px}.mt i{display:block;height:100%}";
   var html="<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Checklist</title><style>"+css+"</style></head><body><h1>Checklist</h1><div class='m'>Prepared on "+rpEsc(new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}))+" · "+nb+" of "+nt+" items bought</div>"+body+"</body></html>";
   rpShow(html,"Checklist-"+new Date().toISOString().slice(0,10)+".html");
@@ -1626,11 +1662,11 @@ function xtChk(){
   var box=$("#xs-chk");if(!box)return;box.textContent="";
   var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},extra=st.extra||{};
   var total=0,got=0,both=0;
-  CHK.forEach(function(c,ci){total+=c[2].length+(extra[ci]||[]).length;c[2].forEach(function(it,ii){var d=chkNorm(done[ci+"_"+ii]);if(d){got++;if(d.dad&&d.mum)both++}});(extra[ci]||[]).forEach(function(t,ii){var d=chkNorm(done["x"+ci+"_"+ii]);if(d){got++;if(d.dad&&d.mum)both++}})});
+  CHK.forEach(function(c,ci){total+=c[2].length+(extra[ci]||[]).length;c[2].forEach(function(it,ii){var d=chkNorm(done[ci+"_"+ii]);if(d){got++;if(chkSides(d).confirmed)both++}});(extra[ci]||[]).forEach(function(t,ii){var d=chkNorm(done["x"+ci+"_"+ii]);if(d){got++;if(chkSides(d).confirmed)both++}})});
   var top=h("div","card");top.appendChild(h("h2",null,"Checklist"));
-  top.appendChild(h("p","meta","Both parents can add items. Each parent ticks with their own colour: blue for Our Daddy, green for Our Mummy. Items marked ⏳ get used up and share one meter."));
+  top.appendChild(h("p","meta","Both parents can add items. When one parent checks an item (blue), the other parent has to confirm it (green). Items marked ⏳ get used up and share one meter."));
   var bar=h("div");bar.style.cssText="height:10px;border-radius:5px;background:rgba(128,128,128,.25);overflow:hidden";var fi=h("i");fi.style.cssText="display:block;height:100%;background:#1fa855;width:"+(total?got/total*100:0)+"%";bar.appendChild(fi);top.appendChild(bar);
-  top.appendChild(h("div","meta",got+" of "+total+" bought · "+both+" ticked by both parents"));
+  top.appendChild(h("div","meta",got+" of "+total+" checked · "+both+" confirmed by the other parent"));
   top.appendChild(xtBtn("📄 PDF",chkPdf));top.appendChild(xtBtn("⬇️ Spreadsheet (.csv)",chkDownload));box.appendChild(top);
   function save(patch){return xtDoc("chk_state",Object.assign({kind:"chk"},patch))}
   var LB=chkLastMap();
@@ -1644,26 +1680,33 @@ function xtChk(){
       items.forEach(function(i){
         var d=chkNorm(done[i.k]),cons=CHKCONS.indexOf(i.t)>=0,row=h("div","item");row.style.cssText="display:flex;gap:12px;align-items:flex-start";
         var tk=h("div");tk.style.cssText="display:flex;gap:6px;flex:none;margin-top:1px";
-        [["dad","Daddy",BLUE],["mum","Mummy",GREEN]].forEach(function(rl){
-          var on=!!(d&&d[rl[0]]),mine=myRole()===(rl[0]==="dad"?"daddy":"mummy");
-          var bt=h("button",null,on?"✓":"");bt.type="button";bt.setAttribute("aria-label",rl[1]+(on?" ticked":" not ticked"));
-          bt.style.cssText="width:26px;height:26px;border-radius:50%;padding:0;font-size:.95rem;font-weight:800;line-height:1;display:flex;align-items:center;justify-content:center;cursor:"+(canWrite&&mine?"pointer":"default")+";border:2px solid "+rl[2]+";background:"+(on?rl[2]:"transparent")+";color:#fff;opacity:"+(canWrite&&mine||on?1:.45);
-          if(canWrite&&mine)bt.onclick=function(){
-            var nd=Object.assign({},done),cur=chkNorm(done[i.k]),rk=rl[0];
-            if(on){
-              if(!canRemoveRec({ts:cur.ts}))return note("This was bought more than a week ago, so it stays in the record.");
-              cur=Object.assign({},cur);delete cur[rk];
-              if(!cur.dad&&!cur.mum){delete nd[i.k];if(cur.pid)db.doc("expenses/"+cur.pid).delete().catch(fail)}else{nd[i.k]=cur;if(cur.pid){var pp={};pp[rk]=null;xtDoc(cur.pid,pp)}}
-              save({done:nd});return}
-            if(!cur){if(cons){CHKASK={k:i.k,t:i.t,r:rk,sec:c[1]};xtChk();return}chkBuy(nd,i,c[1],rk,0);save({done:nd});return}
-            nd[i.k]=Object.assign({},cur);nd[i.k][rk]={by:myId,ts:Date.now()};if(cur.pid){var p2={};p2[rk]={by:myId,ts:Date.now()};xtDoc(cur.pid,p2)}save({done:nd})};
-          else bt.disabled=true;
-          tk.appendChild(bt)});
-        var sp=h("div");sp.style.flex="1";var t=h("div",null,i.t+(cons?" ⏳":""));if(d&&d.dad&&d.mum&&!cons)t.style.cssText="text-decoration:line-through;opacity:.7";sp.appendChild(t);
+        var sd=chkSides(d),mk=myRole()==="daddy"?"dad":myRole()==="mummy"?"mum":"";
+        function circle(on,col,label,can,fn){
+          var bt=h("button",null,on?"✓":"");bt.type="button";bt.setAttribute("aria-label",label);
+          bt.style.cssText="width:26px;height:26px;border-radius:50%;padding:0;font-size:.95rem;font-weight:800;line-height:1;display:flex;align-items:center;justify-content:center;cursor:"+(can?"pointer":"default")+";border:2px solid "+col+";background:"+(on?col:"transparent")+";color:#fff;opacity:"+(can||on?1:.4);
+          if(can)bt.onclick=fn;else bt.disabled=true;tk.appendChild(bt)}
+        /* blue: checked as bought by one parent */
+        circle(!!d,BLUE,d?"Checked by "+chkRName(sd.chk):"Not checked yet",canWrite&&mk&&(!d||sd.chk===mk),function(){
+          var nd=Object.assign({},done);
+          if(d){
+            if(!canRemoveRec({ts:d.ts}))return note("This was bought more than a week ago, so it stays in the record.");
+            if(sd.confirmed&&!confirm("This was already confirmed by the other parent. Remove the check anyway?"))return;
+            delete nd[i.k];if(d.pid){db.doc("expenses/"+d.pid).delete().catch(fail);var sh0=shopByPid(d.pid);if(sh0)db.doc("expenses/"+sh0.id).update({status:"requested",fulfilledBy:null,fulfilledAt:null,chkPid:null,confirmedAt:null,confirmedBy:null,selfie_fulfilled:null}).catch(fail)}save({done:nd});return}
+          if(cons){CHKASK={k:i.k,t:i.t,r:mk,sec:c[1]};xtChk();return}
+          chkBuy(nd,i,c[1],mk,0);save({done:nd})});
+        /* green: confirmed by the other parent */
+        circle(!!(d&&sd.confirmed),GREEN,d?(sd.confirmed?"Confirmed by "+chkRName(sd.cf):"Waiting for "+chkRName(sd.cf)+" to confirm"):"Not checked yet",canWrite&&mk&&d&&(sd.confirmed?sd.cf===mk:sd.cf===mk),function(){
+          var nd=Object.assign({},done),cur=Object.assign({},chkNorm(done[i.k]));
+          if(sd.confirmed){
+            if(!canRemoveRec({ts:d.ts}))return note("This was bought more than a week ago, so it stays in the record.");
+            delete cur[mk];nd[i.k]=cur;if(cur.pid){var pp={};pp[mk]=null;xtDoc(cur.pid,pp);var sh1=shopByPid(cur.pid);if(sh1&&sh1.status==="confirmed")db.doc("expenses/"+sh1.id).update({status:"fulfilled",confirmedAt:null,confirmedBy:null}).catch(fail)}save({done:nd});return}
+          cur[mk]={by:myId,ts:Date.now()};nd[i.k]=cur;if(cur.pid){var p2={};p2[mk]={by:myId,ts:Date.now()};xtDoc(cur.pid,p2);var sh2=shopByPid(cur.pid);if(sh2&&sh2.status==="fulfilled")db.doc("expenses/"+sh2.id).update({status:"confirmed",confirmedAt:Date.now(),confirmedBy:myId}).catch(fail)}save({done:nd})});
+        var sp=h("div");sp.style.flex="1";var t=h("div",null,i.t+(cons?" ⏳":""));if(d&&sd.confirmed&&!cons)t.style.cssText="text-decoration:line-through;opacity:.7";sp.appendChild(t);
         var dmy={day:"numeric",month:"short"};
         var lbp=LB[i.k];
-        if(d){var who=[];if(d.dad)who.push("Daddy "+new Date(d.dad.ts).toLocaleDateString(undefined,dmy));if(d.mum)who.push("Mummy "+new Date(d.mum.ts).toLocaleDateString(undefined,dmy));
-          sp.appendChild(h("div","meta",(d.dad&&d.mum?"✅ Both ticked · ":"")+who.join(" · ")))}
+        if(d){var cd=d[sd.chk]||{ts:d.ts};sp.appendChild(h("div","meta","🔵 Checked by "+chkRName(sd.chk)+" · "+new Date(cd.ts).toLocaleDateString(undefined,dmy)));
+          if(sd.confirmed)sp.appendChild(h("div","meta","🟢 Confirmed by "+chkRName(sd.cf)+" · "+new Date(d[sd.cf].ts).toLocaleDateString(undefined,dmy)));
+          else{var wc=h("div","meta","⏳ Waiting for "+chkRName(sd.cf)+" to confirm"+(sd.cf===mk?". Tap the green circle to confirm.":""));wc.style.fontWeight="600";sp.appendChild(wc)}}
         if(lbp)sp.appendChild(h("div","meta","🕘 Last bought: "+new Date(lbp.ts).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+" ("+chkAgo(lbp.ts)+")"));
         if(d&&cons&&d.days){
           var tot=d.days*86400000,left=Math.max(0,tot-(Date.now()-d.ts)),pc=left/tot,dl=Math.ceil(left/86400000);
@@ -1722,7 +1765,7 @@ function xtChk(){
     var r=h("div","item");r.style.cssText="display:flex;flex-direction:column;gap:2px";
     r.appendChild(h("b",null,p.item));
     r.appendChild(h("div","meta",new Date(p.ts).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+" · "+(p.section||"")+" · "+(memberName(p.by)||"")+(p.brand?" · "+p.brand:"")+(p.qty?" · qty "+p.qty:"")+(p.store?" · from "+p.store:"")+(p.days?" · lasts "+chkDur(p.days):"")));
-    var tk=[];if(p.dad)tk.push("🔵 Daddy");if(p.mum)tk.push("🟢 Mummy");if(tk.length)r.appendChild(h("div","meta",tk.join("  ")+" · "+chkNow(p,done)));
+    var sp1=chkSides(p),tk=[];if(p[sp1.chk])tk.push("🔵 Checked by "+chkRName(sp1.chk));if(sp1.confirmed)tk.push("🟢 Confirmed by "+chkRName(sp1.cf));if(tk.length)r.appendChild(h("div","meta",tk.join("  ")+" · "+chkNow(p,done)));
     hc.appendChild(r)});
   if(H.length>CHKHN)hc.appendChild(xtBtn("Show more",function(){CHKHN+=30;xtChk()},"quiet"));
   box.appendChild(hc);
@@ -1935,10 +1978,32 @@ function aiBadge(rec,coll){
 /* shopping list */
 var SHPRIO=[[1,"🔴 Urgent","#d93025"],[2,"🟠 High","#e8833a"],[3,"🟡 Normal","#c9a227"],[4,"⚪ Low","#8a949c"]];
 function shPrio(x){return x&&x.prio>=1&&x.prio<=4?x.prio:3}
+function shopRows(list){
+  return list.map(function(x){return {store:x.store||"Not decided",item:x.title||"",cat:x.cat||(x.chk&&x.chk.section)||"",brand:x.brand||"",qty:x.qty||"",prio:(SHPRIO[shPrio(x)-1]||[0,""])[1].replace(/^\S+\s/,""),lasts:x.days?chkDur(x.days):"",by:memberName(x.by)||"",note:x.note||""}});
+}
+function shopPdf(list,label){
+  var rows=shopRows(list),groups={},order=[];rows.forEach(function(r){if(!groups[r.store]){groups[r.store]=[];order.push(r.store)}groups[r.store].push(r)});
+  order.sort(function(a,b){return a==="Not decided"?1:b==="Not decided"?-1:a.localeCompare(b)});
+  var body="";order.forEach(function(sn){
+    body+="<h2>"+rpEsc(sn)+" ("+groups[sn].length+")</h2><table><tr><th class='c'>✓</th><th>Item</th><th>Brand</th><th>Qty</th><th>Priority</th><th>Notes</th></tr>";
+    groups[sn].forEach(function(r){body+="<tr><td class='c'>☐</td><td>"+rpEsc(r.item)+"<small>"+rpEsc(r.cat)+"</small></td><td>"+rpEsc(r.brand)+"</td><td>"+rpEsc(r.qty)+"</td><td>"+rpEsc(r.prio)+"</td><td>"+rpEsc((r.lasts?"Lasts "+r.lasts+". ":"")+r.note)+"</td></tr>"});
+    body+="</table>"});
+  var css="body{font:14px/1.4 -apple-system,Helvetica,Arial,sans-serif;color:#111;margin:24px}h1{margin:0 0 4px}h2{margin:20px 0 6px;font-size:1.05rem}.m{color:#555}table{width:100%;border-collapse:collapse}tr{page-break-inside:avoid}th,td{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left;vertical-align:top}th{background:#f3f4f6;font-size:.8rem}.c{text-align:center;width:36px;font-size:1.1rem}small{display:block;color:#666}";
+  var html="<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Shopping list</title><style>"+css+"</style></head><body><h1>Shopping list"+(label&&label!=="all"?": "+rpEsc(label):"")+"</h1><div class='m'>Prepared on "+rpEsc(new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}))+" · "+rows.length+" items waiting to be bought</div>"+(body||"<p>Nothing waiting.</p>")+"</body></html>";
+  rpShow(html,"Shopping-list-"+(label&&label!=="all"?label.replace(/[^\w]+/g,"-")+"-":"")+new Date().toISOString().slice(0,10)+".html");
+}
+function shopCsvDl(list,label){
+  function q(v){v=v==null?"":String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+  var rows=[["Where to buy","Item","Category","Brand","Quantity","Priority","Lasts","Requested by","Notes"]];
+  shopRows(list).sort(function(a,b){return a.store.localeCompare(b.store)}).forEach(function(r){rows.push([r.store,r.item,r.cat,r.brand,r.qty,r.prio,r.lasts,r.by,r.note])});
+  var blob=new Blob(["﻿"+rows.map(function(r){return r.map(q).join(",")}).join("\r\n")],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="Shopping-list-"+(label&&label!=="all"?label.replace(/[^\w]+/g,"-")+"-":"")+new Date().toISOString().slice(0,10)+".csv";document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1500);
+}
+var SHF="all";
 function xtShop(){
   var box=$("#xs-shop");if(!box)return;box.textContent="";
   var f=h("div","card");f.appendChild(h("h2",null,"Shopping list"));
-  f.appendChild(h("p","meta","Ask the other parent to pick something up. They tap “I got it”, then you confirm it arrived."));
+  f.appendChild(h("p","meta","Ask for something to be picked up. Whoever buys it ticks it off, then the other parent confirms."));
   var cl=h("label",null,"What do you need?"),cs=h("select"),il=h("label",null,"Item"),is=h("select");il.style.marginTop="8px";
   var c0=h("option",null,"Choose a category");c0.value="";cs.appendChild(c0);
   CHK.forEach(function(c,ci){var o=h("option",null,c[0]+" "+c[1]);o.value=String(ci);cs.appendChild(o)});
@@ -1990,8 +2055,8 @@ function xtShop(){
   box.appendChild(f);
   var items=(S.xo||[]).filter(function(x){return x.kind==="shop"}).sort(function(a,b){return shPrio(a)-shPrio(b)||(b.ts||0)-(a.ts||0)});
   function when(ts){return ts?new Date(ts).toLocaleDateString(undefined,{day:"numeric",month:"short"}):""}
-  function group(title,list,draw){
-    var c=h("div","card");c.appendChild(h("h2",null,title+" ("+list.length+")"));
+  function group(title,list,draw,pre){
+    var c=h("div","card");c.appendChild(h("h2",null,title+" ("+list.length+")"));if(pre)pre(c);
     if(!list.length)c.appendChild(h("p","empty","Nothing here."));
     list.forEach(function(x){
       var r=h("div","item");r.style.cssText+=";flex-direction:column;gap:2px";
@@ -2005,26 +2070,39 @@ function xtShop(){
       draw(x,r,top);var sl2=selfieLinks(x,[["selfie","Requested"],["selfie_fulfilled","Fulfilled"],["selfie_confirmed","Confirmed"]]);if(sl2)r.appendChild(sl2);var ssh=shareLine(x,"expenses");if(ssh)r.appendChild(ssh);c.appendChild(r)});
     box.appendChild(c);
   }
-  group("Waiting to be bought",items.filter(function(x){return x.status==="requested"}),function(x,r,top){
+  var waitAll=items.filter(function(x){return x.status==="requested"}),stOf=function(x){return x.store||"Not decided"};
+  var stores=[];waitAll.forEach(function(x){if(stores.indexOf(stOf(x))<0)stores.push(stOf(x))});
+  stores.sort(function(a,b){return a==="Not decided"?1:b==="Not decided"?-1:a.localeCompare(b)});
+  if(SHF!=="all"&&stores.indexOf(SHF)<0)SHF="all";
+  var waitList=SHF==="all"?waitAll:waitAll.filter(function(x){return stOf(x)===SHF});
+  group("Waiting to be bought",waitList,function(x,r,top){
+    var secret=!!(x.share&&x.share.length===1&&x.share[0]===x.by);
+    var a=h("div");
+    if(!(secret&&x.by===myId)&&canWrite&&myRole()){
+      var cb=h("input");cb.type="checkbox";cb.setAttribute("aria-label","Tick off "+x.title+" when bought");cb.style.cssText="width:24px;height:24px;flex:none;margin:0 10px 0 0";
+      cb.onchange=function(){if(cb.checked)shopCheck(x)};top.insertBefore(cb,top.firstChild);top.style.justifyContent="flex-start";top.lastChild&&(top.lastChild.style.marginLeft="auto")}
     var pp=SHPRIO[shPrio(x)-1];top.appendChild(xtChip(pp[1],pp[2]));
     if(canWrite){var sel=h("select");sel.setAttribute("aria-label","Priority");sel.style.cssText="width:auto;padding:4px 8px;font-size:.85rem;margin:2px 0";SHPRIO.forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sel.appendChild(op)});sel.value=String(shPrio(x));
       sel.onchange=function(){db.doc("expenses/"+x.id).update({prio:parseInt(sel.value,10),prioBy:myId}).catch(fail)};r.appendChild(sel)}
-    var a=h("div");
-    var secret=!!(x.share&&x.share.length===1&&x.share[0]===x.by);
     if(secret&&x.by===myId){var sc=h("div","meta","🎁 Surprise: only you can see this.");sc.style.fontWeight="600";r.appendChild(sc);
       a.appendChild(xtBtn("🎁 I bought it",function(){db.doc("expenses/"+x.id).update({status:"confirmed",fulfilledBy:myId,fulfilledAt:Date.now(),confirmedAt:Date.now(),_selfie:"confirmed"}).catch(fail)}));
       a.appendChild(xtBtn("Reveal to everyone",function(){if(confirm("Show this to everyone? It will stop being a surprise."))db.doc("expenses/"+x.id).update({share:null}).catch(fail)},"quiet"))}
-    else if(canWrite&&x.by!==myId)a.appendChild(xtBtn("I got it",function(){db.doc("expenses/"+x.id).update({status:"fulfilled",fulfilledBy:myId,fulfilledAt:Date.now(),_selfie:"fulfilled"}).then(function(){if(!x.share)setTimeout(function(){babyPost("both",x.title+" was just bought for Janet"+(x.store?" from "+x.store:"")+". Shopping done!",true,{tone:"funny"})},1500)}).catch(fail)}));
     if(x.by===myId||isOwner)a.appendChild(xtBtn("Cancel request",function(){if(confirm("Remove this request?"))db.doc("expenses/"+x.id).delete().catch(fail)},"quiet"));
-    r.appendChild(a)});
+    r.appendChild(a)},function(c){
+      c.appendChild(h("p","meta","Going shopping? Pick where you are going to see just that list, and download it to take with you. Tick an item when you have bought it. It moves to “Bought, waiting for confirmation”; when the other parent confirms, it moves to Completed and shows on the Checklist."));
+      var chips=h("div");chips.style.cssText="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0";
+      function chip(label,val,n){var b=h("button",SHF===val?"go":"quiet",label+" ("+n+")");b.type="button";b.style.cssText="padding:6px 12px;font-size:.85rem;border-radius:999px";b.onclick=function(){SHF=val;xtShop()};chips.appendChild(b)}
+      chip("All","all",waitAll.length);stores.forEach(function(sn){chip(sn,sn,waitAll.filter(function(x){return stOf(x)===sn}).length)});
+      c.appendChild(chips);
+      if(waitList.length){c.appendChild(xtBtn("📄 PDF",function(){shopPdf(waitList,SHF)}));c.appendChild(xtBtn("⬇️ Spreadsheet (.csv)",function(){shopCsvDl(waitList,SHF)},"quiet"))}
+    });
   group("Bought, waiting for confirmation",items.filter(function(x){return x.status==="fulfilled"}),function(x,r,top){
-    top.appendChild(xtChip("Fulfilled","#2f7de1"));
-    r.appendChild(h("div","meta","Fulfilled by "+xtName(x.fulfilledBy)+" · "+when(x.fulfilledAt)));
-    var a=h("div");
-    if(x.by===myId&&canWrite){
-      a.appendChild(xtBtn("✅ Confirm I received it",function(){db.doc("expenses/"+x.id).update({status:"confirmed",confirmedAt:Date.now(),_selfie:"confirmed"}).then(function(){if(x.chk)chkFromShop(x)}).catch(fail)}));
-      a.appendChild(xtBtn("Not received yet",function(){db.doc("expenses/"+x.id).update({status:"requested",fulfilledBy:null,fulfilledAt:null,selfie_fulfilled:null}).catch(fail)},"quiet"));
-    }else a.appendChild(h("div","meta","Waiting for "+xtName(x.by)+" to confirm."));
+    top.appendChild(xtChip("Bought","#2f7de1"));
+    r.appendChild(h("div","meta","Checked off by "+xtName(x.fulfilledBy)+" · "+when(x.fulfilledAt)));
+    var a=h("div"),mine=x.fulfilledBy===myId;
+    if(canWrite&&myRole()&&!mine)a.appendChild(xtBtn("✅ Confirm it was bought",function(){shopConfirm(x)}));
+    else a.appendChild(h("div","meta","Waiting for the other parent to confirm."));
+    if(canWrite&&mine)a.appendChild(xtBtn("Undo (not bought yet)",function(){shopUndoCheck(x)},"quiet"));
     r.appendChild(a)});
   group("Completed",items.filter(function(x){return x.status==="confirmed"}).slice(0,15),function(x,r,top){
     top.appendChild(xtChip("Confirmed","#1fa855"));
@@ -4770,6 +4848,8 @@ function openComposer(){
   setTimeout(function(){$("#ft").focus()},60);
 }
 function closeComposer(){document.body.classList.remove("composing");CMP.panel="";var pn=$("#fpanel");if(pn)pn.hidden=true}
+/* the composer lives at the top level so it opens from any page (profile, stories...), not only the Home feed */
+(function(){var f=document.getElementById("fform");if(f&&f.parentNode!==document.body)document.body.appendChild(f)})();
 $("#fbar").onclick=openComposer;
 $("#fcx").onclick=closeComposer;
 $("#fpost2").onclick=function(){$("#fpost").click()};
@@ -6186,6 +6266,7 @@ async function start(session){
       if(x.status==="done"&&x.doneBy&&x.doneBy!==myId&&myRole())E.push({ts:x.doneAt||x.ts||0,k:"reminder",lead:"Task",text:": "+xtName(x.doneBy)+" marked “"+x.title+"” done. Please confirm."});
       else if(x.status==="confirmed"&&x.doneBy===myId)E.push({ts:x.confirmedAt||x.ts||0,k:"reminder",lead:"Task",text:": “"+x.title+"” was confirmed by "+xtName(x.confirmedBy)+"."});
     });
+    try{chkPending().forEach(function(l){E.push({ts:l.ts,k:"reminder",lead:"Checklist",text:": "+l.t+" was checked by "+l.who+". Please confirm it."})})}catch(e){}
     try{chkLow().forEach(function(l){E.push({ts:Math.min(Date.now(),l.ts),k:"reminder",lead:l.left<=0?"Finished":"Running low",text:": "+l.t+(l.left<=0?" has run out. Time to restock (Checklist).":" – about "+l.dl+(l.dl===1?" day":" days")+" left (Checklist).")})})}catch(e){}
     (S.mnotes||[]).forEach(function(m){E.push({ts:m.ts||m.start||0,k:"meeting",lead:"Meeting summary",text:": "+(m.topic||"Meeting")+" is ready"})});
     S.hl.forEach(function(x){if(x.by&&x.by!==myId)E.push({ts:x.ts,k:"highlight",by:x.by,text:" added a highlight: "+(x.title||"")})});
