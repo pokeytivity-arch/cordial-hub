@@ -899,7 +899,7 @@ main{max-width:100%}
 </section>
 
 <section id="p-todo" hidden>
-  <div class="card" style="padding:10px"><div class="seg" id="tdseg"><button type="button" class="on" data-p="tasks">To-do <span id="tdn1"></span></button><button type="button" data-p="shop">Shopping list <span id="tdn2"></span></button><button type="button" data-p="chk">Janet’s checklist</button></div></div>
+  <div class="card" style="padding:10px"><div class="seg" id="tdseg"><button type="button" class="on" data-p="tasks">To-do <span id="tdn1"></span></button><button type="button" data-p="shop">Shopping list <span id="tdn2"></span></button><button type="button" data-p="chk">Checklist</button></div></div>
   <div id="todocard"></div>
   <div id="xs-shop" hidden></div>
   <div id="xs-chk" hidden></div>
@@ -1592,8 +1592,8 @@ function chkPdf(){
   H.forEach(function(p){hr+="<tr><td>"+dt(p.ts)+"</td><td>"+rpEsc(p.item)+"<small>"+rpEsc(p.section||"")+"</small></td><td>"+rpEsc((p.brand||"")+(p.qty?" × "+p.qty:""))+(p.store?"<small>"+rpEsc(p.store)+"</small>":"")+"</td><td>"+rpEsc(memberName(p.by)||"")+"</td><td>"+(p.dad?"<span class='tk b'>✓</span>":"")+(p.mum?" <span class='tk g'>✓</span>":"")+"</td><td>"+(p.days?chkDur(p.days):"")+"</td><td>"+rpEsc(chkNow(p,done))+"</td></tr>"});
   body+="<h2 style='page-break-before:always'>Purchase history ("+H.length+")</h2><table><tr><th>Date</th><th>Item</th><th>Brand / qty / shop</th><th>Bought by</th><th>Ticks</th><th>Lasts</th><th>Status now</th></tr>"+(hr||"<tr><td colspan='7'>Nothing bought yet.</td></tr>")+"</table>";
   var css="body{font:14px/1.4 -apple-system,Helvetica,Arial,sans-serif;color:#111;margin:24px}h1{margin:0 0 4px}h2{margin:22px 0 6px;font-size:1.05rem}.m{color:#555}table{width:100%;border-collapse:collapse;page-break-inside:auto}tr{page-break-inside:avoid}th,td{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left;vertical-align:top}th{background:#f3f4f6;font-size:.8rem}.c{text-align:center;width:90px}small{display:block;color:#666}.tk{display:inline-block;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:800;line-height:22px;text-align:center}.b{background:#2f7de1}.g{background:#2fa84f}.mt{height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden;margin:4px 0 2px}.mt i{display:block;height:100%}";
-  var html="<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Janet’s checklist</title><style>"+css+"</style></head><body><h1>Janet’s checklist</h1><div class='m'>Prepared on "+rpEsc(new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}))+" · "+nb+" of "+nt+" items bought</div>"+body+"</body></html>";
-  rpShow(html,"Janet-checklist-"+new Date().toISOString().slice(0,10)+".html");
+  var html="<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Checklist</title><style>"+css+"</style></head><body><h1>Checklist</h1><div class='m'>Prepared on "+rpEsc(new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"}))+" · "+nb+" of "+nt+" items bought</div>"+body+"</body></html>";
+  rpShow(html,"Checklist-"+new Date().toISOString().slice(0,10)+".html");
 }
 function chkLow(){
   var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},out=[];
@@ -1627,7 +1627,7 @@ function xtChk(){
   var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},extra=st.extra||{};
   var total=0,got=0,both=0;
   CHK.forEach(function(c,ci){total+=c[2].length+(extra[ci]||[]).length;c[2].forEach(function(it,ii){var d=chkNorm(done[ci+"_"+ii]);if(d){got++;if(d.dad&&d.mum)both++}});(extra[ci]||[]).forEach(function(t,ii){var d=chkNorm(done["x"+ci+"_"+ii]);if(d){got++;if(d.dad&&d.mum)both++}})});
-  var top=h("div","card");top.appendChild(h("h2",null,"Janet’s checklist"));
+  var top=h("div","card");top.appendChild(h("h2",null,"Checklist"));
   top.appendChild(h("p","meta","Both parents can add items. Each parent ticks with their own colour: blue for Our Daddy, green for Our Mummy. Items marked ⏳ get used up and share one meter."));
   var bar=h("div");bar.style.cssText="height:10px;border-radius:5px;background:rgba(128,128,128,.25);overflow:hidden";var fi=h("i");fi.style.cssText="display:block;height:100%;background:#1fa855;width:"+(total?got/total*100:0)+"%";bar.appendChild(fi);top.appendChild(bar);
   top.appendChild(h("div","meta",got+" of "+total+" bought · "+both+" ticked by both parents"));
@@ -1673,25 +1673,27 @@ function xtChk(){
           if(canWrite&&myRole()&&left<=0)sp.appendChild(xtBtn("Restock",function(){CHKASK={k:i.k,t:i.t,re:1,r:myRole()==="daddy"?"dad":"mum",sec:c[1]};xtChk()},"quiet"));
         }else if(d&&canWrite&&myRole())sp.appendChild(xtBtn("Bought again",function(){if(!confirm("Record that "+i.t+" was bought again?"))return;var nd=Object.assign({},done);chkBuy(nd,i,c[1],myRole()==="daddy"?"dad":"mum",0);save({done:nd})},"quiet"));
         else if(!d&&i.n)sp.appendChild(h("div","meta",i.n));
-        if(canWrite){
-          var onl=(S.xo||[]).filter(function(y){return y.kind==="shop"&&y.chk&&y.chk.k===i.k&&(y.status==="requested"||y.status==="fulfilled")})[0];
-          if(onl){var ch=h("div","meta","🛒 On the shopping list"+(onl.status==="fulfilled"?" (bought, waiting for confirmation)":""));ch.style.fontWeight="600";sp.appendChild(ch)}
-          else if(CHKSHOP&&CHKSHOP.k===i.k){
-            var sf=h("div");sf.style.cssText="margin-top:8px;padding:10px;border-radius:12px;background:rgba(128,128,128,.12);display:flex;flex-direction:column;gap:8px";
-            sf.appendChild(h("div","meta","Add “"+i.t+"” to the shopping list"));
+        var onl=(S.xo||[]).filter(function(y){return y.kind==="shop"&&y.chk&&y.chk.k===i.k&&(y.status==="requested"||y.status==="fulfilled")})[0];
+        if(onl){var ch=h("div","meta","🛒 On the shopping list"+(onl.status==="fulfilled"?" (bought, waiting for confirmation)":""));ch.style.fontWeight="600";sp.appendChild(ch)}
+        if(canWrite&&CHKSHOP&&CHKSHOP.k===i.k){
+          var sf=h("div");sf.style.cssText="margin-top:8px;padding:10px;border-radius:12px;background:rgba(24,119,242,.10);display:flex;flex-direction:column;gap:8px";
+          sf.appendChild(h("b",null,"Add to shopping list"));
+          var blk=chkBlockMsg(i.k,i.t);
+          sf.appendChild(h("div","meta","This puts “"+i.t+"” on the shopping list so you have a list to follow on the next shopping day. When one parent buys it and the other confirms, this checklist updates by itself with the date, brand and quantity"+(cons?", and the meter starts":"")+"."));
+          if(blk){var bl=h("div","meta","⏳ "+blk);bl.style.cssText="font-weight:600;color:#c07a00";sf.appendChild(bl);sf.appendChild(xtBtn("Close",function(){CHKSHOP=null;xtChk()},"quiet"))}
+          else{
             var bi=h("input");bi.placeholder="Brand (optional)";bi.maxLength=60;var qi=h("input");qi.placeholder="Quantity (e.g. 2, or 1 carton)";qi.maxLength=30;
             var sl=h("select");CHKLAST.forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sl.appendChild(op)});sl.value=cons?"30":"0";
             var ll2=h("label",null,cons?"How long will it last?":"How long will it last? (optional)");ll2.appendChild(sl);
             var spc=storePick();sf.appendChild(bi);sf.appendChild(qi);sf.appendChild(ll2);sf.appendChild(spc.el);
-            sf.appendChild(xtBtn("Add to shopping list",async function(){
+            sf.appendChild(cartBtn("Add to shopping list",async function(){
               var bm0=chkBlockMsg(i.k,i.t);if(bm0){CHKSHOP=null;xtChk();return note(bm0)}
               if(cons&&!parseInt(sl.value,10))return note("Choose how long it will last, so the meter can start when it is bought.");note("");
               var rec={kind:"shop",date:key(new Date()),title:i.t,note:"",by:myId,status:"requested",prio:3,ts:Date.now(),chk:{k:i.k,item:i.t,section:c[1]}};
               if(bi.value.trim())rec.brand=bi.value.trim();if(qi.value.trim())rec.qty=qi.value.trim();if(parseInt(sl.value,10))rec.days=parseInt(sl.value,10);if(spc.get())rec.store=spc.get();
               try{await db.collection("expenses").add(rec);CHKSHOP=null;note("Added to the shopping list.");setTimeout(function(){note("")},2200);xtChk()}catch(e){fail(e)}}));
-            sf.appendChild(xtBtn("Cancel",function(){CHKSHOP=null;xtChk()},"quiet"));sp.appendChild(sf)}
-          else{var blk=chkBlockMsg(i.k,i.t);if(blk)sp.appendChild(h("div","meta","⏳ "+blk));else sp.appendChild(cartBtn("Add to shopping list",function(){CHKSHOP={k:i.k};xtChk()}))}
-        }
+            sf.appendChild(xtBtn("Cancel",function(){CHKSHOP=null;xtChk()},"quiet"))}
+          sp.appendChild(sf)}
         if(CHKASK&&CHKASK.k===i.k){
           var ask=h("div");ask.style.cssText="margin-top:8px;padding:10px;border-radius:12px;background:rgba(128,128,128,.12)";
           ask.appendChild(h("div","meta","How long will this last? One meter is shared by both parents."));
@@ -1699,7 +1701,13 @@ function xtChk(){
           ask.appendChild(sel);
           ask.appendChild(xtBtn("Start meter",function(){var nd=Object.assign({},done);chkBuy(nd,i,CHKASK.sec||c[1],CHKASK.r,parseInt(sel.value,10));CHKASK=null;save({done:nd})}));
           ask.appendChild(xtBtn("Cancel",function(){CHKASK=null;xtChk()},"quiet"));sp.appendChild(ask)}
-        row.appendChild(tk);row.appendChild(sp);card.appendChild(row)});
+        row.appendChild(tk);row.appendChild(sp);
+        if(canWrite){
+          var onl0=(S.xo||[]).filter(function(y){return y.kind==="shop"&&y.chk&&y.chk.k===i.k&&(y.status==="requested"||y.status==="fulfilled")})[0],blk0=chkBlockMsg(i.k,i.t);
+          var cb0=h("button");cb0.type="button";cb0.innerHTML=CART_SVG;cb0.setAttribute("aria-label","Add "+i.t+" to the shopping list");
+          cb0.style.cssText="flex:none;width:36px;height:36px;border-radius:50%;border:0;padding:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.05rem;cursor:pointer;background:"+(onl0?"#1fa855":blk0?"#9aa3ad":"#1877f2");
+          cb0.onclick=function(){CHKSHOP=(CHKSHOP&&CHKSHOP.k===i.k)?null:{k:i.k};xtChk()};row.appendChild(cb0)}
+        card.appendChild(row)});
       if(canWrite){
         var ad=h("div");ad.style.cssText="display:flex;gap:8px;margin-top:8px";
         var inp=h("input");inp.type="text";inp.maxLength=80;inp.placeholder="Add your own item";inp.style.flex="1";
@@ -1991,7 +1999,7 @@ function xtShop(){
       top.appendChild(h("b",null,x.title));r.appendChild(top);
       var meta="Requested by "+xtName(x.by)+" · "+when(x.ts);
       if(x.note)meta+=" · "+x.note;r.appendChild(h("div","meta",meta));
-      var det=[];if(x.brand)det.push("Brand: "+x.brand);if(x.qty)det.push("Qty: "+x.qty);if(x.days)det.push("Lasts about "+chkDur(x.days));if(x.store)det.push("Buy at: "+x.store);if(x.chk){det.push("From Janet’s checklist");var lq=chkLastMap()[x.chk.k];if(lq)det.push("Last bought "+new Date(lq.ts).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}))}if(det.length){var dd=h("div","meta",det.join(" · "));dd.style.fontWeight="600";r.appendChild(dd)}
+      var det=[];if(x.brand)det.push("Brand: "+x.brand);if(x.qty)det.push("Qty: "+x.qty);if(x.days)det.push("Lasts about "+chkDur(x.days));if(x.store)det.push("Buy at: "+x.store);if(x.chk){det.push("From the checklist");var lq=chkLastMap()[x.chk.k];if(lq)det.push("Last bought "+new Date(lq.ts).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}))}if(det.length){var dd=h("div","meta",det.join(" · "));dd.style.fontWeight="600";r.appendChild(dd)}
       if(x.link){var la=h("a","meta","🔗 Open link");la.href=x.link;la.target="_blank";la.rel="noopener noreferrer";la.style.textDecoration="underline";r.appendChild(la)}
       if(x.photo&&x.photo.path){var pim=h("img");pim.alt="Reference photo";pim.style.cssText="width:84px;height:84px;object-fit:cover;border-radius:10px;margin-top:4px;cursor:pointer;background:rgba(127,127,127,.2)";signed(x.photo.path).then(function(u){pim.src=u}).catch(function(){});pim.onclick=function(){signed(x.photo.path).then(function(u){preview(Object.assign({},x.photo,{url:u}))})};r.appendChild(pim)}
       draw(x,r,top);var sl2=selfieLinks(x,[["selfie","Requested"],["selfie_fulfilled","Fulfilled"],["selfie_confirmed","Confirmed"]]);if(sl2)r.appendChild(sl2);var ssh=shareLine(x,"expenses");if(ssh)r.appendChild(ssh);c.appendChild(r)});
@@ -6178,7 +6186,7 @@ async function start(session){
       if(x.status==="done"&&x.doneBy&&x.doneBy!==myId&&myRole())E.push({ts:x.doneAt||x.ts||0,k:"reminder",lead:"Task",text:": "+xtName(x.doneBy)+" marked “"+x.title+"” done. Please confirm."});
       else if(x.status==="confirmed"&&x.doneBy===myId)E.push({ts:x.confirmedAt||x.ts||0,k:"reminder",lead:"Task",text:": “"+x.title+"” was confirmed by "+xtName(x.confirmedBy)+"."});
     });
-    try{chkLow().forEach(function(l){E.push({ts:Math.min(Date.now(),l.ts),k:"reminder",lead:l.left<=0?"Finished":"Running low",text:": "+l.t+(l.left<=0?" has run out. Time to restock (Janet’s checklist).":" – about "+l.dl+(l.dl===1?" day":" days")+" left (Janet’s checklist).")})})}catch(e){}
+    try{chkLow().forEach(function(l){E.push({ts:Math.min(Date.now(),l.ts),k:"reminder",lead:l.left<=0?"Finished":"Running low",text:": "+l.t+(l.left<=0?" has run out. Time to restock (Checklist).":" – about "+l.dl+(l.dl===1?" day":" days")+" left (Checklist).")})})}catch(e){}
     (S.mnotes||[]).forEach(function(m){E.push({ts:m.ts||m.start||0,k:"meeting",lead:"Meeting summary",text:": "+(m.topic||"Meeting")+" is ready"})});
     S.hl.forEach(function(x){if(x.by&&x.by!==myId)E.push({ts:x.ts,k:"highlight",by:x.by,text:" added a highlight: "+(x.title||"")})});
     E.sort(function(a,b){return b.ts-a.ts});return E.slice(0,60);
