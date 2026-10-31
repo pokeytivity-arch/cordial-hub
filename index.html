@@ -1821,6 +1821,48 @@ function xtSup(){
 }
 /* school fees: 15 academic sessions from 2026/2027, three terms each */
 var XTERMS=[["First term","September",0],["Second term","January",1],["Third term","May",1]];
+/* other school payments in a session: lessons, registration, uniform, books... each with its own receipts */
+function xtOther(card,y){
+  var wrap=h("div","item");wrap.style.cssText="flex-direction:column;gap:6px;align-items:stretch";
+  var list=(S.xo||[]).filter(function(x){return x.kind==="feex"&&x.year===y}).sort(function(a,b){return (b.ts||0)-(a.ts||0)});
+  var tot=list.reduce(function(q,x){return q+(+x.amount||0)},0);
+  wrap.appendChild(h("b",null,"Other school payments"));
+  wrap.appendChild(h("div","meta","Lessons, registration, uniform, books and anything else outside the term fees."+(list.length?" Total so far: "+money(tot):"")));
+  list.forEach(function(x){
+    var pr=h("div");pr.style.cssText="border-top:1px solid rgba(128,128,128,.25);padding:8px 0";
+    var tp=h("div",null,(x.what||"Payment")+" · "+money(x.amount));tp.style.fontWeight="700";pr.appendChild(tp);
+    pr.appendChild(h("div","meta","Paid on "+new Date(x.paidOn||x.ts||0).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+" by "+xtName(x.paidBy)+(x.paidFromReceipt?" (date read from the receipt)":"")));
+    var rc=xtRc(x.receipts,"Receipt",x.aicheck&&x.aicheck.read);if(rc)pr.appendChild(rc);
+    var ck=x.aicheck;
+    if(ck&&ck.status==="pass"){var g=h("div","meta","✅ Checked by Cordial");g.style.color="#1f8a4c";pr.appendChild(g)}
+    else if(ck&&ck.status==="review"){var wn=h("div","meta","⚠️ Needs a look. "+(ck.reasons||[]).join(" "));wn.style.color="#c07a00";pr.appendChild(wn)}
+    else if(ck)pr.appendChild(h("div","meta","Cordial couldn’t read this one, but it is saved."));
+    pr.appendChild(xtConfirmBox(x,x.paidBy,"expenses"));
+    if(canWrite&&canRemoveRec({ts:x.ts}))pr.appendChild(xtBtn("Remove",function(){if(confirm("Remove this payment?"))db.doc("expenses/"+x.id).delete().catch(fail)},"quiet"));
+    wrap.appendChild(pr)});
+  if(canWrite){
+    var ap=h("div");ap.style.cssText="display:flex;flex-direction:column;gap:8px;border-top:1px solid rgba(128,128,128,.25);padding-top:8px";
+    var wi=h("input");wi.type="text";wi.placeholder="What it’s for (e.g. Extra lessons, Registration)";wi.maxLength=80;
+    var ai=h("input");ai.type="number";ai.min="0";ai.step="0.01";ai.inputMode="decimal";ai.placeholder="Amount (₦)";
+    var rf=h("input");rf.type="file";rf.accept="image/*,application/pdf";rf.multiple=true;
+    var rb=xtBtn("Add payment",async function(){
+      var what=wi.value.trim(),amt=parseFloat(ai.value);
+      if(!what)return note("Enter what this payment is for.");
+      if(!(amt>0))return note("Enter the amount.");
+      if(!rf.files||!rf.files.length)return note("Choose one or more receipts.");
+      note("");rb.disabled=true;
+      try{var add=[];for(var i=0;i<rf.files.length;i++)add.push(await xtUp(rf.files[i]));
+        var fck=await aiVerifyMany(rf.files,{kind:"fee",title:"School payment "+y+"/"+(y+1)+" – "+what,amount:amt,date:key(new Date())});
+        add.forEach(function(q){q.aicheck=fck});
+        var d0=fck&&fck.read&&fck.read.date,pd=Date.now(),fromRc=false;
+        if(/^\d{4}-\d{2}-\d{2}$/.test(d0||"")){var tm=new Date(d0+"T12:00:00").getTime();if(tm<=Date.now()&&tm>Date.now()-63072000000){pd=tm;fromRc=true}}
+        var nid="fx_"+y+"_"+Date.now().toString(36);
+        await xtDoc(nid,{kind:"feex",year:y,what:what,amount:amt,ts:Date.now(),by:myId,receipts:add,aicheck:fck,paid:true,paidBy:myId,paidOn:pd,paidFromReceipt:fromRc,_selfie:"paid"});
+        wi.value="";ai.value="";rf.value=""}catch(e){fail(e)}
+      rb.disabled=false});
+    ap.appendChild(wi);ap.appendChild(ai);ap.appendChild(rf);ap.appendChild(rb);wrap.appendChild(ap)}
+  card.appendChild(wrap);
+}
 function xtFee(){
   var box=$("#xs-fee");if(!box)return;box.textContent="";
   var recs={};(S.xo||[]).forEach(function(x){if(x.kind==="fee")recs[x.id]=x});
@@ -1912,6 +1954,7 @@ function xtFee(){
       if(r.paid&&!hasRc)row.appendChild(h("div","meta","No receipt was attached to this payment."));
       if(canWrite&&r.paid&&isAdminAcct())row.appendChild(xtBtn("Undo paid",function(){if(confirm("Undo this payment?"))xtDoc(id,{paid:false,paidBy:null,paidOn:null,paidFromReceipt:null,confirmedAt:null,confirmedBy:null,selfie_paid:null})},"quiet"));
       card.appendChild(row)})(t);
+    if(open)xtOther(card,y);
     box.appendChild(card)})(y);
 }
 
@@ -2858,21 +2901,33 @@ var RPOPTS=[["cal","Calendar and custody days",1],["msg","Family chat messages",
 
 /* @mentions: type @ to pick someone */
 function mFirst(n){return String(n||"").trim().split(/\s+/)[0]||""}
+function mAll(list){var l=(list||[]).slice();if(!l.some(function(u){return u.user_id===BABY_ID}))l.push({user_id:BABY_ID,name:BABY.name});return l}
+function mEsc(n){return n.replace(/[.*+?^${}()|[\]\\]/g,"\\$&").replace(/\s+/g,"\\s+")}
+function mCands(name){var full=String(name||"").trim().replace(/\s+/g," "),f=mFirst(full),o=[];if(full)o.push(full);if(f&&f!==full)o.push(f);return o}
 function mentionIds(text,list){
-  var out=[];(list||[]).forEach(function(u){var f=mFirst(u.name);if(!f)return;
-    var re=new RegExp("(^|[^\\w])@"+f.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"(?![\\w])","i");if(re.test(text)&&out.indexOf(u.user_id)<0)out.push(u.user_id)});
+  var out=[];mAll(list).forEach(function(u){
+    var ok=mCands(u.name).some(function(n){return new RegExp("(^|[^\\w])@"+mEsc(n)+"(?![\\w])","i").test(text)});
+    if(ok&&out.indexOf(u.user_id)<0)out.push(u.user_id)});
   return out;
 }
-function mentionFill(el,text,ids){
-  linkFill(el,text,function(seg){mentionFill0(el,seg,ids)});
+function mentionFill(el,text,ids,link){
+  linkFill(el,text,function(seg){mentionFill0(el,seg,ids,link)});
 }
-function mentionFill0(el,text,ids){
-  var names=(ids||[]).map(function(id){return mFirst(memberName(id))}).filter(Boolean);
+function mNamesOf(id){
+  var o=[];function add(n){mCands(n).forEach(function(x){if(o.indexOf(x)<0)o.push(x)})}
+  try{mAll(typeof MEMBERS!=="undefined"?MEMBERS:[]).forEach(function(u){if(u.user_id===id)add(u.name)})}catch(e){}
+  var f=mFirst(memberName(id));if(f&&o.indexOf(f)<0)o.push(f);
+  return o.sort(function(a,b){return b.length-a.length});
+}
+function mentionFill0(el,text,ids,link){
+  var map={},names=[];(ids||[]).forEach(function(id){mNamesOf(id).forEach(function(n){var k=n.toLowerCase();if(!map[k]){map[k]=id;names.push(n)}})});
   if(!names.length){el.appendChild(document.createTextNode(text));return}
-  var re=new RegExp("(^|[^\\w])(@(?:"+names.map(function(n){return n.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}).join("|")+"))(?![\\w])","gi"),last=0,m;
+  var re=new RegExp("(^|[^\\w])(@(?:"+names.sort(function(a,b){return b.length-a.length}).map(mEsc).join("|")+"))(?![\\w])","gi"),last=0,m;
   while((m=re.exec(text))){
     var st=m.index+m[1].length;if(st>last)el.appendChild(document.createTextNode(text.slice(last,st)));
-    var sp=document.createElement("span");sp.textContent=m[2];sp.style.cssText="color:#1a7f45;font-weight:700";el.appendChild(sp);last=st+m[2].length;
+    var sp=document.createElement(link?"a":"span");sp.textContent=m[2];sp.style.cssText="color:#1a7f45;font-weight:700"+(link?";cursor:pointer;text-decoration:underline":"");
+    if(link){(function(id){sp.href="#";sp.onclick=function(ev){ev.preventDefault();ev.stopPropagation();openProfile(id)}})(map[m[2].slice(1).replace(/\s+/g," ").toLowerCase()])}
+    el.appendChild(sp);last=st+m[2].length;
   }
   if(last<text.length)el.appendChild(document.createTextNode(text.slice(last)));
 }
@@ -2883,13 +2938,13 @@ function mentionAttach(ta,getList){
   function upd(){
     var pos=ta.selectionStart==null?ta.value.length:ta.selectionStart,before=ta.value.slice(0,pos),m=before.match(/(^|\s)@([^\s@]{0,20})$/);
     if(!m){hide();return}
-    var q=m[2].toLowerCase(),list=(getList()||[]).filter(function(u){return u.user_id!==myId&&!(u.is_owner&&u.grp!=="parent")&&(u.name||"").toLowerCase().indexOf(q)>=0||false}).slice(0,6);
+    var q=m[2].toLowerCase(),list=mAll(getList()).filter(function(u){return !(u.is_owner&&u.grp!=="parent")&&(u.name||"").toLowerCase().indexOf(q)>=0}).slice(0,6);
     if(!list.length){hide();return}
     box.textContent="";
     list.forEach(function(u){
       var b=document.createElement("button");b.type="button";b.style.cssText="display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:10px 14px;font:inherit;text-align:left;cursor:pointer;color:#111";
       var av=document.createElement("span");av.textContent=(u.name||"?").charAt(0).toUpperCase();av.style.cssText="width:30px;height:30px;border-radius:50%;background:#25d366;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none";
-      b.appendChild(av);b.appendChild(document.createTextNode(u.name||"Member"));
+      b.appendChild(av);b.appendChild(document.createTextNode((u.name||"Member")+(u.user_id===myId?" (you)":"")));
       /* iPhone: cancelling touchstart also cancels the tap, so pick on pointer-up and keep the keyboard open */
       var picked=false;
       b.addEventListener("pointerdown",function(e){e.preventDefault()});
@@ -2898,7 +2953,7 @@ function mentionAttach(ta,getList){
       b.addEventListener("click",function(e){e.preventDefault();pick()});
       function pick(){
         if(picked)return;picked=true;
-        var start=pos-m[2].length-1,ins="@"+mFirst(u.name)+" ";
+        var start=pos-m[2].length-1,ins="@"+String(u.name||"").trim().replace(/\s+/g," ")+" ";
         ta.value=ta.value.slice(0,start)+ins+ta.value.slice(pos);
         var np=start+ins.length;try{ta.setSelectionRange(np,np)}catch(e){}
         hide();ta.dispatchEvent(new Event("input"));ta.focus();
@@ -2966,7 +3021,7 @@ function selfieRecords(f0,t0){
   (S.docs||[]).forEach(function(x){add(x,"selfie",(x.cat==="Trip"?"Actual meeting: ":"Document: ")+(x.title||""))});
   (S.checkins||[]).forEach(function(x){add(x,"selfie","Check-in / check-out")});
   (S.xo||[]).forEach(function(x){
-    var t=x.kind==="shop"?"Request: "+(x.title||""):x.kind==="todo"?"Task: "+(x.title||""):x.kind==="sup"?"Support "+(String(x.id||"").indexOf("sup_w_")===0?"week of "+(x.date||""):(x.date||"").slice(0,7)):x.kind==="fee"?"School fee "+(x.year||"")+" term "+(x.term||""):"Entry";
+    var t=x.kind==="shop"?"Request: "+(x.title||""):x.kind==="todo"?"Task: "+(x.title||""):x.kind==="sup"?"Support "+(String(x.id||"").indexOf("sup_w_")===0?"week of "+(x.date||""):(x.date||"").slice(0,7)):x.kind==="fee"?"School fee "+(x.year||"")+" term "+(x.term||""):x.kind==="feex"?"School payment: "+(x.what||""):"Entry";
     add(x,"selfie",t+" (made)");add(x,"selfie_fulfilled",t+" (fulfilled)");add(x,"selfie_confirmed",t+" (confirmed)");add(x,"selfie_paid",t+" (paid)");add(x,"selfie_received",t+" (received)")});
   L.sort(function(a,b){return a.ts-b.ts});return L;
 }
@@ -4175,7 +4230,7 @@ function buildPost(p,ps){
   c.appendChild(hd);
   if(p.text){
     if(p.bg&&BGS[p.bg-1]&&!p.mid){var bgd=h("div","pbg",p.text);bgd.style.background=BGS[p.bg-1];c.appendChild(bgd)}
-    else{var pbd=h("div","pbody");linkFill(pbd,p.text);c.appendChild(pbd)}
+    else{var pbd=h("div","pbody");var pmi=(p.tags||[]).slice();try{mentionIds(p.text||"",typeof MEMBERS!=="undefined"?MEMBERS:[]).forEach(function(i){if(pmi.indexOf(i)<0)pmi.push(i)})}catch(e){}mentionFill(pbd,p.text||"",pmi,true);c.appendChild(pbd)}
   }
   if(p.sh){
     var q=p.sh,sc=h("div","pshare");sc.style.cssText="border:1px solid var(--line);border-radius:12px;margin:8px 0;overflow:hidden";
