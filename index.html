@@ -835,7 +835,7 @@ main{max-width:100%}
     <p class="meta" style="margin:0 0 8px">Every expense needs a receipt, invoice or other document. A photo is fine.</p>
     <button class="go" id="xadd">Add expense</button>
   </div>
-  <div class="card"><h2>Balance</h2><div id="bal" class="balance"></div><div id="bal2" class="meta"></div></div>
+  <div class="card" hidden><h2>Balance</h2><div id="bal" class="balance"></div><div id="bal2" class="meta"></div></div>
   <div class="card"><h2>All expenses</h2><div id="xl"></div></div>
   </div>
   <div id="xs-sup" hidden></div>
@@ -1399,7 +1399,7 @@ $("#xadd").onclick=async function(){
       var path=await upload("docs",blob,name);ups.push({path:path,name:name,type:type,size:blob.size||ff.size});
     }
     chk=await aiVerifyMany(fl,{slot:"exp",kind:"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
-    var xrec=withShare({desc:d,amount:a,by:$("#xw").value,date:$("#xt").value||key(new Date()),proof:ups[0],aicheck:chk},"exp");if(ups.length>1)xrec.proofs=ups;if(chk.status==="review")xrec.review={state:"pending"};
+    var xrec=withShare({ts:Date.now(),desc:d,amount:a,by:$("#xw").value,date:$("#xt").value||key(new Date()),proof:ups[0],aicheck:chk},"exp");if(ups.length>1)xrec.proofs=ups;if(chk.status==="review")xrec.review={state:"pending"};
     await db.collection("expenses").add(xrec);
     $("#xd").value="";$("#xa").value="";$("#xf").value="";note("");
   }catch(e){note(attachErr(e))}
@@ -1421,6 +1421,9 @@ $("#xadd").onclick=async function(){
     c.appendChild(ic);c.appendChild(tx);c.appendChild(bt);sec.insertBefore(c,sec.firstChild);
   });
 })();
+/* proof records can be removed by the person within one week of upload; after that only the Cordial admin account can */
+function isAdminAcct(){return !!(isOwner&&!(MEMBER&&MEMBER.grp==="parent"))}
+function canRemoveRec(x){if(isAdminAcct())return true;var t=Number(x&&(x.ts||(x.proof&&x.proof.ts)))||Date.parse(x&&x.date)||0;return !!t&&Date.now()-t<=604800000}
 function renderExp(){
   var pa=0,pb=0;S.exp.forEach(function(x){if(x.review&&x.review.state==="rejected")return;if(x.by==="a")pa+=x.amount;else pb+=x.amount});
   (function(){var b=$("#bal");b.textContent="";if(!S.exp.length){b.textContent="No expenses yet";return}
@@ -1445,7 +1448,7 @@ function renderExp(){
     if(x.review&&x.review.state==="rejected")l.style.opacity=".55";
     var rt=h("div");rt.style.textAlign="right";rt.appendChild(h("div","amt",money(x.amount)));
     var rm=h("button","quiet","Remove");rm.onclick=function(){db.doc("expenses/"+x.id).delete().catch(fail)};
-    if(canWrite)rt.appendChild(rm);r.appendChild(l);r.appendChild(rt);L.appendChild(r)});
+    if(canWrite&&canRemoveRec(x))rt.appendChild(rm);r.appendChild(l);r.appendChild(rt);L.appendChild(r)});
 }
 
 /* ---------- Shopping list, monthly support and school fees (saved in the expenses collection, each with a "kind") ---------- */
@@ -1794,7 +1797,7 @@ function xtSup(){
     if(r.paidAt&&!r.receivedAt){
       if(to&&to===myId&&canWrite)acts.appendChild(xtBtn("✅ Confirm I received it",function(){xtDoc(id,{receivedAt:Date.now(),receivedBy:myId,_selfie:"received"})}));
       else acts.appendChild(h("div","meta",to?"Waiting for Our Mummy to confirm.":"Waiting for Our Mummy to join and confirm."));
-      if(isOwner&&!(MEMBER&&MEMBER.grp==="parent"))acts.appendChild(xtBtn("Undo paid",function(){xtDoc(id,{paidAt:null,paidBy:null,receipt:null,selfie_paid:null})},"quiet"));
+      if(isAdminAcct())acts.appendChild(xtBtn("Undo paid",function(){xtDoc(id,{paidAt:null,paidBy:null,receipt:null,selfie_paid:null})},"quiet"));
     }
     row.appendChild(acts);L.appendChild(row)});
   box.appendChild(L);
@@ -1864,7 +1867,7 @@ function xtFee(){
         if(isOwner&&r.receipts&&r.receipts.length){var rr=xtBtn("Remove last receipt",function(){if(confirm("Remove the last receipt from this term?"))xtDoc(id,{receipts:r.receipts.slice(0,-1)})},"quiet");row.appendChild(rr)}
       }
       if(r.paid&&!rl)row.appendChild(h("div","meta","No receipt was attached to this payment."));
-      if(canWrite&&r.paid&&isOwner&&!(MEMBER&&MEMBER.grp==="parent"))row.appendChild(xtBtn("Undo paid",function(){if(confirm("Undo this payment?"))xtDoc(id,{paid:false,paidBy:null,paidOn:null,paidFromReceipt:null,selfie_paid:null})},"quiet"));
+      if(canWrite&&r.paid&&isAdminAcct())row.appendChild(xtBtn("Undo paid",function(){if(confirm("Undo this payment?"))xtDoc(id,{paid:false,paidBy:null,paidOn:null,paidFromReceipt:null,selfie_paid:null})},"quiet"));
       card.appendChild(row)})(t);
     box.appendChild(card)})(y);
 }
@@ -2469,7 +2472,6 @@ function renderHome(){
   var e=S.sched[key(new Date())],L=$("#fam");L.textContent="";
   var last=S.msgs.length?previewText(S.msgs[S.msgs.length-1]):"";
   [["Today","Janet is with "+nm((e&&e.who)||homeWho())+(e&&e.note?" – "+e.note:"")],
-   ["Expenses",$("#bal").textContent||"No expenses yet"],
    ["Latest message",last?(last.length>80?last.slice(0,80)+"…":last):"No messages yet"]].filter(function(r){return tabOk({"Today":"sched","Expenses":"exp","Latest message":"msg"}[r[0]])}).forEach(function(r){
     var row=h("div","item"),c=h("div");c.style.flex="1";c.appendChild(h("div","meta",r[0]));c.appendChild(h("div",null,r[1]));
     var g=h("span","dg","⠿");g.style.cssText="width:26px;flex:none;align-self:center";row.dataset.k=r[0];row.appendChild(g);row.appendChild(c);row.style.justifyContent="flex-start";L.appendChild(row)});
@@ -3814,7 +3816,7 @@ function renderDocs(){
       var dsl=selfieLinks(d,[["selfie","Selfie"]]);if(dsl)l.appendChild(dsl);
       var dbg=aiBadge(d,"documents");if(dbg)l.appendChild(dbg);var dsh=shareLine(d,"documents");if(dsh)l.appendChild(dsh);
       r.appendChild(l);
-      if(canWrite){var rm=h("button","quiet","Remove");rm.onclick=function(){sb.storage.from("files").remove([d.path]).then(function(){return db.doc("documents/"+d.id).delete()}).catch(function(e){note(e&&e.code==="not_uploader"?"Only the person who uploaded this file, or an Editor, can remove it.":"That didn’t delete. Try again.")})};r.appendChild(rm)}
+      if(canWrite&&canRemoveRec(d)){var rm=h("button","quiet","Remove");rm.onclick=function(){sb.storage.from("files").remove([d.path]).then(function(){return db.doc("documents/"+d.id).delete()}).catch(function(e){note(e&&e.code==="not_uploader"?"Only the person who uploaded this file, or an Editor, can remove it.":"That didn’t delete. Try again.")})};r.appendChild(rm)}
       L.appendChild(r)});
   });
 }
