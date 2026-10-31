@@ -84,3 +84,18 @@ async function syncSchedule() {
 }
 
 module.exports = { syncSchedule };
+
+// Called by the hub itself ("Refresh from Zoom"): any signed-in member can ask for a fresh copy of the Zoom schedule.
+exports.handler = async (event) => {
+  const out = (code, body) => ({ statusCode: code, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }, body: JSON.stringify(body) });
+  if (event.httpMethod !== "POST") return out(405, { error: "post_only" });
+  if (!URL_ || !KEY) return out(500, { error: "not_configured" });
+  const tk = (event.headers.authorization || event.headers.Authorization || "").replace(/^Bearer /i, "");
+  if (!tk) return out(401, { error: "signin" });
+  const who = await fetch(`${URL_}/auth/v1/user`, { headers: { apikey: KEY, Authorization: `Bearer ${tk}` } });
+  if (!who.ok) return out(401, { error: "signin" });
+  const me = await who.json();
+  const mr = await fetch(`${URL_}/rest/v1/members?user_id=eq.${me.id}&select=user_id`, { headers: H });
+  if (!(mr.ok && (await mr.json())[0])) return out(403, { error: "forbidden" });
+  try { return out(200, await syncSchedule()); } catch (e) { return out(502, { ok: false, reason: "failed" }); }
+};

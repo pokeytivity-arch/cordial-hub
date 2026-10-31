@@ -19,7 +19,7 @@ exports.handler = async () => {
   // Keep the schedule in step with the real Zoom meeting (at most once an hour)
   try {
     const cur = (await readDoc("settings/callplan")) || {};
-    if (!cur.synced || Date.now() - cur.synced > 3600e3) await require("./zoom-sync.js").syncSchedule();
+    if (!cur.synced || Date.now() - cur.synced > 600e3) await require("./zoom-sync.js").syncSchedule();
   } catch (e) {}
   const plan = (await readDoc("settings/callplan")) || {};
   const days = Array.isArray(plan.days) ? plan.days : [0, 2, 5];
