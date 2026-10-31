@@ -34,7 +34,7 @@ exports.handler = async () => {
       const d = (await readDoc(key)) || {};
       const subs = Array.isArray(d.push) ? d.push : [];
       const keep = [];
-      const payload = { kind: "task", title: "⏰ Task waiting for your confirmation", body: `“${String(t.title || "").slice(0, 100)}” was marked done. Please confirm it.`, tag: "task-" + row.id, url: "/?goto=meet" };
+      const payload = { kind: "task", title: "⏰ Task waiting for your confirmation", body: `“${String(t.title || "").slice(0, 100)}” was marked done. Please confirm it.`, tag: "task-" + row.id, url: "/?goto=todo" };
       for (const s of subs) {
         if (!s || !s.endpoint || !s.keys) continue;
         let st = 0;

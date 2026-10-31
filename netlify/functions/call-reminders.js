@@ -41,6 +41,24 @@ exports.handler = async () => {
       if (now >= due && now - due < LATE && !sent[k]) todo.push({ k, label, callAt });
     }
   }
+  // Calendar events added in the hub (schedule/ev_*): remind 1 hour and 15 minutes before (events with no time: 8:00 that morning)
+  try {
+    const er = await fetch(`${URL_}/rest/v1/docs?key=like.schedule/ev_*&select=key,data`, { headers: H });
+    const evs = er.ok ? await er.json() : [];
+    for (const row of evs) {
+      const e = row.data || {};
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date || "")) continue;
+      const hasT = /^\d{1,2}:\d{2}$/.test(e.time || "");
+      const [eh, em] = hasT ? e.time.split(":").map((x) => parseInt(x, 10)) : [8, 0];
+      const [Y, M, D] = e.date.split("-").map((x) => parseInt(x, 10));
+      const at = Date.UTC(Y, M - 1, D, eh, em) - WAT;
+      const offs = hasT ? [[3600e3, "1 hour"], [15 * 60e3, "15 minutes"]] : [[0, "today"]];
+      for (const [off, label] of offs) {
+        const due = at - off, k = `ev_${row.key}_${at}_${off}`;
+        if (now >= due && now - due < LATE && at + 60e3 > now - 3600e3 && !sent[k]) todo.push({ k, label, callAt: at, ev: e.title || "Event", hasT });
+      }
+    }
+  } catch (e) {}
   if (!todo.length) return { statusCode: 200, body: "nothing due" };
 
   // Everyone who has phone alerts turned on
@@ -49,7 +67,9 @@ exports.handler = async () => {
   let count = 0;
   for (const t of todo) {
     const when = new Date(t.callAt + WAT).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
-    const payload = { kind: "reminder", title: "Family call reminder", body: `Your weekly call is in ${t.label} (${when}).`, tag: "callrem-" + t.k, url: "/" };
+    const payload = t.ev
+      ? { kind: "reminder", title: "Reminder: " + t.ev, body: t.label === "today" ? `${t.ev} is today.` : `${t.ev} starts in ${t.label} (${when}).`, tag: "evrem-" + t.k, url: "/?goto=sched" }
+      : { kind: "reminder", title: "Family call reminder", body: `Your weekly call is in ${t.label} (${when}).`, tag: "callrem-" + t.k, url: "/?goto=call" };
     for (const m of members) {
       const key = `profiles/cp_${m.user_id}`;
       const d = (await readDoc(key)) || {};

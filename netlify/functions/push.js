@@ -74,7 +74,7 @@ exports.handler = async (event) => {
   const chat = String(b.chat || "family").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 80);
   const clip = (t, n) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
   const payload = kind === "task"
-    ? { kind: "task", title: clip(b.title, 80) || "Task update", body: clip(b.body, 160), tag: "task-" + String(b.tag || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40), url: "/?goto=meet" }
+    ? { kind: "task", title: clip(b.title, 80) || "Task update", body: clip(b.body, 160), tag: "task-" + String(b.tag || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40), url: "/?goto=todo" }
     : kind === "call"
     ? { kind, title: sender.name || "Someone", body: `Incoming ${label} call`, tag: "call-" + callId, url: "/?ring=" + callId }
     : kind === "msg"
