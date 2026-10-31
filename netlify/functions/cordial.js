@@ -142,11 +142,12 @@ exports.handler = async (event) => {
     const nm = (x, d) => String(x || d).replace(/[^\p{L}\p{N}\-' ]/gu, "").slice(0, 30) || d;
     const dad = nm(ba.dad, "Daddy"), mum = nm(ba.mum, "Mummy");
     const who = tg === "daddy" ? `@${dad}` : tg === "mummy" ? `@${mum}` : `@${dad} and @${mum}`;
+    const FUNNY = ba.tone === "funny" ? "TONE OVERRIDE (this wins over the gentle tone below): make the post genuinely FUNNY and hilarious. Use playful exaggeration, silly dramatic toddler logic and one cheeky joke about the item itself. Tease both parents lovingly, never unkindly. Still no money amounts, no fault or disagreement, and tag the named parent(s) with @FirstName. " : "";
     try {
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "x-api-key": AKEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-        body: JSON.stringify({ model: MODEL, max_tokens: 200, system: "You write ONE short, warm post as if from Janet, a baby girl, on her parents' private co-parenting family hub. It is clearly an AI-written account, so keep it sweet, simple and sincere, in a gentle toddler-like voice (cute, never cringe). Thank or encourage the named parent(s) for what is described, and tag them with @FirstName exactly as given. Never mention money amounts, bank or account details, addresses, medical details, or any fault or disagreement between the parents. Always speak well of both parents. 1 to 3 sentences, under 260 characters, at most 3 emojis. Reply with only the post text.", messages: [{ role: "user", content: `Janet is ${nm(ba.age, "a baby")} old. Post to: ${who}. What happened: ${String(ba.event || "").replace(/\s+/g, " ").slice(0, 300)}` }] })
+        body: JSON.stringify({ model: MODEL, max_tokens: 200, system: FUNNY + "You write ONE short, warm post as if from Janet, a baby girl, on her parents' private co-parenting family hub. It is clearly an AI-written account, so keep it sweet, simple and sincere, in a gentle toddler-like voice (cute, never cringe). Thank or encourage the named parent(s) for what is described, and tag them with @FirstName exactly as given. Never mention money amounts, bank or account details, addresses, medical details, or any fault or disagreement between the parents. Always speak well of both parents. 1 to 3 sentences, under 260 characters, at most 3 emojis. Reply with only the post text.", messages: [{ role: "user", content: `Janet is ${nm(ba.age, "a baby")} old. Post to: ${who}. What happened: ${String(ba.event || "").replace(/\s+/g, " ").slice(0, 300)}` }] })
       });
       if (!r.ok) return out(502, { error: "ai_failed" });
       const j = await r.json();
