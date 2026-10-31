@@ -1768,7 +1768,7 @@ function xtSup(){
     if(r.paidAt&&!r.receivedAt){
       if(to&&to===myId&&canWrite)acts.appendChild(xtBtn("✅ Confirm I received it",function(){xtDoc(id,{receivedAt:Date.now(),receivedBy:myId,_selfie:"received"})}));
       else acts.appendChild(h("div","meta",to?"Waiting for Our Mummy to confirm.":"Waiting for Our Mummy to join and confirm."));
-      if(canSet)acts.appendChild(xtBtn("Undo paid",function(){xtDoc(id,{paidAt:null,paidBy:null,receipt:null,selfie_paid:null})},"quiet"));
+      if(isOwner&&!(MEMBER&&MEMBER.grp==="parent"))acts.appendChild(xtBtn("Undo paid",function(){xtDoc(id,{paidAt:null,paidBy:null,receipt:null,selfie_paid:null})},"quiet"));
     }
     row.appendChild(acts);L.appendChild(row)});
   box.appendChild(L);
@@ -1808,13 +1808,15 @@ function xtFee(){
         if(r.amount)ar.appendChild(xtBtn("Cancel",function(){XT.edit[id]=false;xtFee()},"quiet"));
         row.appendChild(ar);
       }
-      var rl=xtRc(r.receipts,"Receipt");
+      var rl=xtRc(r.receipts,"View receipt");
       if(canWrite&&!r.paid){
         if(!r.amount||editing)feeForm();
         else{
           var br=h("div");br.style.cssText="display:flex;gap:8px;align-items:center;flex-wrap:wrap";
           br.appendChild(xtBtn("Edit fee",function(){XT.edit=XT.edit||{};XT.edit[id]=true;xtFee()},"quiet"));
-          br.appendChild(xtBtn("Mark as paid",function(){var who=myRole();
+          var hasRc=!!(r.receipts&&r.receipts.length);if(!hasRc)br.appendChild(h("div","meta","Add the payment receipt below. Cordial reads it, then you can mark this term as paid."));
+          if(hasRc)br.appendChild(xtBtn("Mark as paid",function(){var who=myRole();
+            if(!(r.receipts||[]).some(function(rc){return rc&&rc.aicheck&&rc.aicheck.status&&rc.aicheck.status!=="unchecked"})&&!confirm("Cordial couldn’t read these receipts. Mark this term as paid anyway?"))return;
             var pd=0;(r.receipts||[]).forEach(function(rc){var d0=rc&&rc.aicheck&&rc.aicheck.read&&rc.aicheck.read.date;if(/^\d{4}-\d{2}-\d{2}$/.test(d0||"")){var tm=new Date(d0+"T12:00:00").getTime();if(tm<=Date.now()&&tm>Date.now()-63072000000&&tm>pd)pd=tm}});var fromRc=pd>0;if(!pd)pd=Date.now();
             xtDoc(id,{paid:true,paidBy:myId,paidOn:pd,paidFromReceipt:fromRc,_selfie:"paid"});setTimeout(function(){babyPost(who||"both","paid Janet’s school fees for the term",true)},2500)}));
           row.appendChild(br);
@@ -1835,7 +1837,8 @@ function xtFee(){
         rw.appendChild(rf);rw.appendChild(rb);row.appendChild(rw);
         if(isOwner&&r.receipts&&r.receipts.length){var rr=xtBtn("Remove last receipt",function(){if(confirm("Remove the last receipt from this term?"))xtDoc(id,{receipts:r.receipts.slice(0,-1)})},"quiet");row.appendChild(rr)}
       }
-      if(canWrite&&r.paid)row.appendChild(xtBtn("Undo paid",function(){if(confirm("Undo this payment?"))xtDoc(id,{paid:false,paidBy:null,paidOn:null,paidFromReceipt:null,selfie_paid:null})},"quiet"));
+      if(r.paid&&!rl)row.appendChild(h("div","meta","No receipt was attached to this payment."));
+      if(canWrite&&r.paid&&isOwner&&!(MEMBER&&MEMBER.grp==="parent"))row.appendChild(xtBtn("Undo paid",function(){if(confirm("Undo this payment?"))xtDoc(id,{paid:false,paidBy:null,paidOn:null,paidFromReceipt:null,selfie_paid:null})},"quiet"));
       card.appendChild(row)})(t);
     box.appendChild(card)})(y);
 }
