@@ -29,8 +29,15 @@ exports.handler = async () => {
   const state = (await readDoc("profiles/callremind")) || {};
   const sent = state.sent || {};
   const todo = [];
+  let evs = [];
+  try {
+    const er = await fetch(`${URL_}/rest/v1/docs?key=like.schedule/ev_*&select=key,data`, { headers: H });
+    evs = er.ok ? await er.json() : [];
+  } catch (e) {}
+  // When the Zoom calls are on the calendar, they decide the reminders (so a moved call gets the right times)
+  const hasZoomEvs = evs.some((r) => r.data && r.data.zoom);
 
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 3 && !hasZoomEvs; i++) {
     const base = new Date(now + WAT + i * 86400e3); // Nigerian calendar date
     const callAt = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), hh, mm) - WAT;
     const wd = new Date(callAt + WAT).getUTCDay();
@@ -41,10 +48,8 @@ exports.handler = async () => {
       if (now >= due && now - due < LATE && !sent[k]) todo.push({ k, label, callAt });
     }
   }
-  // Calendar events added in the hub (schedule/ev_*): remind 1 hour and 15 minutes before (events with no time: 8:00 that morning)
+  // Calendar events: Zoom calls get 6 hours / 3 hours / 30 minutes; other events 1 hour / 15 minutes
   try {
-    const er = await fetch(`${URL_}/rest/v1/docs?key=like.schedule/ev_*&select=key,data`, { headers: H });
-    const evs = er.ok ? await er.json() : [];
     for (const row of evs) {
       const e = row.data || {};
       if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date || "")) continue;
@@ -52,10 +57,10 @@ exports.handler = async () => {
       const [eh, em] = hasT ? e.time.split(":").map((x) => parseInt(x, 10)) : [8, 0];
       const [Y, M, D] = e.date.split("-").map((x) => parseInt(x, 10));
       const at = Date.UTC(Y, M - 1, D, eh, em) - WAT;
-      const offs = hasT ? [[3600e3, "1 hour"], [15 * 60e3, "15 minutes"]] : [[0, "today"]];
+      const offs = e.zoom ? OFFSETS : hasT ? [[3600e3, "1 hour"], [15 * 60e3, "15 minutes"]] : [[0, "today"]];
       for (const [off, label] of offs) {
         const due = at - off, k = `ev_${row.key}_${at}_${off}`;
-        if (now >= due && now - due < LATE && at + 60e3 > now - 3600e3 && !sent[k]) todo.push({ k, label, callAt: at, ev: e.title || "Event", hasT });
+        if (now >= due && now - due < LATE && at > now - 3600e3 && !sent[k]) todo.push({ k, label, callAt: at, ev: e.zoom ? "" : (e.title || "Event"), hasT, zoom: !!e.zoom });
       }
     }
   } catch (e) {}

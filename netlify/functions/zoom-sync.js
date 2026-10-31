@@ -47,7 +47,8 @@ async function syncSchedule() {
   if (!occ.length) return { ok: true, empty: true };
 
   const first = occ[0];
-  const t = wat(first.start).slice(11, 16);
+  // The weekly time comes from the series itself, so moving ONE call doesn't change every week
+  const t = m.recurrence && m.start_time ? wat(Date.parse(m.start_time)).slice(11, 16) : wat(first.start).slice(11, 16);
   let days;
   if (m.recurrence && m.recurrence.type === 2 && m.recurrence.weekly_days) {
     days = String(m.recurrence.weekly_days).split(",").map((n) => parseInt(n, 10) - 1).filter((n) => n >= 0 && n <= 6); // Zoom: 1 = Sunday
@@ -59,18 +60,22 @@ async function syncSchedule() {
 
   // Real calendar events for the next calls
   const keep = new Set();
+  const lr = await fetch(`${URL_}/rest/v1/docs?collection=eq.schedule&id=like.ev_zoom_*&select=key,data`, { headers: H });
+  const have = lr.ok ? await lr.json() : [];
+  const old = {}; have.forEach((d) => { old[d.key] = d.data || {}; });
   for (const o of occ.slice(0, 12)) {
     const id = "ev_zoom_" + o.id.replace(/[^A-Za-z0-9]/g, "");
     keep.add("schedule/" + id);
-    await upsert("schedule/" + id, {
+    const prev = old["schedule/" + id] || {};
+    const rec = {
       title: "Family Zoom call", date: wat(o.start).slice(0, 10), time: wat(o.start).slice(11, 16),
       place: "Zoom, in the hub", notes: "", zoom: true, occ: o.id, by: "cordial_ai", ts: now,
-    });
+    };
+    if (prev.moved) rec.moved = prev.moved;
+    await upsert("schedule/" + id, rec);
   }
   // Remove future call events that Zoom no longer has (rescheduled or cancelled)
   const today = wat(now).slice(0, 10);
-  const lr = await fetch(`${URL_}/rest/v1/docs?collection=eq.schedule&id=like.ev_zoom_*&select=key,data`, { headers: H });
-  const have = lr.ok ? await lr.json() : [];
   for (const d of have) {
     if (keep.has(d.key) || !d.data || String(d.data.date || "") < today) continue;
     await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent(d.key)}`, { method: "DELETE", headers: H });
