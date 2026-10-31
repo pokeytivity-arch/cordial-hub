@@ -1508,6 +1508,19 @@ function storePick(){
   w.appendChild(sel);w.appendChild(oth);
   return {el:w,get:function(){return sel.value==="__other"?oth.value.trim():sel.value},reset:function(){sel.value="";oth.value="";oth.hidden=true}};
 }
+var CART_SVG='<svg viewBox="0 0 24 24" width="1.25em" height="1.25em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-.25em"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.2 11.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6"/><path d="M13 9.5v4M11 11.5h4"/></svg>';
+function cartBtn(label,fn){var b=h("button","go");b.type="button";b.innerHTML=CART_SVG+" "+label;b.style.cssText="padding:8px 16px;font-size:.9rem;margin:6px 8px 0 0;background:#1877f2;color:#fff;border:0;border-radius:999px;font-weight:700;display:inline-flex;align-items:center;gap:6px";b.onclick=fn;return b}
+/* Used-up items can't go on the shopping list until the agreed time has passed; nothing can be listed twice */
+function chkBlockMsg(k,name){
+  var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{};
+  if((S.xo||[]).some(function(y){return y.kind==="shop"&&y.chk&&y.chk.k===k&&(y.status==="requested"||y.status==="fulfilled")}))return name+" is already on the shopping list.";
+  if(CHKCONS.indexOf(name)<0)return "";
+  var d=chkNorm((st.done||{})[k]);if(!d||!d.days)return "";
+  var left=d.days*86400000-(Date.now()-d.ts);if(left<=0)return "";
+  return name+" is still in use: about "+Math.ceil(left/86400000)+" days left of the "+chkDur(d.days)+" you agreed. You can add it once it runs out.";
+}
+function chkAgo(ts){var n=Math.floor((Date.now()-ts)/86400000);return n<=0?"today":n===1?"yesterday":n<14?n+" days ago":n<60?Math.round(n/7)+" weeks ago":n<730?Math.round(n/30)+" months ago":Math.round(n/365)+" years ago"}
+function chkLastMap(){var m={};chkHist().forEach(function(p){if(!m[p.k])m[p.k]=p});return m}
 var CHKLAST=[[0,"Not sure / one-off"],[7,"1 week"],[14,"2 weeks"],[30,"1 month"],[60,"2 months"],[90,"3 months"],[180,"6 months"]];
 function chkRoleOf(id){var o=ownerM(),m=mumM();return o&&o.user_id===id?"dad":m&&m.user_id===id?"mum":""}
 /* bought + confirmed on the shopping list: record it on the checklist (both parents' ticks, brand, quantity, how long it lasts) */
@@ -1603,7 +1616,7 @@ function chkWatch(){
       var kind=l.left<=0?(d.outPost?null:"out"):(d.lowPost?null:"low");
       if(!kind)continue;
       CHKWBUSY=true;var nd=Object.assign({},st.done),c=Object.assign({},d);c.lowPost=1;if(kind==="out")c.outPost=1;nd[l.k]=c;
-      var what=kind==="out"?l.t+" has completely run out at home!":l.t+" is running low: about "+l.dl+(l.dl===1?" day":" days")+" left. Time to restock!";
+      var what=kind==="out"?l.t+" has completely run out at home!":l.t+" is running low: about "+l.dl+(l.dl===1?" day":" days")+" left. Almost time to restock!";
       xtDoc("chk_state",{done:nd}).then(function(){return babyPost("both",what,true,{tone:"funny"})}).then(function(){CHKWBUSY=false},function(){CHKWBUSY=false});
       return;
     }
@@ -1620,6 +1633,7 @@ function xtChk(){
   top.appendChild(h("div","meta",got+" of "+total+" bought · "+both+" ticked by both parents"));
   top.appendChild(xtBtn("📄 PDF",chkPdf));top.appendChild(xtBtn("⬇️ Spreadsheet (.csv)",chkDownload));box.appendChild(top);
   function save(patch){return xtDoc("chk_state",Object.assign({kind:"chk"},patch))}
+  var LB=chkLastMap();
   CHK.forEach(function(c,ci){
     var card=h("div","card"),items=c[2].map(function(it,ii){return {k:ci+"_"+ii,t:it[0],n:it[1]}}).concat((extra[ci]||[]).map(function(t,ii){return {k:"x"+ci+"_"+ii,t:t,n:""}}));
     var n=items.filter(function(i){return done[i.k]}).length,shut=!!CHKSHUT[ci];
@@ -1647,14 +1661,16 @@ function xtChk(){
           tk.appendChild(bt)});
         var sp=h("div");sp.style.flex="1";var t=h("div",null,i.t+(cons?" ⏳":""));if(d&&d.dad&&d.mum&&!cons)t.style.cssText="text-decoration:line-through;opacity:.7";sp.appendChild(t);
         var dmy={day:"numeric",month:"short"};
+        var lbp=LB[i.k];
         if(d){var who=[];if(d.dad)who.push("Daddy "+new Date(d.dad.ts).toLocaleDateString(undefined,dmy));if(d.mum)who.push("Mummy "+new Date(d.mum.ts).toLocaleDateString(undefined,dmy));
           sp.appendChild(h("div","meta",(d.dad&&d.mum?"✅ Both ticked · ":"")+who.join(" · ")))}
+        if(lbp)sp.appendChild(h("div","meta","🕘 Last bought: "+new Date(lbp.ts).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+" ("+chkAgo(lbp.ts)+")"));
         if(d&&cons&&d.days){
           var tot=d.days*86400000,left=Math.max(0,tot-(Date.now()-d.ts)),pc=left/tot,dl=Math.ceil(left/86400000);
           var mt=h("div");mt.style.cssText="height:10px;border-radius:5px;background:rgba(128,128,128,.25);overflow:hidden;margin-top:6px";
           var mf=h("i");mf.style.cssText="display:block;height:100%;width:"+Math.round(pc*100)+"%;background:"+(pc>0.5?"#1fa855":pc>0.2?"#e0a100":"#d93025");mt.appendChild(mf);sp.appendChild(mt);
           var lt=h("div","meta",left<=0?"Finished. Time to restock.":(pc<=0.3?"Running low: about "+dl+(dl===1?" day":" days")+" left":"About "+dl+" days left")+" · lasts "+chkDur(d.days));if(pc<=0.3)lt.style.color=left<=0?"#d93025":"#c07a00";sp.appendChild(lt);
-          if(canWrite&&myRole())sp.appendChild(xtBtn(pc<=0.3?"Restock":"Restock early",function(){CHKASK={k:i.k,t:i.t,re:1,r:myRole()==="daddy"?"dad":"mum",sec:c[1]};xtChk()},"quiet"));
+          if(canWrite&&myRole()&&left<=0)sp.appendChild(xtBtn("Restock",function(){CHKASK={k:i.k,t:i.t,re:1,r:myRole()==="daddy"?"dad":"mum",sec:c[1]};xtChk()},"quiet"));
         }else if(d&&canWrite&&myRole())sp.appendChild(xtBtn("Bought again",function(){if(!confirm("Record that "+i.t+" was bought again?"))return;var nd=Object.assign({},done);chkBuy(nd,i,c[1],myRole()==="daddy"?"dad":"mum",0);save({done:nd})},"quiet"));
         else if(!d&&i.n)sp.appendChild(h("div","meta",i.n));
         if(canWrite){
@@ -1668,12 +1684,13 @@ function xtChk(){
             var ll2=h("label",null,cons?"How long will it last?":"How long will it last? (optional)");ll2.appendChild(sl);
             var spc=storePick();sf.appendChild(bi);sf.appendChild(qi);sf.appendChild(ll2);sf.appendChild(spc.el);
             sf.appendChild(xtBtn("Add to shopping list",async function(){
+              var bm0=chkBlockMsg(i.k,i.t);if(bm0){CHKSHOP=null;xtChk();return note(bm0)}
               if(cons&&!parseInt(sl.value,10))return note("Choose how long it will last, so the meter can start when it is bought.");note("");
               var rec={kind:"shop",date:key(new Date()),title:i.t,note:"",by:myId,status:"requested",prio:3,ts:Date.now(),chk:{k:i.k,item:i.t,section:c[1]}};
               if(bi.value.trim())rec.brand=bi.value.trim();if(qi.value.trim())rec.qty=qi.value.trim();if(parseInt(sl.value,10))rec.days=parseInt(sl.value,10);if(spc.get())rec.store=spc.get();
               try{await db.collection("expenses").add(rec);CHKSHOP=null;note("Added to the shopping list.");setTimeout(function(){note("")},2200);xtChk()}catch(e){fail(e)}}));
             sf.appendChild(xtBtn("Cancel",function(){CHKSHOP=null;xtChk()},"quiet"));sp.appendChild(sf)}
-          else sp.appendChild(xtBtn("🛒 Add to shopping list",function(){CHKSHOP={k:i.k};xtChk()},"quiet"));
+          else{var blk=chkBlockMsg(i.k,i.t);if(blk)sp.appendChild(h("div","meta","⏳ "+blk));else sp.appendChild(cartBtn("Add to shopping list",function(){CHKSHOP={k:i.k};xtChk()}))}
         }
         if(CHKASK&&CHKASK.k===i.k){
           var ask=h("div");ask.style.cssText="margin-top:8px;padding:10px;border-radius:12px;background:rgba(128,128,128,.12)";
@@ -1918,6 +1935,7 @@ function xtShop(){
   var c0=h("option",null,"Choose a category");c0.value="";cs.appendChild(c0);
   CHK.forEach(function(c,ci){var o=h("option",null,c[0]+" "+c[1]);o.value=String(ci);cs.appendChild(o)});
   var ce=h("option",null,"✏️ Something else");ce.value="__else";cs.appendChild(ce);
+  var bw=h("div","meta");bw.style.cssText="margin-top:6px;font-weight:600";bw.hidden=true;
   cl.appendChild(cs);il.appendChild(is);il.hidden=true;
   var i1=h("input");i1.placeholder="Type what you need (e.g. School shoes size 30)";i1.maxLength=100;i1.id="shi";i1.style.marginTop="8px";i1.hidden=true;
   var chkEx=(((S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{}).extra)||{};
@@ -1930,7 +1948,11 @@ function xtShop(){
     var oo=h("option",null,"Other (type it)…");oo.value="__other";is.appendChild(oo);
   }
   cs.onchange=fillItems;
-  is.onchange=function(){i1.hidden=is.value!=="__other";if(CHKCONS.indexOf((is.selectedOptions[0]||{}).dataset&&is.selectedOptions[0].dataset.n)>=0&&!parseInt(ls.value,10))ls.value="30"};
+  is.onchange=function(){i1.hidden=is.value!=="__other";bw.hidden=true;bw.textContent="";bw.style.color="";
+    if(is.value&&is.value!=="__other"){var nm0=(is.selectedOptions[0]||{}).dataset&&is.selectedOptions[0].dataset.n,bm=chkBlockMsg(is.value,nm0),lp=chkLastMap()[is.value];
+      if(bm){bw.textContent="⏳ "+bm;bw.style.color="#c07a00";bw.hidden=false}
+      else if(lp){bw.textContent="🕘 Last bought: "+new Date(lp.ts).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+" ("+chkAgo(lp.ts)+")";bw.hidden=false}}
+    if(CHKCONS.indexOf((is.selectedOptions[0]||{}).dataset&&is.selectedOptions[0].dataset.n)>=0&&!parseInt(ls.value,10))ls.value="30"};
   var i2=h("input");i2.placeholder="Details (optional): brand, size, where to buy";i2.maxLength=200;i2.id="shn";i2.style.marginTop="8px";
   var i3=h("input");i3.placeholder="Link to the item (optional)";i3.maxLength=300;i3.type="url";i3.style.marginTop="8px";i3.id="shl";
   var i4=h("input");i4.placeholder="Brand (optional)";i4.maxLength=60;i4.style.marginTop="8px";
@@ -1938,12 +1960,12 @@ function xtShop(){
   var ll=h("label",null,"How long will it last? (optional)");ll.style.marginTop="8px";var ls=h("select");CHKLAST.forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];ls.appendChild(op)});ll.appendChild(ls);
   var pl=h("label",null,"Photo reference (optional)");pl.style.marginTop="8px";var pf=h("input");pf.type="file";pf.accept="image/*";pf.id="shp";pl.appendChild(pf);
   var pr=h("label",null,"Priority");pr.style.marginTop="8px";var ps=h("select");SHPRIO.forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];ps.appendChild(op)});ps.value="3";pr.appendChild(ps);
-  var sp0=storePick();f.appendChild(cl);f.appendChild(il);f.appendChild(i1);f.appendChild(i4);f.appendChild(i5);f.appendChild(ll);f.appendChild(sp0.el);f.appendChild(i2);f.appendChild(i3);f.appendChild(pl);f.appendChild(pr);
+  var sp0=storePick();f.appendChild(cl);f.appendChild(il);f.appendChild(bw);f.appendChild(i1);f.appendChild(i4);f.appendChild(i5);f.appendChild(ll);f.appendChild(sp0.el);f.appendChild(i2);f.appendChild(i3);f.appendChild(pl);f.appendChild(pr);
   if(canWrite){var sn=h("div","meta","🎁 Planning a surprise for Janet? Use “Who can see this” below to keep the item hidden from your co-parent and everyone else. Only you (or the people you choose) will see it, and Janet’s AI posts will never mention it.");sn.style.cssText="margin-top:10px;padding:10px;border-radius:12px;background:rgba(255,170,0,.14)";f.appendChild(sn);f.appendChild(shareWidget("shop"));var addb=xtBtn("Add request",async function(){
     var t="",chkL=null;
     if(!cs.value)return note("Choose a category first.");
     if(cs.value==="__else"||is.value==="__other"){t=i1.value.trim();if(!t)return note("Type what you need first.")}
-    else{if(!is.value)return note("Choose an item.");var so=is.selectedOptions[0];t=so.dataset.n;chkL={k:is.value,item:t,section:CHK[cs.value][1]};
+    else{if(!is.value)return note("Choose an item.");var so=is.selectedOptions[0];t=so.dataset.n;chkL={k:is.value,item:t,section:CHK[cs.value][1]};var bm1=chkBlockMsg(chkL.k,t);if(bm1)return note(bm1);
       if(CHKCONS.indexOf(t)>=0&&!parseInt(ls.value,10))return note("Choose how long it will last, so the checklist meter can start when it is bought.")}
     note("");
     var lk=i3.value.trim();if(lk&&!/^https?:\/\//i.test(lk))lk="https://"+lk;
@@ -1969,7 +1991,7 @@ function xtShop(){
       top.appendChild(h("b",null,x.title));r.appendChild(top);
       var meta="Requested by "+xtName(x.by)+" · "+when(x.ts);
       if(x.note)meta+=" · "+x.note;r.appendChild(h("div","meta",meta));
-      var det=[];if(x.brand)det.push("Brand: "+x.brand);if(x.qty)det.push("Qty: "+x.qty);if(x.days)det.push("Lasts about "+chkDur(x.days));if(x.store)det.push("Buy at: "+x.store);if(x.chk)det.push("From Janet’s checklist");if(det.length){var dd=h("div","meta",det.join(" · "));dd.style.fontWeight="600";r.appendChild(dd)}
+      var det=[];if(x.brand)det.push("Brand: "+x.brand);if(x.qty)det.push("Qty: "+x.qty);if(x.days)det.push("Lasts about "+chkDur(x.days));if(x.store)det.push("Buy at: "+x.store);if(x.chk){det.push("From Janet’s checklist");var lq=chkLastMap()[x.chk.k];if(lq)det.push("Last bought "+new Date(lq.ts).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}))}if(det.length){var dd=h("div","meta",det.join(" · "));dd.style.fontWeight="600";r.appendChild(dd)}
       if(x.link){var la=h("a","meta","🔗 Open link");la.href=x.link;la.target="_blank";la.rel="noopener noreferrer";la.style.textDecoration="underline";r.appendChild(la)}
       if(x.photo&&x.photo.path){var pim=h("img");pim.alt="Reference photo";pim.style.cssText="width:84px;height:84px;object-fit:cover;border-radius:10px;margin-top:4px;cursor:pointer;background:rgba(127,127,127,.2)";signed(x.photo.path).then(function(u){pim.src=u}).catch(function(){});pim.onclick=function(){signed(x.photo.path).then(function(u){preview(Object.assign({},x.photo,{url:u}))})};r.appendChild(pim)}
       draw(x,r,top);var sl2=selfieLinks(x,[["selfie","Requested"],["selfie_fulfilled","Fulfilled"],["selfie_confirmed","Confirmed"]]);if(sl2)r.appendChild(sl2);var ssh=shareLine(x,"expenses");if(ssh)r.appendChild(ssh);c.appendChild(r)});
