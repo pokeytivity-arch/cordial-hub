@@ -46,6 +46,39 @@ exports.handler = async () => {
     }
     await writeDoc(`expenses/${row.id}`, "expenses", row.id, { ...t, remindCount: n + 1, remindedAt: now });
   }
+  // Janet's checklist: tell both parents once when a consumable (milk, diapers...) drops to 30% or less.
+  try {
+    const cs = await readDoc("expenses/chk_state");
+    if (cs && cs.done) {
+      let changed = false;
+      for (const k of Object.keys(cs.done)) {
+        const d = cs.done[k];
+        if (!d || !d.days || d.low || !d.ts) continue;
+        const tot = d.days * DAY;
+        const left = Math.max(0, tot - (now - d.ts));
+        if (left / tot > 0.3) continue;
+        const days = Math.ceil(left / DAY);
+        const payload = { kind: "task", title: "🛒 Running low", body: `${String(d.t || "An item").slice(0, 80)} is down to about ${days} ${days === 1 ? "day" : "days"}. Time to restock.`, tag: "chk-" + k, url: "/?goto=chk" };
+        for (const m of members.filter((x) => x.grp === "parent")) {
+          const key = `profiles/cp_${m.user_id}`;
+          const pd = (await readDoc(key)) || {};
+          const subs = Array.isArray(pd.push) ? pd.push : [];
+          const keep = [];
+          for (const sub of subs) {
+            if (!sub || !sub.endpoint || !sub.keys) continue;
+            let c = 0;
+            try { c = await push._sendOne(sub, payload); } catch { c = 0; }
+            if (c >= 200 && c < 300) sent++;
+            if (c !== 404 && c !== 410) keep.push(sub);
+          }
+          if (keep.length !== subs.length) { pd.push = keep; await writeDoc(key, "profiles", `cp_${m.user_id}`, pd); }
+        }
+        cs.done[k] = { ...d, low: 1 };
+        changed = true;
+      }
+      if (changed) await writeDoc("expenses/chk_state", "expenses", "chk_state", cs);
+    }
+  } catch {}
   // Twice a week (Tuesday and Friday, 9am Lagos time) Cordial asks Mummy for news and photos of Janet.
   try {
     const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", weekday: "short", hour: "2-digit", hour12: false, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
