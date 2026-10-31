@@ -2261,10 +2261,49 @@ async function setProfileField(patch){
   var next=Object.assign(cur,patch);delete next.id;
   await db.doc("profiles/"+myId).set(next);
 }
+/* crop a picked photo: drag to move, slider to zoom. avatar = square (shown round), cover = wide */
+function cropPhoto(ph,kind){
+  return new Promise(function(res){
+    var cover=kind==="cover",ratio=cover?3:1,outW=cover?1200:640,outH=Math.round(outW/ratio);
+    var o=h("div");o.style.cssText="position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;touch-action:none";
+    o.appendChild(h("div",null,cover?"Move and zoom your cover photo":"Move and zoom your profile photo")).style.cssText="color:#fff;font-weight:700";
+    var fw=Math.min(innerWidth-32,340),fh=Math.round(fw/ratio);
+    var fr=h("div");fr.style.cssText="position:relative;overflow:hidden;background:#222;width:"+fw+"px;height:"+fh+"px;border-radius:"+(cover?"12px":"50%")+";outline:2px solid #25d366;touch-action:none;cursor:grab";
+    var im=new Image();im.draggable=false;im.style.cssText="position:absolute;left:0;top:0;max-width:none;user-select:none;-webkit-user-drag:none";
+    fr.appendChild(im);o.appendChild(fr);
+    var zr=h("input");zr.type="range";zr.min="1";zr.max="4";zr.step="0.01";zr.value="1";zr.style.cssText="width:"+fw+"px";o.appendChild(zr);
+    var bt=h("div");bt.style.cssText="display:flex;gap:10px";
+    var cn=h("button","quiet","Cancel"),ok=h("button","go","Use photo");cn.type=ok.type="button";cn.style.cssText="color:#fff";bt.appendChild(cn);bt.appendChild(ok);o.appendChild(bt);
+    var iw=0,ih=0,base=1,z=1,x=0,y=0;
+    function clamp(){var sc=base*z,dw=iw*sc,dh=ih*sc;x=Math.min(0,Math.max(fw-dw,x));y=Math.min(0,Math.max(fh-dh,y))}
+    function draw(){clamp();var sc=base*z;im.style.width=(iw*sc)+"px";im.style.height=(ih*sc)+"px";im.style.left=x+"px";im.style.top=y+"px"}
+    im.onload=function(){iw=im.naturalWidth;ih=im.naturalHeight;base=Math.max(fw/iw,fh/ih);z=1;x=(fw-iw*base)/2;y=(fh-ih*base)/2;draw()};
+    im.src=ph.data;
+    function setZoom(nz){var sc=base*z,cx=(fw/2-x)/sc,cy=(fh/2-y)/sc;z=Math.min(4,Math.max(1,nz));sc=base*z;x=fw/2-cx*sc;y=fh/2-cy*sc;zr.value=z;draw()}
+    zr.oninput=function(){setZoom(parseFloat(zr.value))};
+    var pts={},d0=0,z0=1,dragging=null;
+    fr.onpointerdown=function(e){try{fr.setPointerCapture(e.pointerId)}catch(_){}pts[e.pointerId]={x:e.clientX,y:e.clientY};
+      var k=Object.keys(pts);if(k.length===1)dragging={px:e.clientX,py:e.clientY,x:x,y:y};else if(k.length===2){var a=pts[k[0]],b=pts[k[1]];d0=Math.hypot(a.x-b.x,a.y-b.y);z0=z;dragging=null}fr.style.cursor="grabbing"};
+    fr.onpointermove=function(e){if(!pts[e.pointerId])return;pts[e.pointerId]={x:e.clientX,y:e.clientY};var k=Object.keys(pts);
+      if(k.length>=2&&d0){var a=pts[k[0]],b=pts[k[1]];setZoom(z0*Math.hypot(a.x-b.x,a.y-b.y)/d0)}
+      else if(dragging){x=dragging.x+(e.clientX-dragging.px);y=dragging.y+(e.clientY-dragging.py);draw()}};
+    function up(e){delete pts[e.pointerId];var k=Object.keys(pts);if(k.length===1){var p=pts[k[0]];dragging={px:p.x,py:p.y,x:x,y:y};d0=0}else if(!k.length){dragging=null;d0=0;fr.style.cursor="grab"}}
+    fr.onpointerup=up;fr.onpointercancel=up;
+    fr.addEventListener("wheel",function(e){e.preventDefault();setZoom(z*(e.deltaY<0?1.08:0.93))},{passive:false});
+    cn.onclick=function(){o.remove();res(null)};
+    ok.onclick=function(){
+      var sc=base*z,cv=document.createElement("canvas");cv.width=outW;cv.height=outH;var cx=cv.getContext("2d");
+      cx.fillStyle="#fff";cx.fillRect(0,0,outW,outH);
+      cx.drawImage(im,-x/sc,-y/sc,fw/sc,fh/sc,0,0,outW,outH);
+      var data=cv.toDataURL("image/jpeg",0.85);o.remove();res({data:data,w:outW,h:outH})};
+    document.body.appendChild(o);
+  });
+}
 function changeProfilePhoto(kind){
   if(!db||!myId)return;
-  pickPhoto($(kind==="cover"?"#pcovf":"#pavf"),async function(ph){
+  pickPhoto($(kind==="cover"?"#pcovf":"#pavf"),async function(ph0){
     try{
+      var ph=await cropPhoto(ph0,kind);if(!ph)return;
       var old=PF(myId)[kind];
       var id=await saveMedia(ph);
       var patch={};patch[kind]=id;await setProfileField(patch);
