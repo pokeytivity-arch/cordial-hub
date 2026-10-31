@@ -1399,7 +1399,8 @@ $("#xadd").onclick=async function(){
       var path=await upload("docs",blob,name);ups.push({path:path,name:name,type:type,size:blob.size||ff.size});
     }
     chk=await aiVerifyMany(fl,{slot:"exp",kind:"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
-    var xrec=withShare({ts:Date.now(),desc:d,amount:a,by:$("#xw").value,date:$("#xt").value||key(new Date()),proof:ups[0],aicheck:chk},"exp");if(ups.length>1)xrec.proofs=ups;if(chk.status==="review")xrec.review={state:"pending"};
+    var rdt=rcDateMs(chk&&chk.read&&chk.read.date),xdate=rdt?key(new Date(rdt)):($("#xt").value||key(new Date()));
+    var xrec=withShare({ts:Date.now(),desc:d,amount:a,by:$("#xw").value,date:xdate,proof:ups[0],aicheck:chk},"exp");if(ups.length>1)xrec.proofs=ups;if(chk.status==="review")xrec.review={state:"pending"};
     await db.collection("expenses").add(xrec);
     $("#xd").value="";$("#xa").value="";$("#xf").value="";note("");
   }catch(e){note(attachErr(e))}
@@ -1424,6 +1425,15 @@ $("#xadd").onclick=async function(){
 /* proof records can be removed by the person within one week of upload; after that only the Cordial admin account can */
 function isAdminAcct(){return !!(isOwner&&!(MEMBER&&MEMBER.grp==="parent"))}
 function canRemoveRec(x){if(isAdminAcct())return true;var t=Number(x&&(x.ts||(x.proof&&x.proof.ts)))||Date.parse(x&&x.date)||0;return !!t&&Date.now()-t<=604800000}
+/* every expense and school fee is confirmed by the other parent (normally Our Mummy) */
+function xtConfirmerId(payerId){var d=ownerM(),m=mumM();if(m&&payerId&&payerId===m.user_id)return d?d.user_id:"";return m?m.user_id:""}
+function xtConfirmBox(rec,payerId,coll){
+  var w=h("div");w.style.cssText="margin-top:6px";var cid=xtConfirmerId(payerId),cm=xtMembers().filter(function(u){return u.user_id===cid})[0],who=(cm&&cid===(mumM()||{}).user_id)?"Our Mummy":"the other parent";
+  if(rec.confirmedAt){var c=h("div","meta","✅ Confirmed by "+xtName(rec.confirmedBy||cid)+" on "+new Date(rec.confirmedAt).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}));c.style.color="#1f8a4c";w.appendChild(c);return w}
+  w.appendChild(h("div","meta","⏳ Waiting for "+who+" to confirm"));
+  if(cid&&cid===myId&&canWrite)w.appendChild(xtBtn("✅ Confirm",function(){db.doc("expenses/"+rec.id).update({confirmedAt:Date.now(),confirmedBy:myId,_selfie:"confirmed"}).catch(fail)}));
+  return w;
+}
 function renderExp(){
   var pa=0,pb=0;S.exp.forEach(function(x){if(x.review&&x.review.state==="rejected")return;if(x.by==="a")pa+=x.amount;else pb+=x.amount});
   (function(){var b=$("#bal");b.textContent="";if(!S.exp.length){b.textContent="No expenses yet";return}
@@ -1442,10 +1452,11 @@ function renderExp(){
   S.exp.forEach(function(x){
     var r=h("div","item"),l=h("div");
     l.appendChild(h("div",null,x.desc));l.appendChild(h("div","meta",x.date+" – paid by "+nm(x.by)));
-    var rcl0=xtRc(x.proofs&&x.proofs.length?x.proofs:(x.proof?[x.proof]:[]),"Receipt");if(rcl0)l.appendChild(rcl0);
+    var rcl0=xtRc(x.proofs&&x.proofs.length?x.proofs:(x.proof?[x.proof]:[]),"Receipt",x.aicheck&&x.aicheck.read);if(rcl0)l.appendChild(rcl0);
     var sl=selfieLinks(x,[["selfie","Selfie"]]);if(sl)l.appendChild(sl);
     var bg=aiBadge(x,"expenses");if(bg)l.appendChild(bg);var xsh=shareLine(x,"expenses");if(xsh)l.appendChild(xsh);
     if(x.review&&x.review.state==="rejected")l.style.opacity=".55";
+    var xpid=(x.by==="b"?(mumM()||{}).user_id:(ownerM()||{}).user_id);l.appendChild(xtConfirmBox(x,xpid,"expenses"));
     var rt=h("div");rt.style.textAlign="right";rt.appendChild(h("div","amt",money(x.amount)));
     var rm=h("button","quiet","Remove");rm.onclick=function(){db.doc("expenses/"+x.id).delete().catch(fail)};
     if(canWrite&&canRemoveRec(x))rt.appendChild(rm);r.appendChild(l);r.appendChild(rt);L.appendChild(r)});
@@ -1489,10 +1500,16 @@ async function xtUp(file){
   var path=await upload("docs",blob,name);
   return {path:path,name:name,type:type,size:blob.size||file.size,ts:Date.now(),by:myId||""};
 }
-function xtRc(list,label){
+function rcDateMs(d){if(!/^\d{4}-\d{2}-\d{2}$/.test(d||""))return 0;var t=new Date(d+"T12:00:00").getTime();return (t&&t<=Date.now()+86400000&&t>Date.now()-63072000000)?t:0}
+function rcLabel(read,fb){
+  var p=[];if(read){if(read.payee)p.push(read.payee);if(read.amount)p.push(money(read.amount));var t=rcDateMs(read.date);if(t)p.push(new Date(t).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}))}
+  return p.length?p.join(" · "):fb;
+}
+function xtRc(list,label,fbRead){
   var w=null;(list||[]).forEach(function(rc,i){
     if(!rc||!rc.path)return;if(!w){w=h("div");w.style.cssText="display:flex;gap:12px;flex-wrap:wrap;margin-top:2px"}
-    var b=h("button","quiet","🧾 "+(label||"Receipt")+(list.length>1?" "+(i+1):""));b.type="button";b.style.cssText="padding:2px 0;text-decoration:underline;font-size:.9rem";
+    var rd=(rc.aicheck&&rc.aicheck.read)||fbRead||null,fb=(label||"Receipt")+(list.length>1?" "+(i+1):"");
+    var b=h("button","quiet","🧾 "+rcLabel(rd,fb)+((rcLabel(rd,"")&&list.length>1)?" ("+(i+1)+" of "+list.length+")":""));b.type="button";b.style.cssText="padding:2px 0;text-decoration:underline;font-size:.9rem;text-align:left";
     b.onclick=function(){signed(rc.path).then(function(u){preview(Object.assign({},rc,{url:u}))}).catch(function(){note("That file isn’t available.")})};w.appendChild(b)});
   return w;
 }
@@ -1790,7 +1807,7 @@ function xtSup(){
       var pb=xtBtn("Mark as paid",async function(){
         if(!fl.files||!fl.files[0])return note("Attach the transaction receipt first.");note("");pb.disabled=true;
         try{var rcs=[];for(var qi=0;qi<fl.files.length;qi++)rcs.push(await xtUp(fl.files[qi]));var sck=await aiVerifyMany(fl.files,{kind:"support",title:"Support "+lbl,amount:cfg.amount,date:key(new Date())});rcs.forEach(function(q){q.aicheck=sck});var rflag=sck.status==="review";var rc=rcs[0];
-          var pt={kind:"sup",date:mm.y+"-"+pad(mm.m)+"-"+(wk?pad(mm.d):"01"),amount:cfg.amount,paidAt:Date.now(),paidBy:myId,receipt:rc,_selfie:"paid"};if(rcs.length>1)pt.receipts=rcs;if(rflag)pt.review={state:"pending"};
+          var pt={kind:"sup",date:mm.y+"-"+pad(mm.m)+"-"+(wk?pad(mm.d):"01"),amount:cfg.amount,paidAt:rcDateMs(sck.read&&sck.read.date)||Date.now(),paidBy:myId,receipt:rc,_selfie:"paid"};if(rcs.length>1)pt.receipts=rcs;if(rflag)pt.review={state:"pending"};
           await xtDoc(id,pt);{var who2=myRole();setTimeout(function(){babyPost(who2||"daddy",wk?"sent this week’s support for Janet":"sent this month’s support for Janet",true)},2500)}}catch(e){fail(e)}
         pb.disabled=false});acts.appendChild(pb);
     }
@@ -1837,37 +1854,63 @@ function xtFee(){
         if(r.amount)ar.appendChild(xtBtn("Cancel",function(){XT.edit[id]=false;xtFee()},"quiet"));
         row.appendChild(ar);
       }
-      var rl=xtRc(r.receipts,"View receipt");
+      var pays=r.payments||[],legacy=r.receipts||[],hasRc=pays.length>0||legacy.length>0;
+      var paidSoFar=pays.reduce(function(q,p){return q+(+p.amount||0)},0);
+      var rl=xtRc(legacy,"View receipt");
       if(canWrite&&!r.paid){
         if(!r.amount||editing)feeForm();
         else{
           var br=h("div");br.style.cssText="display:flex;gap:8px;align-items:center;flex-wrap:wrap";
           br.appendChild(xtBtn("Edit fee",function(){XT.edit=XT.edit||{};XT.edit[id]=true;xtFee()},"quiet"));
-          var hasRc=!!(r.receipts&&r.receipts.length);if(!hasRc)br.appendChild(h("div","meta","Add the payment receipt below. Cordial reads it, then you can mark this term as paid."));
+          if(!hasRc)br.appendChild(h("div","meta","Add each payment below with what it was for, the amount and its receipts. Each payment is checked on its own."));
           if(hasRc)br.appendChild(xtBtn("Mark as paid",function(){var who=myRole();
-            if(!(r.receipts||[]).some(function(rc){return rc&&rc.aicheck&&rc.aicheck.status&&rc.aicheck.status!=="unchecked"})&&!confirm("Cordial couldn’t read these receipts. Mark this term as paid anyway?"))return;
-            var pd=0;(r.receipts||[]).forEach(function(rc){var d0=rc&&rc.aicheck&&rc.aicheck.read&&rc.aicheck.read.date;if(/^\d{4}-\d{2}-\d{2}$/.test(d0||"")){var tm=new Date(d0+"T12:00:00").getTime();if(tm<=Date.now()&&tm>Date.now()-63072000000&&tm>pd)pd=tm}});var fromRc=pd>0;if(!pd)pd=Date.now();
+            if(r.amount&&pays.length&&paidSoFar+0.5<r.amount&&!confirm("Payments added so far are "+money(paidSoFar)+" of "+money(r.amount)+". Mark this term as paid anyway?"))return;
+            var all=legacy.slice();pays.forEach(function(p){(p.receipts||[]).forEach(function(q){all.push(q)})});
+            if(!all.some(function(rc){return rc&&rc.aicheck&&rc.aicheck.status&&rc.aicheck.status!=="unchecked"})&&!confirm("Cordial couldn’t read these receipts. Mark this term as paid anyway?"))return;
+            var pd=0;all.forEach(function(rc){var d0=rc&&rc.aicheck&&rc.aicheck.read&&rc.aicheck.read.date;if(/^\d{4}-\d{2}-\d{2}$/.test(d0||"")){var tm=new Date(d0+"T12:00:00").getTime();if(tm<=Date.now()&&tm>Date.now()-63072000000&&tm>pd)pd=tm}});var fromRc=pd>0;if(!pd)pd=Date.now();
             xtDoc(id,{paid:true,paidBy:myId,paidOn:pd,paidFromReceipt:fromRc,_selfie:"paid"});setTimeout(function(){babyPost(who||"both","paid Janet’s school fees for the term",true)},2500)}));
           row.appendChild(br);
         }
       }
       var fsl=selfieLinks(r,[["selfie_paid","Paid"]]);if(fsl)row.appendChild(fsl);
-      if(rl)row.appendChild(rl);
-      var fbg=aiBadge(r,"expenses");if(fbg)row.appendChild(fbg);
+      if(r.amount&&pays.length){var ps=h("div","meta","Payments added: "+money(paidSoFar)+" of "+money(r.amount));ps.style.fontWeight="700";row.appendChild(ps)}
+      if(rl){var lh=h("div","meta","Earlier receipts");row.appendChild(lh);row.appendChild(rl)}
+      pays.forEach(function(p){
+        var pr=h("div");pr.style.cssText="border-top:1px solid rgba(128,128,128,.25);padding:8px 0;margin-top:6px";
+        var tp=h("div",null,(p.what||"Payment")+(p.amount?" · "+money(p.amount):""));tp.style.fontWeight="700";pr.appendChild(tp);
+        var rr0=xtRc(p.receipts,"Receipt",p.aicheck&&p.aicheck.read);if(rr0)pr.appendChild(rr0);
+        var ck=p.aicheck;
+        if(ck&&ck.status==="pass"){var g=h("div","meta","✅ Checked by Cordial");g.style.color="#1f8a4c";pr.appendChild(g)}
+        else if(ck&&ck.status==="review"){var wn=h("div","meta","⚠️ Needs a look. "+(ck.reasons||[]).join(" "));wn.style.color="#c07a00";pr.appendChild(wn)}
+        else if(ck){pr.appendChild(h("div","meta","Cordial couldn’t read this one, but it is saved."))}
+        if(canWrite&&!r.paid&&canRemoveRec({ts:p.ts})){pr.appendChild(xtBtn("Remove this payment",function(){if(confirm("Remove this payment entry?"))xtDoc(id,{payments:pays.filter(function(z){return z.id!==p.id})})},"quiet"))}
+        row.appendChild(pr)});
+      if(r.paid)row.appendChild(xtConfirmBox(r,r.paidBy,"expenses"));
+      var fbg=aiBadge(r,"expenses");if(fbg&&!pays.length)row.appendChild(fbg);
       if(canWrite&&!r.paid&&r.amount&&!editing){
-        var rw=h("div");rw.style.cssText="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px";
-        var rf=h("input");rf.type="file";rf.accept="image/*,application/pdf";rf.multiple=true;rf.style.cssText="flex:1;min-width:150px";
-        var rb=xtBtn("Add receipts",async function(){
-          if(!rf.files||!rf.files.length)return note("Choose one or more receipts first.");note("");rb.disabled=true;
-          try{var add=[];for(var i=0;i<rf.files.length;i++)add.push(await xtUp(rf.files[i]));var fck=await aiVerifyMany(rf.files,{kind:"fee",title:"School fee "+y+"/"+(y+1)+" term "+(t+1),amount:r.amount||null,date:key(new Date())});add.forEach(function(q){q.aicheck=fck});
-            var ft={kind:"fee",date:yr+"-"+pad(t===0?9:t===1?1:5)+"-01",year:y,term:t+1,receipts:(r.receipts||[]).concat(add)};if(aiFlag(add.map(function(x){return x.aicheck}))&&!(r.review&&r.review.state==="approved"&&false))ft.review={state:"pending"};
-            await xtDoc(id,ft);rf.value=""}catch(e){fail(e)}
+        var ap=h("div");ap.style.cssText="display:flex;flex-direction:column;gap:8px;margin-top:8px;border-top:1px solid rgba(128,128,128,.25);padding-top:8px";
+        ap.appendChild(h("div","meta","Add a payment"));
+        var wi=h("input");wi.type="text";wi.placeholder="What it’s for (e.g. Tuition, Uniform)";wi.maxLength=80;
+        var ai=h("input");ai.type="number";ai.min="0";ai.step="0.01";ai.inputMode="decimal";ai.placeholder="Amount (₦)";
+        var rf=h("input");rf.type="file";rf.accept="image/*,application/pdf";rf.multiple=true;
+        var rb=xtBtn("Add payment",async function(){
+          var what=wi.value.trim(),amt=parseFloat(ai.value);
+          if(!what)return note("Enter what this payment is for.");
+          if(!(amt>0))return note("Enter the amount for this payment.");
+          if(!rf.files||!rf.files.length)return note("Choose one or more receipts for this payment.");
+          note("");rb.disabled=true;
+          try{var add=[];for(var i=0;i<rf.files.length;i++)add.push(await xtUp(rf.files[i]));
+            var fck=await aiVerifyMany(rf.files,{kind:"fee",title:"School fee "+y+"/"+(y+1)+" term "+(t+1)+" – "+what,amount:amt,date:key(new Date())});
+            add.forEach(function(q){q.aicheck=fck});
+            var np={id:"p"+Date.now().toString(36),what:what,amount:amt,ts:Date.now(),by:myId,receipts:add,aicheck:fck};
+            await xtDoc(id,{kind:"fee",date:yr+"-"+pad(t===0?9:t===1?1:5)+"-01",year:y,term:t+1,payments:pays.concat([np])});
+            wi.value="";ai.value="";rf.value=""}catch(e){fail(e)}
           rb.disabled=false});
-        rw.appendChild(rf);rw.appendChild(rb);row.appendChild(rw);
-        if(isOwner&&r.receipts&&r.receipts.length){var rr=xtBtn("Remove last receipt",function(){if(confirm("Remove the last receipt from this term?"))xtDoc(id,{receipts:r.receipts.slice(0,-1)})},"quiet");row.appendChild(rr)}
+        ap.appendChild(wi);ap.appendChild(ai);ap.appendChild(rf);ap.appendChild(rb);row.appendChild(ap);
+        if(legacy.length){row.appendChild(xtBtn("Remove last earlier receipt",function(){if(confirm("Remove the last earlier receipt from this term?"))xtDoc(id,{receipts:legacy.slice(0,-1)})},"quiet"))}
       }
-      if(r.paid&&!rl)row.appendChild(h("div","meta","No receipt was attached to this payment."));
-      if(canWrite&&r.paid&&isAdminAcct())row.appendChild(xtBtn("Undo paid",function(){if(confirm("Undo this payment?"))xtDoc(id,{paid:false,paidBy:null,paidOn:null,paidFromReceipt:null,selfie_paid:null})},"quiet"));
+      if(r.paid&&!hasRc)row.appendChild(h("div","meta","No receipt was attached to this payment."));
+      if(canWrite&&r.paid&&isAdminAcct())row.appendChild(xtBtn("Undo paid",function(){if(confirm("Undo this payment?"))xtDoc(id,{paid:false,paidBy:null,paidOn:null,paidFromReceipt:null,confirmedAt:null,confirmedBy:null,selfie_paid:null})},"quiet"));
       card.appendChild(row)})(t);
     box.appendChild(card)})(y);
 }
@@ -3776,10 +3819,10 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!$("#ov").h
 /* documents */
 var CATS=["Medical","School","Legal","Financial","Other"];
 CATS.forEach(function(c){var o=h("option",null,c);o.value=c;$("#dcat").appendChild(o)});
-function stdName(cat,title,orig){
+function stdName(cat,title,orig,dateKey){
   var m=String(orig||"").match(/\.([A-Za-z0-9]{1,5})$/),ext=m?m[1].toLowerCase():"";
   function cl(x){return String(x||"").normalize("NFKD").replace(/[^\w\- ]+/g,"").trim().replace(/\s+/g,"-").slice(0,40)}
-  var d=new Date(),dt=d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+  var d=new Date(),dt=dateKey||(d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()));
   return [dt,cl(cat)||"Document",cl(title)||cl(String(orig||"").replace(/\.[^.]*$/,"")),cl((S.me||"").split(" ")[0])].filter(Boolean).join("_")+(ext?"."+ext:"");
 }
 $("#dup").onclick=async function(){
@@ -3791,9 +3834,10 @@ $("#dup").onclick=async function(){
     for(var fi=0;fi<fl.length;fi++){
       var f=fl[fi],tt=t&&fl.length>1?t+" ("+(fi+1)+")":t;
       btn.textContent=fl.length>1?"Uploading "+(fi+1)+" of "+fl.length+"…":"Uploading…";
-      var nn=stdName($("#dcat").value,tt,f.name),path=await upload("docs",f,nn);
-      var chk=await aiVerify(f,{slot:"docs",kind:"document",title:tt||nn,category:$("#dcat").value,date:key(new Date())});
-      var drec=withShare({title:tt||nn,cat:$("#dcat").value,path:path,name:nn,orig:f.name,type:f.type||"application/octet-stream",size:f.size,by:myId||"",ts:Date.now()+fi,aicheck:chk},"docs");if(chk.status==="review")drec.review={state:"pending"};
+      var chk=await aiVerify(f,{slot:"docs",kind:"document",title:tt||f.name,category:$("#dcat").value,date:key(new Date())});
+      var rdt=rcDateMs(chk&&chk.read&&chk.read.date),rinfo=chk&&chk.read||{};
+      var nn=stdName($("#dcat").value,tt||(rinfo.payee||""),f.name,rdt?key(new Date(rdt)):null),path=await upload("docs",f,nn);
+      var drec=withShare({title:tt||(rinfo.payee&&rinfo.amount?rinfo.payee+" · "+money(rinfo.amount):nn),docdate:rdt?key(new Date(rdt)):null,cat:$("#dcat").value,path:path,name:nn,orig:f.name,type:f.type||"application/octet-stream",size:f.size,by:myId||"",ts:Date.now()+fi,aicheck:chk},"docs");if(chk.status==="review")drec.review={state:"pending"};
       await db.collection("documents").add(drec);
     }
     $("#df").value="";$("#dt").value="";note("");
