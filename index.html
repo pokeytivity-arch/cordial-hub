@@ -1492,14 +1492,25 @@ var CHK=[
 ["🚗","Travel and outings",[["Car seat","Most important for rides"],["Stroller"],["Diaper bag"],["Small backpack"]]],
 ["🎒","School items",[["Uniform"],["School bag"],["Lunch box and water bottle"],["School shoes"],["Stationery"]]]
 ];
-var CHKSHUT={};
+var CHKSHUT={},CHKASK=null;
+/* things that get used up: ticking one starts a meter that drains over the time you say it will last */
+var CHKCONS=["Milk or formula","Baby cereal and foods","Yogurt and snacks","Diapers","Wipes","Rash cream","Baby soap, shampoo and lotion","Powder","Sunscreen","Mosquito repellent for babies","Hair products and a soft detangler","Training pants","Children’s fever syrup"];
+function chkDur(d){return d%30===0?(d/30)+(d===30?" month":" months"):d%7===0?(d/7)+(d===7?" week":" weeks"):d+" days"}
+function chkLow(){
+  var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},out=[];
+  Object.keys(done).forEach(function(k){var d=done[k];if(!d||!d.days)return;
+    var tot=d.days*86400000,left=Math.max(0,tot-(Date.now()-d.ts)),pc=left/tot;
+    if(pc<=0.3){var nm=d.t;if(!nm){var m=k.match(/^(\d+)_(\d+)$/);if(m&&CHK[m[1]]&&CHK[m[1]][2][m[2]])nm=CHK[m[1]][2][m[2]][0]}
+      out.push({k:k,t:nm||"An item",left:left,dl:Math.ceil(left/86400000),ts:d.ts+tot*0.7})}});
+  return out;
+}
 function xtChk(){
   var box=$("#xs-chk");if(!box)return;box.textContent="";
   var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},extra=st.extra||{};
   var total=0,got=0;
   CHK.forEach(function(c,ci){total+=c[2].length+(extra[ci]||[]).length;c[2].forEach(function(it,ii){if(done[ci+"_"+ii])got++});(extra[ci]||[]).forEach(function(t,ii){if(done["x"+ci+"_"+ii])got++})});
   var top=h("div","card");top.appendChild(h("h2",null,"Janet’s checklist"));
-  top.appendChild(h("p","meta","Things a toddler needs. Tick an item when it has been bought; the hub shows who got it. Add anything of your own."));
+  top.appendChild(h("p","meta","Things a toddler needs. Tick an item when it has been bought; the hub shows who got it. Items marked ⏳ get used up: say how long they will last and a meter drains over that time."));
   var bar=h("div");bar.style.cssText="height:10px;border-radius:5px;background:rgba(128,128,128,.25);overflow:hidden";var fi=h("i");fi.style.cssText="display:block;height:100%;background:#1fa855;width:"+(total?got/total*100:0)+"%";bar.appendChild(fi);top.appendChild(bar);
   top.appendChild(h("div","meta",got+" of "+total+" done"));box.appendChild(top);
   function save(patch){return xtDoc("chk_state",Object.assign({kind:"chk"},patch))}
@@ -1511,12 +1522,28 @@ function xtChk(){
     hd.onclick=function(){CHKSHUT[ci]=!shut;xtChk()};card.appendChild(hd);
     if(!shut){
       items.forEach(function(i){
-        var d=done[i.k],row=h("label","item");row.style.cssText="display:flex;gap:12px;align-items:flex-start;cursor:"+(canWrite?"pointer":"default");
+        var d=done[i.k],cons=CHKCONS.indexOf(i.t)>=0,row=h("div","item");row.style.cssText="display:flex;gap:12px;align-items:flex-start";
         var cb=h("input");cb.type="checkbox";cb.checked=!!d;cb.disabled=!canWrite;cb.style.cssText="width:22px;height:22px;flex:none;margin-top:1px";
-        cb.onchange=function(){var nd=Object.assign({},done);if(cb.checked)nd[i.k]={by:myId,ts:Date.now()};else delete nd[i.k];save({done:nd})};
-        var sp=h("span");var t=h("div",null,i.t);if(d)t.style.cssText="text-decoration:line-through;opacity:.7";sp.appendChild(t);
-        if(d)sp.appendChild(h("div","meta","Got by "+xtName(d.by)+" on "+new Date(d.ts).toLocaleDateString(undefined,{day:"numeric",month:"short"})));
+        cb.onchange=function(){
+          if(cb.checked){if(cons){CHKASK={k:i.k,t:i.t};xtChk()}else{var nd=Object.assign({},done);nd[i.k]={by:myId,ts:Date.now()};save({done:nd})}}
+          else{var nd2=Object.assign({},done);delete nd2[i.k];save({done:nd2})}};
+        var sp=h("div");sp.style.flex="1";var t=h("div",null,i.t+(cons?" ⏳":""));if(d&&!cons)t.style.cssText="text-decoration:line-through;opacity:.7";sp.appendChild(t);
+        if(d&&cons&&d.days){
+          var tot=d.days*86400000,left=Math.max(0,tot-(Date.now()-d.ts)),pc=left/tot,dl=Math.ceil(left/86400000);
+          var mt=h("div");mt.style.cssText="height:10px;border-radius:5px;background:rgba(128,128,128,.25);overflow:hidden;margin-top:6px";
+          var mf=h("i");mf.style.cssText="display:block;height:100%;width:"+Math.round(pc*100)+"%;background:"+(pc>0.5?"#1fa855":pc>0.2?"#e0a100":"#d93025");mt.appendChild(mf);sp.appendChild(mt);
+          var lt=h("div","meta",left<=0?"Finished. Time to restock.":(pc<=0.2?"Running low: about "+dl+(dl===1?" day":" days")+" left":"About "+dl+" days left"));if(pc<=0.2)lt.style.color=left<=0?"#d93025":"#c07a00";sp.appendChild(lt);
+          sp.appendChild(h("div","meta","Got by "+xtName(d.by)+" on "+new Date(d.ts).toLocaleDateString(undefined,{day:"numeric",month:"short"})+" · lasts "+chkDur(d.days)));
+          if(canWrite)sp.appendChild(xtBtn(pc<=0.2?"Restock":"Restock early",function(){CHKASK={k:i.k,t:i.t,re:1};xtChk()},"quiet"));
+        }else if(d)sp.appendChild(h("div","meta","Got by "+xtName(d.by)+" on "+new Date(d.ts).toLocaleDateString(undefined,{day:"numeric",month:"short"})));
         else if(i.n)sp.appendChild(h("div","meta",i.n));
+        if(CHKASK&&CHKASK.k===i.k){
+          var ask=h("div");ask.style.cssText="margin-top:8px;padding:10px;border-radius:12px;background:rgba(128,128,128,.12)";
+          ask.appendChild(h("div","meta","How long will this last?"));
+          var sel=h("select");sel.style.cssText="width:100%;margin:6px 0";[[7,"1 week"],[14,"2 weeks"],[30,"1 month"],[60,"2 months"],[90,"3 months"],[180,"6 months"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sel.appendChild(op)});sel.value=(done[i.k]&&done[i.k].days)||30;
+          ask.appendChild(sel);
+          ask.appendChild(xtBtn("Start meter",function(){var nd=Object.assign({},done);nd[i.k]={by:myId,ts:Date.now(),days:parseInt(sel.value,10),t:i.t};CHKASK=null;save({done:nd})}));
+          ask.appendChild(xtBtn("Cancel",function(){CHKASK=null;xtChk()},"quiet"));sp.appendChild(ask)}
         row.appendChild(cb);row.appendChild(sp);card.appendChild(row)});
       if(canWrite){
         var ad=h("div");ad.style.cssText="display:flex;gap:8px;margin-top:8px";
@@ -3226,7 +3253,7 @@ window.pushSubscribe=async function(){
   },3000);
 })();
 try{if(location.search.indexOf("ring=")>=0)history.replaceState(null,"",location.pathname)}catch(e){}
-function openFromUrl(u){try{var m=String(u||"").match(/[?&]chat=([\w-]+)/);if(m&&window.waOpenChat)waOpenChat(m[1]);var g=String(u||"").match(/[?&]goto=(\w+)/);if(g&&g[1]==="janet"){showTab("people");setTimeout(openJanetJournal,600)}else if(g&&typeof showTab==="function")showTab(g[1])}catch(e){}}
+function openFromUrl(u){try{var m=String(u||"").match(/[?&]chat=([\w-]+)/);if(m&&window.waOpenChat)waOpenChat(m[1]);var g=String(u||"").match(/[?&]goto=(\w+)/);if(g&&g[1]==="janet"){showTab("people");setTimeout(openJanetJournal,600)}else if(g&&g[1]==="chk"){showTab("todo");TDT="chk";tdTabs()}else if(g&&typeof showTab==="function")showTab(g[1])}catch(e){}}
 try{if(location.search.indexOf("chat=")>=0||location.search.indexOf("goto=")>=0){var cu=location.search;setTimeout(function(){openFromUrl(cu);try{history.replaceState(null,"",location.pathname)}catch(e){}},3500)}}catch(e){}
 try{if(navigator.serviceWorker)navigator.serviceWorker.addEventListener("message",function(e){if(e.data&&e.data.type==="open")openFromUrl(e.data.url)})}catch(e){}
 function previewText(m){
@@ -5948,6 +5975,7 @@ async function start(session){
       if(x.status==="done"&&x.doneBy&&x.doneBy!==myId&&myRole())E.push({ts:x.doneAt||x.ts||0,k:"reminder",lead:"Task",text:": "+xtName(x.doneBy)+" marked “"+x.title+"” done. Please confirm."});
       else if(x.status==="confirmed"&&x.doneBy===myId)E.push({ts:x.confirmedAt||x.ts||0,k:"reminder",lead:"Task",text:": “"+x.title+"” was confirmed by "+xtName(x.confirmedBy)+"."});
     });
+    try{chkLow().forEach(function(l){E.push({ts:Math.min(Date.now(),l.ts),k:"reminder",lead:l.left<=0?"Finished":"Running low",text:": "+l.t+(l.left<=0?" has run out. Time to restock (Janet’s checklist).":" – about "+l.dl+(l.dl===1?" day":" days")+" left (Janet’s checklist).")})})}catch(e){}
     (S.mnotes||[]).forEach(function(m){E.push({ts:m.ts||m.start||0,k:"meeting",lead:"Meeting summary",text:": "+(m.topic||"Meeting")+" is ready"})});
     S.hl.forEach(function(x){if(x.by&&x.by!==myId)E.push({ts:x.ts,k:"highlight",by:x.by,text:" added a highlight: "+(x.title||"")})});
     E.sort(function(a,b){return b.ts-a.ts});return E.slice(0,60);
