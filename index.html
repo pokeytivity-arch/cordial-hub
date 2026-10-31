@@ -413,6 +413,10 @@ html[data-look=fb] #fbnav button{border-radius:999px;padding:11px 0}
 html[data-look=fb] #fbnav .lb{display:none}
 html[data-look=fb] #fbnav button.on{background:var(--a-bg)}
 html[data-look=fb] main{padding-bottom:96px}
+html[data-look] #fbnav{bottom:calc(10px + env(safe-area-inset-bottom,0px) + var(--vvoff,0px))!important;transition:opacity .15s}
+html[data-look][data-typing] #fbnav{opacity:0;pointer-events:none}
+html[data-look=fb] main,html[data-look=wa] main{padding-bottom:120px}
+
 #fbnav .navav{box-sizing:border-box;width:30px;height:30px;border-radius:50%;background:var(--a-bg,#e7f3ff) center/cover no-repeat;color:var(--a,#1877f2);font-weight:700;font-size:.85rem;display:flex;align-items:center;justify-content:center;border:2px solid currentColor;flex:none}
 #fbnav .navav.has{color:transparent;border-color:var(--ink,#111)}
 #fbnav button.on .navav{border-color:var(--a,#1877f2);box-shadow:0 0 0 2px var(--a-bg,#e7f3ff)}
@@ -1286,6 +1290,7 @@ function renderCustodyRow(){
   R.appendChild(row);
 }
 function renderCal(){
+  try{if(typeof CUR!=="undefined"&&CUR==="sched"&&typeof zoomRefresh==="function")zoomRefresh()}catch(e){}
   try{renderCustodyRow()}catch(e){}
   try{segAccess()}catch(e){}
   try{ownerOnlyCards()}catch(e){}
@@ -2369,6 +2374,15 @@ var __th=document.getElementById("tourhub");if(__th)__th.onclick=function(){wind
 function ownerOnlyCards(){var c=document.getElementById("stcard");if(c)c.hidden=!isOwner}
 function segAccess(){var v=document.querySelector('#evseg button[data-p="vm"]'),a=document.querySelector('#evseg button[data-p="am"]');
   if(v)v.hidden=!tabOk("meet");if(a)a.hidden=!tabOk("trips")}
+var ZSYNC=0;
+async function zoomRefresh(force){
+  if(!force&&Date.now()-ZSYNC<90000)return;ZSYNC=Date.now();
+  try{var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)return;
+    var r=await fetch("/api/zoom-sync",{method:"POST",headers:{Authorization:"Bearer "+tk}});
+    var j={};try{j=await r.json()}catch(x){}
+    if(force)note(j&&j.ok?"Calendar refreshed from Zoom.":"Couldn’t reach Zoom right now. Make sure the latest zoom-sync.js is uploaded.");
+  }catch(e){if(force)note("Couldn’t refresh from Zoom.")}
+}
 var EVALL=false;
 function evReschedule(e,host,btn,done){
   btn.hidden=true;
@@ -2410,6 +2424,7 @@ function evResDialog(e){
 function evCanMove(e,day){return !!e&&e.id&&day>=key(new Date())&&canWrite&&(isOwner||!!myRole()||e.by===myId)}
 function renderEvents(){
   var box=document.getElementById("evpane");if(!box||box.hidden)return;
+  safe(zoomRefresh)();
   var ae=document.activeElement;if(ae&&ae.matches&&ae.matches("input,textarea")&&box.contains(ae))return;
   box.textContent="";
   if(canWrite){
@@ -2460,6 +2475,7 @@ function renderEvents(){
   }
   group(EVALL?"Upcoming events":"Today and tomorrow",up,EVALL?"No upcoming events. Add one above.":"Nothing today or tomorrow.");
   group(EVALL?"Past events":"Yesterday and the day before",past,"Nothing yet.");
+  var zr=h("button","quiet","↻ Refresh from Zoom");zr.type="button";zr.style.cssText="display:block;margin:0 auto 6px";zr.onclick=function(){zoomRefresh(true)};box.appendChild(zr);
   var more=h("button","quiet",EVALL?"Show fewer":"Show all events");more.type="button";more.style.cssText="display:block;margin:0 auto 12px";
   more.onclick=function(){EVALL=!EVALL;renderEvents()};box.appendChild(more);
 }
@@ -8141,6 +8157,23 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape"&&WA.open&&!m
 setInterval(function(){if(WA.open&&!document.hidden)render();try{if(!document.hidden&&window.__badgeNow)__badgeNow()}catch(e){}},4000);
 })();
 
+</script>
+<script>
+/* keep the bottom menu pinned to the visible screen (iPhone moves fixed bars when the keyboard or date picker opens) */
+(function(){
+  var r=document.documentElement,vv=window.visualViewport;
+  function pin(){
+    if(!vv)return;
+    var off=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);
+    r.style.setProperty("--vvoff",off+"px");
+  }
+  if(vv){vv.addEventListener("resize",pin);vv.addEventListener("scroll",pin)}
+  function typing(){var a=document.activeElement,t=a&&a.tagName;if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT")r.setAttribute("data-typing","1");else r.removeAttribute("data-typing")}
+  document.addEventListener("focusin",typing);
+  document.addEventListener("focusout",function(){setTimeout(typing,120)});
+  window.addEventListener("scroll",pin,{passive:true});
+  pin();
+})();
 </script>
 </body>
 </html>
