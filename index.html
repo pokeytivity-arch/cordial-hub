@@ -24,6 +24,11 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10171e;--surface:#18222c;--ink:#e8eef4;--muted:#9aaabb;--line:#2c3947;--a:#7fb0ee;--a-bg:#1f3550;--b:#6fd0ae;--b-bg:#1b3d31;--x:#e6c872;--x-bg:#3e3416;--btn:#e8eef4;--btn-ink:#10171e}}
 :root[data-theme="dark"]{--bg:#10171e;--surface:#18222c;--ink:#e8eef4;--muted:#9aaabb;--line:#2c3947;--a:#7fb0ee;--a-bg:#1f3550;--b:#6fd0ae;--b-bg:#1b3d31;--x:#e6c872;--x-bg:#3e3416;--btn:#e8eef4;--btn-ink:#10171e}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
+/* iPhone: date and time boxes were wider than the screen, which made the page wider than the phone and left the bottom menu floating */
+html,body{max-width:100%;overflow-x:hidden}
+input[type=date],input[type=time],input[type=datetime-local]{min-width:0;max-width:100%;box-sizing:border-box;-webkit-appearance:none;appearance:none;min-height:42px}
+.row>*,label{min-width:0}
+input,select,textarea{box-sizing:border-box;max-width:100%}
 *,*::before,*::after{box-sizing:inherit}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Figtree,system-ui,-apple-system,"Segoe UI",sans-serif}
 main{max-width:720px;margin:0 auto;padding:20px 16px 48px}
