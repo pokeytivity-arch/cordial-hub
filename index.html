@@ -831,7 +831,7 @@ main{max-width:100%}
       <label>Paid by<select id="xw"></select></label>
       <label>Date<input id="xt" type="date"></label>
     </div>
-    <label>Receipt or proof (required)<input id="xf" type="file" accept="image/*,application/pdf,.doc,.docx"></label>
+    <label>Receipt or proof (required)<input id="xf" type="file" multiple accept="image/*,application/pdf,.doc,.docx"></label>
     <p class="meta" style="margin:0 0 8px">Every expense needs a receipt, invoice or other document. A photo is fine.</p>
     <button class="go" id="xadd">Add expense</button>
   </div>
@@ -1013,7 +1013,7 @@ main{max-width:100%}
     <label>Title<input id="dt" maxlength="80" placeholder="Custody agreement"></label>
     <div class="row">
       <label>Category<select id="dcat"></select></label>
-      <label>File (up to 50 MB)<input id="df" type="file"></label>
+      <label>File or files (up to 50 MB each)<input id="df" type="file" multiple></label>
     </div>
     <button class="go" id="dup">Upload document</button>
   </div>
@@ -1061,7 +1061,7 @@ main{max-width:100%}
 
 <input type="file" id="fphoto" class="vh" accept="image/*" multiple tabindex="-1" aria-hidden="true">
 <input type="file" id="fcam" class="vh" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
-<input type="file" id="fdoc" class="vh" tabindex="-1" aria-hidden="true">
+<input type="file" id="fdoc" multiple class="vh" tabindex="-1" aria-hidden="true">
 <div id="sheetbg" hidden></div>
 <div id="sheet" hidden role="dialog" aria-modal="true" aria-label="Share in chat"></div>
 
@@ -1387,16 +1387,20 @@ $("#nsave").onclick=function(){
 /* expenses */
 $("#xt").value=key(new Date());
 $("#xadd").onclick=async function(){
-  var d=$("#xd").value.trim(),a=parseFloat($("#xa").value),f=$("#xf").files[0];
+  var d=$("#xd").value.trim(),a=parseFloat($("#xa").value),fl=Array.prototype.slice.call($("#xf").files||[]),f=fl[0];
   if(!db||!d||!(a>0))return note("Add a description and an amount above zero.");
   if(!f)return note("Attach the receipt or document for this expense first.");
   var btn=$("#xadd");btn.disabled=true;btn.textContent="Adding…";
   try{
-    var blob=f,name=f.name,type=f.type||"application/octet-stream";
-    if(/^image\//.test(type)){try{var sh=await shrinkBlob(f);blob=sh.blob;type="image/jpeg";name=(f.name||"receipt").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
-    var path=await upload("docs",blob,name);
-    var chk=await aiVerify(f,{slot:"exp",kind:"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
-    var xrec=withShare({desc:d,amount:a,by:$("#xw").value,date:$("#xt").value||key(new Date()),proof:{path:path,name:name,type:type,size:blob.size||f.size},aicheck:chk},"exp");if(chk.status==="review")xrec.review={state:"pending"};
+    var ups=[],chk=null;
+    for(var fi=0;fi<fl.length;fi++){
+      var ff=fl[fi],blob=ff,name=ff.name,type=ff.type||"application/octet-stream";
+      if(/^image\//.test(type)){try{var sh=await shrinkBlob(ff);blob=sh.blob;type="image/jpeg";name=(ff.name||"receipt").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
+      var path=await upload("docs",blob,name);ups.push({path:path,name:name,type:type,size:blob.size||ff.size});
+      var c1=await aiVerify(ff,{slot:"exp",kind:"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
+      if(!chk||(c1&&c1.status==="review"))chk=c1;
+    }
+    var xrec=withShare({desc:d,amount:a,by:$("#xw").value,date:$("#xt").value||key(new Date()),proof:ups[0],aicheck:chk},"exp");if(ups.length>1)xrec.proofs=ups;if(chk.status==="review")xrec.review={state:"pending"};
     await db.collection("expenses").add(xrec);
     $("#xd").value="";$("#xa").value="";$("#xf").value="";note("");
   }catch(e){note(attachErr(e))}
@@ -1436,7 +1440,7 @@ function renderExp(){
   S.exp.forEach(function(x){
     var r=h("div","item"),l=h("div");
     l.appendChild(h("div",null,x.desc));l.appendChild(h("div","meta",x.date+" – paid by "+nm(x.by)));
-    if(x.proof&&x.proof.path){var rc=h("button","quiet","🧾 View receipt");rc.type="button";rc.style.cssText="padding:2px 0;text-decoration:underline";rc.onclick=function(){signed(x.proof.path).then(function(u){preview(Object.assign({},x.proof,{url:u}))}).catch(function(){note("That receipt isn’t available.")})};l.appendChild(rc)}
+    var rcl0=xtRc(x.proofs&&x.proofs.length?x.proofs:(x.proof?[x.proof]:[]),"Receipt");if(rcl0)l.appendChild(rcl0);
     var sl=selfieLinks(x,[["selfie","Selfie"]]);if(sl)l.appendChild(sl);
     var bg=aiBadge(x,"expenses");if(bg)l.appendChild(bg);var xsh=shareLine(x,"expenses");if(xsh)l.appendChild(xsh);
     if(x.review&&x.review.state==="rejected")l.style.opacity=".55";
@@ -1499,7 +1503,7 @@ function fileRows(opts){
   function add(){
     var r=h("div");r.style.cssText="border:1px solid rgba(127,127,127,.35);border-radius:12px;padding:8px;margin:6px 0";
     var sel=h("select");cats.forEach(function(c){var o=h("option",null,c[1]);o.value=c[0];sel.appendChild(o)});sel.value=opts.cat||"Document";
-    var fi=h("input");fi.type="file";fi.accept="image/*,application/pdf";
+    var fi=h("input");fi.type="file";fi.multiple=true;fi.accept="image/*,application/pdf";
     var lbl=h("input");lbl.placeholder="Label (e.g. Ticket Lagos to London)";lbl.maxLength=80;
     var top=h("div");top.style.cssText="display:flex;gap:6px;align-items:center";top.appendChild(sel);
     if(rows.length){var x=h("button","quiet sm","✕");x.type="button";x.onclick=function(){rows.splice(rows.indexOf(o),1);r.remove()};top.appendChild(x)}
@@ -1507,7 +1511,7 @@ function fileRows(opts){
     var o={sel:sel,fi:fi,lbl:lbl,el:r};rows.push(o);
   }
   var plus=h("button","quiet","＋ Add another document");plus.type="button";plus.onclick=add;wrap.appendChild(plus);add();
-  return {el:wrap,items:function(){return rows.filter(function(r){return r.fi.files&&r.fi.files[0]}).map(function(r){return {f:r.fi.files[0],cat:r.sel.value,label:r.lbl.value.trim()}})},
+  return {el:wrap,items:function(){var out=[];rows.forEach(function(r){if(r.fi.files)Array.prototype.forEach.call(r.fi.files,function(f,i){out.push({f:f,cat:r.sel.value,label:r.lbl.value.trim()+(r.lbl.value.trim()&&r.fi.files.length>1?" ("+(i+1)+")":"")})})});return out},
     reset:function(){rows.slice().forEach(function(r){r.el.remove()});rows.length=0;add()}};
 }
 
@@ -1702,10 +1706,12 @@ function xtMonths(startKey){
   return out;
 }
 function xtWeeks(startKey){
+  /* support is paid in advance: the first week after the start date is the first to pay, and the week in progress is skipped */
   var out=[],mon=function(d){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
-  var sp=(startKey||key(new Date())).split("-"),st=mon(new Date(+sp[0],+sp[1]-1,+sp[2]||1)),cur=mon(new Date());
-  var d=new Date(cur);d.setDate(d.getDate()+7);
-  while(d>=st&&out.length<260){out.push({y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate(),t:d.getTime(),cur:d.getTime()===cur.getTime(),future:d>cur});d=new Date(d);d.setDate(d.getDate()-7)}
+  var sp=(startKey||key(new Date())).split("-"),sd=new Date(+sp[0],+sp[1]-1,+sp[2]||1),first=mon(sd);first.setDate(first.getDate()+7);
+  var nextMon=mon(new Date());nextMon.setDate(nextMon.getDate()+7);
+  var d=new Date(nextMon);d.setDate(d.getDate()+14);
+  while(d>=first&&out.length<260){var t=d.getTime(),n=nextMon.getTime();out.push({y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate(),t:t,status:t<=n?"due":t===n+604800000||Math.round((t-n)/604800000)===1?"next":"later"});d=new Date(d);d.setDate(d.getDate()-7)}
   return out;
 }
 function xtSup(){
@@ -1726,36 +1732,36 @@ function xtSup(){
     var a=h("input");a.type="number";a.min="0";a.step="0.01";a.inputMode="decimal";a.placeholder="Amount each time (₦)";a.value=cfg.amount||"";a.style.marginTop="8px";
     c.appendChild(a);
     c.appendChild(xtBtn("Save",function(){var v=parseFloat(a.value);if(!(v>0))return note("Enter an amount above zero.");note("");
-      xtDoc("support_cfg",{kind:"supcfg",date:"2000-01-01",amount:v,freq:fq.value,start:cfg.start||key(new Date())})}));
+      xtDoc("support_cfg",{kind:"supcfg",date:"2000-01-01",amount:v,freq:fq.value,start:cfg.start||key(new Date()),wstart:(fq.value==="weekly"&&(cfg.freq!=="weekly"||!cfg.wstart))?key(new Date()):cfg.wstart||null})}));
   }
   box.appendChild(c);
   if(!cfg.amount){return}
   var L=h("div","card");L.appendChild(h("h2",null,"Payments"));
   var recs={};(S.xo||[]).forEach(function(x){if(x.kind==="sup")recs[x.id]=x});
   var mn=["January","February","March","April","May","June","July","August","September","October","November","December"];
-  var months=wk?xtWeeks(cfg.start):xtMonths(cfg.start),now=new Date(),curKey=now.getFullYear()*100+now.getMonth()+1;
+  var months=wk?xtWeeks(cfg.wstart||cfg.start):xtMonths(cfg.start),now=new Date(),curKey=now.getFullYear()*100+now.getMonth()+1;
   var sn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   months.forEach(function(mm){
     var id=wk?"sup_w_"+mm.y+"-"+pad(mm.m)+"-"+pad(mm.d):"sup_"+mm.y+"_"+pad(mm.m),r=recs[id]||{};
     var lbl=wk?"Week of "+mm.d+" "+sn[mm.m-1]+" "+mm.y:mn[mm.m-1]+" "+mm.y;
     var row=h("div","item");row.style.flexDirection="column";
     var top=h("div");top.style.cssText="display:flex;justify-content:space-between;gap:8px;align-items:center";
-    var future=wk?mm.future:mm.y*100+mm.m>curKey;
-    top.appendChild(h("b",null,lbl+(future?" (upcoming)":"")));
-    top.appendChild(r.receivedAt?xtChip("Received","#1fa855"):r.paidAt?xtChip("Paid · waiting for confirmation","#2f7de1"):xtChip(future?"Not due":"Unpaid",future?"#8a949c":"#e8833a"));
+    var future=wk?mm.status!=="due":mm.y*100+mm.m>curKey;
+    top.appendChild(h("b",null,lbl+((future&&!wk)?" (upcoming)":"")));
+    top.appendChild(r.receivedAt?xtChip("Received","#1fa855"):r.paidAt?xtChip("Paid · waiting for confirmation","#2f7de1"):(wk&&mm.status==="next")?xtChip("Up next","#2f7de1"):xtChip(future?"Not due":"Unpaid",future?"#8a949c":"#e8833a"));
     row.appendChild(top);
     row.appendChild(h("div","meta",money(r.amount||cfg.amount)+(r.paidAt?" · paid "+new Date(r.paidAt).toLocaleDateString(undefined,{day:"numeric",month:"short"}):"")+(r.receivedAt?" · received "+new Date(r.receivedAt).toLocaleDateString(undefined,{day:"numeric",month:"short"})+" by "+xtName(r.receivedBy):"")));
-    var rcl=xtRc(r.receipt?[r.receipt]:[],"Transaction receipt");if(rcl)row.appendChild(rcl);
+    var rcl=xtRc(r.receipts&&r.receipts.length?r.receipts:(r.receipt?[r.receipt]:[]),"Transaction receipt");if(rcl)row.appendChild(rcl);
     var sbg=aiBadge(r,"expenses");if(sbg)row.appendChild(sbg);
     var ssl=selfieLinks(r,[["selfie_paid","Paid"],["selfie_received","Received"]]);if(ssl)row.appendChild(ssl);
     var acts=h("div");
     if(!r.paidAt&&canSet&&!future){
-      var fl=h("input");fl.type="file";fl.accept="image/*,application/pdf";fl.style.marginTop="6px";
-      var lb=h("div","meta","Attach the transaction receipt (required)");lb.style.marginTop="6px";acts.appendChild(lb);acts.appendChild(fl);
+      var fl=h("input");fl.type="file";fl.multiple=true;fl.accept="image/*,application/pdf";fl.style.marginTop="6px";
+      var lb=h("div","meta","Attach the transaction receipt or receipts (required)");lb.style.marginTop="6px";acts.appendChild(lb);acts.appendChild(fl);
       var pb=xtBtn("Mark as paid",async function(){
         if(!fl.files||!fl.files[0])return note("Attach the transaction receipt first.");note("");pb.disabled=true;
-        try{var rc=await xtUp(fl.files[0]);rc.aicheck=await aiVerify(fl.files[0],{kind:"support",title:"Support "+lbl,amount:cfg.amount,date:key(new Date())});
-          var pt={kind:"sup",date:mm.y+"-"+pad(mm.m)+"-"+(wk?pad(mm.d):"01"),amount:cfg.amount,paidAt:Date.now(),paidBy:myId,receipt:rc,_selfie:"paid"};if(rc.aicheck.status==="review")pt.review={state:"pending"};
+        try{var rcs=[],rflag=false;for(var qi=0;qi<fl.files.length;qi++){var rq=await xtUp(fl.files[qi]);rq.aicheck=await aiVerify(fl.files[qi],{kind:"support",title:"Support "+lbl,amount:cfg.amount,date:key(new Date())});if(rq.aicheck.status==="review")rflag=true;rcs.push(rq)}var rc=rcs[0];
+          var pt={kind:"sup",date:mm.y+"-"+pad(mm.m)+"-"+(wk?pad(mm.d):"01"),amount:cfg.amount,paidAt:Date.now(),paidBy:myId,receipt:rc,_selfie:"paid"};if(rcs.length>1)pt.receipts=rcs;if(rflag)pt.review={state:"pending"};
           await xtDoc(id,pt);{var who2=myRole();setTimeout(function(){babyPost(who2||"daddy",wk?"sent this week’s support for Janet":"sent this month’s support for Janet",true)},2500)}}catch(e){fail(e)}
         pb.disabled=false});acts.appendChild(pb);
     }
@@ -3143,11 +3149,13 @@ async function sendImages(inp){
 $("#fphoto").onchange=function(){if(db)sendImages(this)};
 $("#fcam").onchange=function(){if(db)sendImages(this)};
 $("#fdoc").onchange=async function(){
-  var f=this.files&&this.files[0];this.value="";if(!f||!db)return;
-  stat("Sending "+f.name+"…");
+  var fl=Array.prototype.slice.call(this.files||[]);this.value="";if(!fl.length||!db)return;
   try{
-    var path=await upload("chat",f,f.name);
-    await post({kind:"file",name:f.name,size:f.size,ftype:f.type||"application/octet-stream",path:path});
+    for(var fi=0;fi<fl.length;fi++){var f=fl[fi];
+      stat("Sending "+f.name+(fl.length>1?" ("+(fi+1)+" of "+fl.length+")":"")+"…");
+      var path=await upload("chat",f,f.name);
+      await post({kind:"file",name:f.name,size:f.size,ftype:f.type||"application/octet-stream",path:path});
+    }
   }catch(e){note(attachErr(e))}
   stat("");
 };
@@ -3730,15 +3738,19 @@ function stdName(cat,title,orig){
   return [dt,cl(cat)||"Document",cl(title)||cl(String(orig||"").replace(/\.[^.]*$/,"")),cl((S.me||"").split(" ")[0])].filter(Boolean).join("_")+(ext?"."+ext:"");
 }
 $("#dup").onclick=async function(){
-  var f=$("#df").files[0],t=$("#dt").value.trim();
+  var fl=Array.prototype.slice.call($("#df").files||[]),t=$("#dt").value.trim();
   if(!db)return;
-  if(!f)return note("Choose a file to upload.");
-  var btn=$("#dup");btn.disabled=true;btn.textContent="Uploading…";
+  if(!fl.length)return note("Choose a file to upload.");
+  var btn=$("#dup");btn.disabled=true;
   try{
-    var nn=stdName($("#dcat").value,t,f.name),path=await upload("docs",f,nn);
-    var chk=await aiVerify(f,{slot:"docs",kind:"document",title:t||nn,category:$("#dcat").value,date:key(new Date())});
-    var drec=withShare({title:t||nn,cat:$("#dcat").value,path:path,name:nn,orig:f.name,type:f.type||"application/octet-stream",size:f.size,by:myId||"",ts:Date.now(),aicheck:chk},"docs");if(chk.status==="review")drec.review={state:"pending"};
-    await db.collection("documents").add(drec);
+    for(var fi=0;fi<fl.length;fi++){
+      var f=fl[fi],tt=t&&fl.length>1?t+" ("+(fi+1)+")":t;
+      btn.textContent=fl.length>1?"Uploading "+(fi+1)+" of "+fl.length+"…":"Uploading…";
+      var nn=stdName($("#dcat").value,tt,f.name),path=await upload("docs",f,nn);
+      var chk=await aiVerify(f,{slot:"docs",kind:"document",title:tt||nn,category:$("#dcat").value,date:key(new Date())});
+      var drec=withShare({title:tt||nn,cat:$("#dcat").value,path:path,name:nn,orig:f.name,type:f.type||"application/octet-stream",size:f.size,by:myId||"",ts:Date.now()+fi,aicheck:chk},"docs");if(chk.status==="review")drec.review={state:"pending"};
+      await db.collection("documents").add(drec);
+    }
     $("#df").value="";$("#dt").value="";note("");
   }catch(e){note(attachErr(e))}
   btn.disabled=false;btn.textContent="Upload document";
