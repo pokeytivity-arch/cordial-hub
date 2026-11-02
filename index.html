@@ -3209,6 +3209,70 @@ function babyCap(){
   return {ok:now>=next,next:next};
 }
 function babyNextText(c){return new Date(c.next).toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"})}
+/* Ask Cordial to post for Janet: a parent adds photos and says what they want; Cordial writes it, the parent can edit it, then it posts as Janet */
+function openAskJanet(){
+  if(OBS||!db||!tabEdit("feed")||!myRole())return note("Only a parent can ask Cordial to post for Janet.");
+  var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto";
+  var bx=h("div","card");bx.style.cssText="max-width:440px;width:100%;margin:auto";
+  bx.appendChild(h("h3",null,"Ask Cordial to post for Janet ✨"));
+  bx.appendChild(h("p","meta","Add up to 3 photos and tell Cordial what you want the post to say. Cordial looks at the photos to write it. You can change the words before it posts as Janet."));
+  var ph=h("input");ph.type="file";ph.accept="image/*";ph.multiple=true;bx.appendChild(h("label","meta","Photos (optional, up to 3)"));bx.appendChild(ph);
+  var th=h("div");th.style.cssText="display:flex;gap:6px;margin:6px 0;flex-wrap:wrap";bx.appendChild(th);
+  var files=[];
+  ph.onchange=function(){files=Array.prototype.slice.call(ph.files||[],0,3);th.textContent="";files.forEach(function(f){var im=h("img");im.src=URL.createObjectURL(f);im.alt="";im.style.cssText="width:64px;height:64px;object-fit:cover;border-radius:8px";th.appendChild(im)})};
+  bx.appendChild(h("label","meta","What should the post say?"));
+  var ins=h("textarea");ins.rows=3;ins.maxLength=500;ins.style.width="100%";ins.placeholder="Her first day at the park. Say she loved the swing and thank Mummy.";bx.appendChild(ins);
+  var r1=h("div");r1.style.cssText="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap";
+  function sel(lbl,opts){var l=h("label","meta",lbl);l.style.flex="1 1 140px";var s=h("select");s.style.width="100%";opts.forEach(function(o){var x=h("option",null,o[1]);x.value=o[0];s.appendChild(x)});l.appendChild(s);r1.appendChild(l);return s}
+  var tg=sel("Tag",[["both","Daddy and Mummy"],["daddy","Daddy"],["mummy","Mummy"]]);
+  var tn=sel("Style",[["","Sweet"],["funny","Funny"]]);bx.appendChild(r1);
+  var out=h("div");out.hidden=true;out.style.marginTop="12px";
+  out.appendChild(h("label","meta","Cordial’s post (you can edit it)"));
+  var dr=h("textarea");dr.rows=4;dr.maxLength=600;dr.style.width="100%";out.appendChild(dr);bx.appendChild(out);
+  var msg=h("div","meta");msg.style.cssText="color:#b3261e;margin-top:6px";bx.appendChild(msg);
+  var row=h("div");row.style.cssText="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;flex-wrap:wrap";
+  var cn=h("button","quiet","Cancel");cn.type="button";cn.onclick=function(){ov.remove()};
+  var wr=h("button","go","Write the post");wr.type="button";
+  var pb=h("button","go","Post as Janet");pb.type="button";pb.hidden=true;
+  var shrunk=null;
+  wr.onclick=async function(){
+    if(!files.length&&!ins.value.trim()){msg.textContent="Add a photo or tell Cordial what to say.";return}
+    msg.textContent="";wr.disabled=true;wr.textContent="Cordial is writing…";
+    try{
+      if(!shrunk){shrunk=[];for(var i=0;i<files.length;i++)shrunk.push(await shrink(files[i]))}
+      var o=ownerM(),m=mumM(),ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)throw 0;
+      var r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({baby:{event:"",instruction:ins.value.trim()||"Write a lovely post about these photos.",images:shrunk.map(function(s){return{media:"image/jpeg",data:s.data.slice(s.data.indexOf(",")+1)}}),target:tg.value,dad:o?mFirst(o.name):"Daddy",mum:m?mFirst(m.name):"Mummy",age:babyAge(),tone:tn.value}})});
+      var j=await r.json();if(!r.ok||!j.text)throw 0;
+      dr.value=j.text;out.hidden=false;pb.hidden=false;wr.textContent="Write it again";
+    }catch(e){msg.textContent="Cordial couldn’t write it just now. Try again in a moment. (Make sure the latest cordial.js is uploaded.)";wr.textContent=out.hidden?"Write the post":"Write it again"}
+    wr.disabled=false;
+  };
+  pb.onclick=async function(){
+    var t=dr.value.trim();if(!t){msg.textContent="The post is empty.";return}
+    pb.disabled=true;pb.textContent="Posting…";
+    try{
+      var ph2=[];for(var i=0;i<(shrunk||[]).length;i++){var s0=shrunk[i],rf=db.collection("media").doc();await rf.set({data:s0.data,w:s0.w,h:s0.h,ts:Date.now(),by:myId||""});MEDIA[rf.id]=Promise.resolve({data:s0.data});ph2.push({mid:rf.id,w:s0.w,h:s0.h})}
+      var o2=ownerM(),m2=mumM(),tags=[];if((tg.value==="daddy"||tg.value==="both")&&o2)tags.push(o2.user_id);if((tg.value==="mummy"||tg.value==="both")&&m2)tags.push(m2.user_id);
+      var np={text:t.slice(0,600),ts:Date.now(),by:BABY_ID,ai:true,tags:tags,askedBy:myId||""};
+      if(ph2.length){np.mid=ph2[0].mid;np.w=ph2[0].w;np.h=ph2[0].h;if(ph2.length>1)np.more=ph2.slice(1)}
+      await db.collection("posts").add(np);
+      ov.remove();note("Posted for Janet.");setTimeout(function(){note("")},2000);
+    }catch(e){pb.disabled=false;pb.textContent="Post as Janet";msg.textContent="That didn’t post. Check your connection and try again."}
+  };
+  row.appendChild(cn);row.appendChild(wr);row.appendChild(pb);bx.appendChild(row);ov.appendChild(bx);document.body.appendChild(ov);
+}
+(function(){
+  var b=null;
+  function mount(){
+    var fb=document.getElementById("fbar");if(!fb)return;
+    if(!b){b=document.createElement("button");b.type="button";b.className="quiet";b.id="askjanet";
+      b.style.cssText="display:block;width:100%;margin:-4px 0 10px;padding:10px 12px;border:1px dashed var(--line);border-radius:12px;font-weight:700;text-align:center";
+      b.textContent="✨ Ask Cordial to post for Janet";b.onclick=openAskJanet;fb.insertAdjacentElement("afterend",b)}
+    b.hidden=!(typeof myRole==="function"&&myRole());
+  }
+  setInterval(function(){try{mount()}catch(e){}},2000);
+})();
+
 async function babyPost(target,what,quiet,extra){
   try{
     if(OBS||!db||!tabEdit("feed")){if(!quiet)note("Only a parent can ask Cordial to post for Janet.");return false}
@@ -6385,6 +6449,7 @@ async function start(session){
           if(e.go==="chk"){showTab("todo");TDT="chk";tdTabs();window.scrollTo(0,0);return}
           if(e.go==="todo"){showTab("todo");TDT="tasks";tdTabs();window.scrollTo(0,0);return}
           if((e.k==="tag"||e.k==="post")&&e.post){showTab("feed");var pq=S.posts.filter(function(x){return x.id===e.post})[0];if(pq&&typeof openComments==="function")setTimeout(function(){openComments(pq)},250);return}
+          if(e.k==="msg"&&/^\s*📝?\s*Meeting summary/i.test(e.text||"")){openCalPane("vm");return}
           if(e.k==="msg"&&e.chat&&window.waOpenChat){waOpenChat(e.chat);return}
           if(e.k==="reminder"){if(typeof PTAB!=="undefined"){PTAB="rem";PSIG=""}showTab("profile");return}
           if(e.k==="event"){showTab("sched");return}
