@@ -36,38 +36,43 @@ async function readSaved() {
 exports.handler = async (event) => {
   if (!URL_ || !KEY) return out(501, { error: "not_configured" });
   const saved = await readSaved(), now = Date.now();
-  if (saved.checked && now - saved.checked < 5 * 60 * 1000 && (saved.channels || []).length) return out(200, { ok: true, cached: true });
+  const force = !!((event.queryStringParameters || {}).force);
+  if (!force && saved.checked && now - saved.checked < 5 * 60 * 1000 && (saved.channels || []).length) return out(200, { ok: true, cached: true });
   const prev = {}; (saved.channels || []).forEach((c) => { prev[c.seed] = c; });
-  const res = [];
-  for (const seed of SEEDS) {
+  const why = {};
+  // all channels at the same time, so it finishes well inside Netlify's time limit
+  const got = await Promise.all(SEEDS.map(async (seed) => {
     const old = prev[seed] || {};
-    let ch = old.channelId || await channelOf(seed);
-    if (!ch) { if (old.vid) res.push(old); continue; }
-    let vid = "", title = "", pub = now, name = "";
     try {
-      const r = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${ch}`, { headers: UA });
-      if (r.ok) {
-        const xml = await r.text(), entry = (xml.match(/<entry>[\s\S]*?<\/entry>/) || [""])[0];
+      let ch = old.channelId || await channelOf(seed);
+      if (!ch) { why[seed] = "channel_not_found"; return old.vid ? old : null; }
+      let vid = "", title = "", pub = now, name = "";
+      const [feedRes, liveVid] = await Promise.all([
+        fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${ch}`, { headers: UA }).then(async (r) => { why[seed] = "feed_" + r.status; return r.ok ? await r.text() : ""; }).catch(() => ""),
+        liveVideo(ch),
+      ]);
+      if (feedRes) {
+        const entry = (feedRes.match(/<entry>[\s\S]*?<\/entry>/) || [""])[0];
         vid = (entry.match(/<yt:videoId>([\w-]{6,20})<\/yt:videoId>/) || [])[1] || "";
         title = dec((entry.match(/<title>([\s\S]*?)<\/title>/) || [])[1]).trim().slice(0, 200);
         pub = Date.parse((entry.match(/<published>([^<]+)<\/published>/) || [])[1] || "") || now;
-        name = dec((xml.match(/<author>\s*<name>([\s\S]*?)<\/name>/) || [])[1]).trim().slice(0, 80);
+        name = dec((feedRes.match(/<author>\s*<name>([\s\S]*?)<\/name>/) || [])[1]).trim().slice(0, 80);
       }
-    } catch {}
-    if (!vid) {
-      try { const t = await (await fetch(`https://www.youtube.com/channel/${ch}/videos`, { headers: UA })).text(); const v = t.match(/"videoId":"([\w-]{11})"/); if (v) vid = v[1]; } catch {}
-    }
-    if (!vid) vid = old.vid || seed;
-    const liveVid = await liveVideo(ch);
-    res.push({
-      seed, channelId: ch, channel: name || old.channel || "YouTube", vid, title: title || old.title || "",
-      url: `https://www.youtube.com/watch?v=${vid}`, live: `https://www.youtube.com/channel/${ch}/live`,
-      liveNow: !!liveVid, liveVid, published: pub, seen: old.vid === vid ? (old.seen || now) : now,
-    });
-  }
+      if (!vid) {
+        try { const t = await (await fetch(`https://www.youtube.com/channel/${ch}/videos`, { headers: UA })).text(); const v = t.match(/"videoId":"([\w-]{11})"/); if (v) vid = v[1]; } catch {}
+      }
+      if (!vid) vid = old.vid || seed;
+      return {
+        seed, channelId: ch, channel: name || old.channel || "YouTube", vid, title: title || old.title || "",
+        url: `https://www.youtube.com/watch?v=${vid}`, live: `https://www.youtube.com/channel/${ch}/live`,
+        liveNow: !!liveVid, liveVid, published: pub, seen: old.vid === vid ? (old.seen || now) : now,
+      };
+    } catch (e) { why[seed] = "error"; return old.vid ? old : null; }
+  }));
+  const res = got.filter(Boolean);
   await fetch(`${URL_}/rest/v1/docs?on_conflict=key`, {
     method: "POST", headers: { ...H, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify({ key: KEYNAME, collection: "profiles", id: "yt_extra", data: { channels: res, checked: now } }),
   });
-  return out(200, { ok: true, channels: res.map((c) => c.channel) });
+  return out(res.length ? 200 : 502, { ok: res.length > 0, channels: res.map((c) => c.channel), why });
 };
