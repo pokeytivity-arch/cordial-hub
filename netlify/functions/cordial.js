@@ -154,13 +154,13 @@ exports.handler = async (event) => {
                 [{ type: "text", text: `Janet is ${nm(ba.age, "a baby")} old. Post to: ${who}. The parent's request: ${String(ba.instruction || "Write a lovely post about these photos.").replace(/\s+/g, " ").slice(0, 500)}` }]) }] }
           : { model: MODEL, max_tokens: 200, system: FUNNY + "You write ONE short, warm post as if from Janet, a baby girl, on her parents' private co-parenting family hub. It is clearly an AI-written account, so keep it sweet, simple and sincere, in a gentle toddler-like voice (cute, never cringe). Thank or encourage the named parent(s) for what is described, and tag them with @FirstName exactly as given. Never mention money amounts, bank or account details, addresses, medical details, or any fault or disagreement between the parents. Always speak well of both parents. 1 to 3 sentences, under 260 characters, at most 3 emojis. Reply with only the post text.", messages: [{ role: "user", content: `Janet is ${nm(ba.age, "a baby")} old. Post to: ${who}. What happened: ${String(ba.event || "").replace(/\s+/g, " ").slice(0, 300)}` }] })
       });
-      if (!r.ok) return out(502, { error: "ai_failed" });
+      if (!r.ok) { let ej = {}; try { ej = await r.json(); } catch {} return out(502, { error: "ai_failed", status: r.status, detail: String((ej.error && ej.error.message) || "").slice(0, 160) }); }
       const j = await r.json();
       const text = (j.content || []).filter((c) => c.type === "text").map((c) => c.text).join("").trim().replace(/^["“]|["”]$/g, "").slice(0, ba.instruction ? 600 : 400);
       try { const tt = await getDoc("aiuse/total"); await putDoc("aiuse/total", { in: (tt.in || 0) + ((j.usage || {}).input_tokens || 0), out: (tt.out || 0) + ((j.usage || {}).output_tokens || 0), n: (tt.n || 0) + 1 }); } catch {}
       if (!text) return out(502, { error: "ai_failed" });
       return out(200, { text });
-    } catch (e) { return out(502, { error: "ai_failed" }); }
+    } catch (e) { return out(502, { error: "ai_failed", detail: String(e && e.message || e).slice(0, 120) }); }
   }
   let msgs = (Array.isArray(b.messages) ? b.messages : [])
     .filter((x) => x && (x.role === "user" || x.role === "assistant") && typeof x.content === "string" && x.content.trim())
