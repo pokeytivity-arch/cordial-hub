@@ -13,16 +13,16 @@ const dec = (s) => String(s || "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").
 const CH = (t) => (t.match(/"channelId":"(UC[\w-]{22})"/) || t.match(/"externalId":"(UC[\w-]{22})"/) || t.match(/youtube\.com\/channel\/(UC[\w-]{22})/) || t.match(/itemprop="channelId" content="(UC[\w-]{22})"/) || [])[1] || "";
 
 async function channelOf(vid) {
-  try { const t = await (await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(vid)}`, { headers: UA })).text(); const c = CH(t); if (c) return c; } catch {}
+  try { const t = await (await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(vid)}`, { headers: UA, signal: AbortSignal.timeout(5000) })).text(); const c = CH(t); if (c) return c; } catch {}
   try {
-    const o = await (await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent("https://www.youtube.com/watch?v=" + vid)}&format=json`, { headers: UA })).json();
-    if (o.author_url) { const t = await (await fetch(o.author_url, { headers: UA })).text(); const c = CH(t); if (c) return c; }
+    const o = await (await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent("https://www.youtube.com/watch?v=" + vid)}&format=json`, { headers: UA, signal: AbortSignal.timeout(5000) })).json();
+    if (o.author_url) { const t = await (await fetch(o.author_url, { headers: UA, signal: AbortSignal.timeout(5000) })).text(); const c = CH(t); if (c) return c; }
   } catch {}
   return "";
 }
 async function liveVideo(ch) {
   try {
-    const t = await (await fetch(`https://www.youtube.com/channel/${ch}/live`, { headers: UA })).text();
+    const t = await (await fetch(`https://www.youtube.com/channel/${ch}/live`, { headers: UA, signal: AbortSignal.timeout(5000) })).text();
     if (!/"isLiveNow":true|"isLive":true/.test(t)) return "";
     const m = t.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([\w-]{6,20})"/) || t.match(/"videoId":"([\w-]{11})"/);
     return m ? m[1] : "";
@@ -33,7 +33,7 @@ async function readSaved() {
   return ((r.ok ? await r.json() : [])[0] || {}).data || {};
 }
 
-exports.handler = async (event) => {
+async function run(event) {
   if (!URL_ || !KEY) return out(501, { error: "not_configured" });
   const saved = await readSaved(), now = Date.now();
   const force = !!((event.queryStringParameters || {}).force);
@@ -48,7 +48,7 @@ exports.handler = async (event) => {
       if (!ch) { why[seed] = "channel_not_found"; return old.vid ? old : null; }
       let vid = "", title = "", pub = now, name = "";
       const [feedRes, liveVid] = await Promise.all([
-        fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${ch}`, { headers: UA }).then(async (r) => { why[seed] = "feed_" + r.status; return r.ok ? await r.text() : ""; }).catch(() => ""),
+        fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${ch}`, { headers: UA, signal: AbortSignal.timeout(5000) }).then(async (r) => { why[seed] = "feed_" + r.status; return r.ok ? await r.text() : ""; }).catch(() => ""),
         liveVideo(ch),
       ]);
       if (feedRes) {
@@ -59,7 +59,7 @@ exports.handler = async (event) => {
         name = dec((feedRes.match(/<author>\s*<name>([\s\S]*?)<\/name>/) || [])[1]).trim().slice(0, 80);
       }
       if (!vid) {
-        try { const t = await (await fetch(`https://www.youtube.com/channel/${ch}/videos`, { headers: UA })).text(); const v = t.match(/"videoId":"([\w-]{11})"/); if (v) vid = v[1]; } catch {}
+        try { const t = await (await fetch(`https://www.youtube.com/channel/${ch}/videos`, { headers: UA, signal: AbortSignal.timeout(5000) })).text(); const v = t.match(/"videoId":"([\w-]{11})"/); if (v) vid = v[1]; } catch {}
       }
       if (!vid) vid = old.vid || seed;
       return {
@@ -75,4 +75,8 @@ exports.handler = async (event) => {
     body: JSON.stringify({ key: KEYNAME, collection: "profiles", id: "yt_extra", data: { channels: res, checked: now } }),
   });
   return out(res.length ? 200 : 502, { ok: res.length > 0, channels: res.map((c) => c.channel), why });
+};
+
+exports.handler = async (event) => {
+  try { return await run(event); } catch (e) { return out(500, { ok: false, error: "crashed", message: String((e && e.message) || e) }); }
 };
