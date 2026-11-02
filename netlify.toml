@@ -21,3 +21,6 @@
 
 [functions."task-reminders"]
   schedule = "0 * * * *"
+
+[functions."feed-extra"]
+  schedule = "*/15 * * * *"

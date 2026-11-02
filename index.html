@@ -3210,6 +3210,12 @@ function babyCap(){
 }
 function babyNextText(c){return new Date(c.next).toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"})}
 /* Ask Cordial to post for Janet: a parent adds photos and says what they want; Cordial writes it, the parent can edit it, then it posts as Janet */
+function aiThumb(file){
+  return new Promise(function(res,rej){
+    var url=URL.createObjectURL(file),im=new Image();
+    im.onload=function(){var sc=Math.min(1,768/Math.max(im.naturalWidth,im.naturalHeight)),w=Math.round(im.naturalWidth*sc),hh=Math.round(im.naturalHeight*sc),cv=document.createElement("canvas");cv.width=w;cv.height=hh;var cx=cv.getContext("2d");cx.fillStyle="#fff";cx.fillRect(0,0,w,hh);cx.drawImage(im,0,0,w,hh);URL.revokeObjectURL(url);res(cv.toDataURL("image/jpeg",0.7))};
+    im.onerror=function(){URL.revokeObjectURL(url);rej(new Error("photo"))};im.src=url});
+}
 function openAskJanet(){
   if(OBS||!db||!tabEdit("feed")||!myRole())return note("Only a parent can ask Cordial to post for Janet.");
   var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto";
@@ -3234,17 +3240,18 @@ function openAskJanet(){
   var cn=h("button","quiet","Cancel");cn.type="button";cn.onclick=function(){ov.remove()};
   var wr=h("button","go","Write the post");wr.type="button";
   var pb=h("button","go","Post as Janet");pb.type="button";pb.hidden=true;
-  var shrunk=null;
+  var shrunk=null,thumbs=null;
   wr.onclick=async function(){
     if(!files.length&&!ins.value.trim()){msg.textContent="Add a photo or tell Cordial what to say.";return}
     msg.textContent="";wr.disabled=true;wr.textContent="Cordial is writing…";
     try{
-      if(!shrunk){shrunk=[];for(var i=0;i<files.length;i++)shrunk.push(await shrink(files[i]))}
+      if(!shrunk){shrunk=[];thumbs=[];for(var i=0;i<files.length;i++){shrunk.push(await shrink(files[i]));thumbs.push(await aiThumb(files[i]))}}
       var o=ownerM(),m=mumM(),ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)throw 0;
-      var r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({baby:{event:"",instruction:ins.value.trim()||"Write a lovely post about these photos.",images:shrunk.map(function(s){return{media:"image/jpeg",data:s.data.slice(s.data.indexOf(",")+1)}}),target:tg.value,dad:o?mFirst(o.name):"Daddy",mum:m?mFirst(m.name):"Mummy",age:babyAge(),tone:tn.value}})});
-      var j=await r.json();if(!r.ok||!j.text)throw 0;
+      var r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({baby:{event:"",instruction:ins.value.trim()||"Write a lovely post about these photos.",images:thumbs.map(function(d){return{media:"image/jpeg",data:d.slice(d.indexOf(",")+1)}}),target:tg.value,dad:o?mFirst(o.name):"Daddy",mum:m?mFirst(m.name):"Mummy",age:babyAge(),tone:tn.value}})});
+      var j={};try{j=await r.json()}catch(x){}
+      if(!r.ok||!j.text){var er=new Error("api");er.status=r.status;er.code=j.error;throw er}
       dr.value=j.text;out.hidden=false;pb.hidden=false;wr.textContent="Write it again";
-    }catch(e){msg.textContent="Cordial couldn’t write it just now. Try again in a moment. (Make sure the latest cordial.js is uploaded.)";wr.textContent=out.hidden?"Write the post":"Write it again"}
+    }catch(e){msg.textContent=e&&e.status===429?"You’ve used today’s Cordial allowance. Try again tomorrow, or ask the hub owner to raise the daily limit.":e&&(e.status===504||e.status===502)?"Cordial took too long or couldn’t read the photos ("+e.status+"). Try again, or use 1 or 2 photos.":e&&e.status===404?"The hub can’t reach Cordial yet. Make sure cordial.js is uploaded to netlify/functions.":e&&e.status?"Cordial couldn’t write it ("+e.status+(e.code?": "+e.code:"")+"). Try again in a moment.":"Couldn’t reach the hub. Check your connection and try again.";wr.textContent=out.hidden?"Write the post":"Write it again"}
     wr.disabled=false;
   };
   pb.onclick=async function(){
@@ -4972,6 +4979,7 @@ function renderFeedInto(L,posts,emptyText,keepFocus){
 function mixCards(L){
   var cards=[],d=S.prof&&S.prof.cordial_daily;
   if(d&&d.vid){var ne=nsppdEl();if(ne)cards.push({ts:d.published||d.seen||0,el:ne})}
+  ((S.prof&&S.prof.yt_extra&&S.prof.yt_extra.channels)||[]).forEach(function(c){if(!c||!c.vid)return;var ce=ytCardEl(c,c.channel,ytLiveAny);if(ce)cards.push({ts:c.published||c.seen||0,el:ce})});
   var nl=S.prof&&S.prof.cordial_shoplatest,it=shopItems()[0];
   cards.push({ts:(nl&&(nl.postTs||nl.seen))||(it&&it.ts)||0,el:shopEl()});
   cards.sort(function(a,b){return b.ts-a.ts}).forEach(function(c){
@@ -5030,13 +5038,14 @@ function nsppdLive(d){
 window.nsppdLive=nsppdLive;
 setInterval(function(){try{var lv=nsppdLive(S.prof&&S.prof.cordial_daily);if(lv!==window.__nl){window.__nl=lv;renderNsppd()}var n=new Date(Date.now()+3600000),wd=n.getUTCDay(),hr=n.getUTCHours();if(!document.hidden&&wd>=1&&wd<=5&&hr>=7&&hr<12&&window.feedRefresh)feedRefresh()}catch(e){}},60000);
 function renderNsppd(){safe(renderFeed)()}
-function nsppdEl(){
+function nsppdEl(){return ytCardEl(S.prof&&S.prof.cordial_daily,"Streams of Joy NSPPD",nsppdLive)}
+function ytLiveAny(d){return !!(d&&d.liveNow&&d.checked!==0&&Date.now()-((S.prof&&S.prof.yt_extra&&S.prof.yt_extra.checked)||0)<40*60*1000)}
+function ytCardEl(d,defName,liveFn){
   var el=h("div","card");
-  var d=S.prof&&S.prof.cordial_daily;
   if(!d||!d.vid)return null;
   var hd=h("div");hd.style.cssText="display:flex;align-items:center;gap:8px;margin-bottom:6px";
-  hd.appendChild(h("b",null,"🔴 "+(d.channel||"Streams of Joy NSPPD")));el.appendChild(hd);
-  var live0=nsppdLive(d),tv=(live0&&d.liveVid)?d.liveVid:d.vid;
+  hd.appendChild(h("b",null,"🔴 "+(d.channel||defName||"YouTube")));el.appendChild(hd);
+  var live0=liveFn(d),tv=(live0&&d.liveVid)?d.liveVid:d.vid;
   var th=h("button");th.type="button";th.setAttribute("aria-label","Play video");
   th.style.cssText="position:relative;display:block;width:100%;aspect-ratio:16/9;border:0;padding:0;border-radius:12px;overflow:hidden;background:#000 center/cover no-repeat;cursor:pointer;margin-bottom:10px";
   th.style.backgroundImage="url(https://i.ytimg.com/vi/"+encodeURIComponent(tv)+"/hqdefault.jpg)";
@@ -5046,7 +5055,7 @@ function nsppdEl(){
   var t=h("div",null,d.title||"Today’s session");t.style.cssText="font-size:1.05rem;font-weight:600;margin-bottom:10px";el.appendChild(t);
   var row=h("div");row.style.cssText="display:flex;flex-wrap:wrap;gap:8px";
   function btn(txt,bg,fn,href){var b=h(href?"a":"button",null,txt);if(href){b.href=href;b.target="_blank";b.rel="noopener"}else b.type="button";b.style.cssText="border:0;border-radius:999px;padding:8px 16px;font:inherit;font-size:.9rem;font-weight:600;text-decoration:none;cursor:pointer;background:"+bg+";color:"+(bg==="rgba(0,0,0,.08)"?"inherit":"#fff");if(fn)b.onclick=fn;row.appendChild(b)}
-  var live=nsppdLive(d);
+  var live=liveFn(d);
   btn("▶ Watch here","#1fa855",function(){if(window.ytOpen)ytOpen(live&&d.liveVid?d.liveVid:d.vid)});
   btn("Open in YouTube","rgba(0,0,0,.08)",null,d.url);
   if(live&&d.live)btn("🔴 Live now","#d93025",null,d.live);
@@ -6810,6 +6819,7 @@ var feedAt=0;
 function feedRefresh(){
   var nn=new Date(Date.now()+3600000),wd2=nn.getUTCDay(),hr2=nn.getUTCHours(),gap=(wd2>=1&&wd2<=5&&hr2>=7&&hr2<12)?2*60*1000:10*60*1000;
   if(Date.now()-feedAt<gap)return;feedAt=Date.now();
+  try{fetch("/api/feed-extra").then(function(r){if(r.ok)setTimeout(function(){safe(renderFeed)()},1500)}).catch(function(){})}catch(e){}
   try{fetch("/api/feed").then(function(r){return r.json().then(function(j){if(!r.ok&&isOwner&&!(S.prof&&S.prof.cordial_daily))toast("NSPPD link problem: "+(j.error||r.status)+(j.why?" ("+j.why+")":""))})}).catch(function(){})}catch(e){}
 }
 window.ytOpen=ytOpen;window.feedRefresh=feedRefresh;
