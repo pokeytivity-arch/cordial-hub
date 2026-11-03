@@ -1059,7 +1059,7 @@ main{max-width:100%}
       <div><div id="znext" style="font-weight:600">Zoom call</div><div class="meta" id="zwhen"></div>
       <a href="https://us06web.zoom.us/j/81051139171?pwd=JXEuVJy2WoefoMiakLSYBJRh7TLeDC.1" target="_blank" rel="noopener" class="meta">Open in the Zoom app instead</a></div>
     </div>
-    <p class="meta" style="margin:10px 0 6px">Zoom records the call. The summary and transcript are saved under Meetings.</p>
+    <p class="meta" style="margin:10px 0 6px">Zoom records the call. The summary, transcript and to-dos are saved under Meetings.</p>
     <div class="zdays" id="zdays"></div>
     <label style="display:block;margin-top:8px">Call time (Nigeria time)<input id="ztime" type="time" value="18:30"></label>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="go" id="zsave">Save schedule</button><a class="quiet" id="zgcal" target="_blank" rel="noopener" href="#">Add to Google Calendar</a><button class="quiet" id="zics">Add to iPhone Calendar</button><a class="quiet" href="#" id="zmeet">See summaries</a></div>
@@ -2818,12 +2818,40 @@ function renderMeet(){
       srow.appendChild(ss);
     }
     bd.appendChild(srow);
-    if(m.transcript&&canWrite&&m.id)db.doc("meetingnotes/"+m.id).update({transcript:null}).catch(function(){});
     if(m.summary)bd.appendChild(h("div","pre",m.summary));
     function mlist(title,items,mark){if(!items||!items.length)return;var t=h("div","meta",title);t.style.cssText="margin-top:8px;font-weight:700";bd.appendChild(t);items.forEach(function(x){bd.appendChild(h("div","pre",mark+" "+x))})}
     mlist("Key points",m.takeaways,"•");mlist("Agreed",m.agreed,"✅");
     if(m.todos&&m.todos.length)mlist("To-do",m.todos.map(function(t){return t.task+(t.who?" — "+t.who:"")+(t.due?" (by "+t.due+")":"")}),"☐");
+    if(canWrite&&m.id&&(m.summary||m.takeaways||m.transcript)){
+      var tb=h("button","go sm",(m.todos&&m.todos.length)?"☑ Put these on the To-do list":"✨ Find to-dos with Cordial");tb.type="button";tb.style.marginTop="8px";
+      tb.onclick=async function(){
+        tb.disabled=true;var old=tb.textContent;tb.textContent="Working…";
+        try{
+          var items=(m.todos||[]).map(function(t){return {title:t.task,who:/daddy|father/i.test(t.who||"")?"daddy":/mummy|mother/i.test(t.who||"")?"mummy":/both/i.test(t.who||"")?"both":"",due:t.due||""}});
+          if(!items.length){
+            var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)throw new Error("signin");
+            var src=[m.summary||"",(m.takeaways||[]).join("\n"),(m.agreed||[]).join("\n"),m.transcript?String(m.transcript).slice(0,12000):""].join("\n\n").trim();
+            var r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({events:{text:src,images:[]}})});
+            var j={};try{j=await r.json()}catch(x){}
+            if(!r.ok)throw new Error("Cordial couldn’t read it ("+r.status+(j.detail?": "+j.detail:"")+")");
+            items=(j.todos||[]).map(function(t){return {title:t.title,who:t.who||"",due:t.due||""}});
+          }
+          if(!items.length){toast("No to-dos found in this meeting.");tb.disabled=false;tb.textContent=old;return}
+          var n=0;
+          for(var i=0;i<items.length;i++){
+            var tid="td_"+m.id+"_"+i;
+            if((S.xo||[]).some(function(x){return x.id===tid||(x.kind==="todo"&&String(x.title||"").toLowerCase()===String(items[i].title).toLowerCase()&&x.status!=="confirmed")}))continue;
+            await db.doc("expenses/"+tid).set({kind:"todo",title:items[i].title,who:items[i].who,due:items[i].due,topic:m.topic||"Meeting",meeting:m.id,status:"open",date:key(new Date()),ts:Date.now()+i,by:myId,ai:true});n++;
+          }
+          toast(n?n+(n===1?" to-do added":" to-dos added")+" to the To-do list.":"Those are already on the To-do list.");
+          tb.disabled=false;tb.textContent=old;
+        }catch(e){toast(e&&e.message&&e.message!=="signin"?e.message:"Couldn’t do that. Try again.");tb.disabled=false;tb.textContent=old}
+      };
+      bd.appendChild(tb);
+    }
     if(m.next_steps&&!(m.todos&&m.todos.length)){bd.appendChild(h("div","meta","Next steps")).style.marginTop="8px";bd.appendChild(h("div","pre",m.next_steps))}
+    if(m.transcript){var td=h("details");td.style.marginTop="10px";var tsm=h("summary",null,"Transcript");tsm.style.cssText="cursor:pointer;font-weight:700";td.appendChild(tsm);var tp=h("div","pre",m.transcript);tp.style.cssText="max-height:50vh;overflow:auto;margin-top:6px";td.appendChild(tp);bd.appendChild(td)}
+    else if(m.source==="zoom"){var nt=h("div","meta","No transcript saved for this call. In Zoom, turn on cloud recording with audio transcript, then the next call will have one.");nt.style.marginTop="8px";bd.appendChild(nt)}
     if(m.shared)bd.appendChild(h("div","meta","✅ Shared with both parents in the family chat")).style.marginTop="6px";
     else if(canWrite&&(m.summary||m.takeaways)){var sh=h("button","quiet","Share in family chat");sh.type="button";sh.style.marginTop="6px";
       sh.onclick=function(){
