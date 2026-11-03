@@ -1,11 +1,15 @@
-// Sends phone alerts 6 hours, 3 hours and 30 minutes before each scheduled weekly call.
+// Sends phone alerts 1 week, 3 days, 24, 18, 12 and 6 hours before every calendar event; Zoom calls get 24, 18, 12, 6 hours and 30 minutes.
 // Runs every 5 minutes (schedule in netlify.toml). Uses the same Netlify variables as push.js
 // (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT).
 const push = require("./push.js");
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const H = { apikey: KEY, Authorization: `Bearer ${KEY}` };
-const OFFSETS = [[6 * 3600e3, "6 hours"], [3 * 3600e3, "3 hours"], [30 * 60e3, "30 minutes"]];
+const EV_OFFSETS = [[24 * 3600e3, "24 hours"], [18 * 3600e3, "18 hours"], [12 * 3600e3, "12 hours"], [6 * 3600e3, "6 hours"]];
+const LONG_OFFSETS = [[7 * 86400e3, "1 week"], [3 * 86400e3, "3 days"]]; // for one-off events (not the repeating Zoom calls)
+const OFFSETS = EV_OFFSETS.concat([[30 * 60e3, "30 minutes"]]);
+// Never ring in the middle of the night (23:00 to 05:59 Nigerian time): move it to 06:00, if that is still before the event
+function quiet(due, at) { const hr = new Date(due + 3600e3).getUTCHours(); if (hr >= 23 || hr < 6) { const d = new Date(due + 3600e3); const day = hr >= 23 ? Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 6) : Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 6); const nd = day - 3600e3; return nd < at ? nd : null; } return due; }
 const LATE = 14 * 60e3; // still send if the timer fires up to 14 minutes late
 const WAT = 3600e3;     // Nigeria is UTC+1, no daylight saving
 
@@ -44,7 +48,8 @@ exports.handler = async () => {
     if (!days.includes(wd) || callAt < now) continue;
     if (new Date(callAt + WAT).toISOString().slice(0, 10) < from) continue;
     for (const [off, label] of OFFSETS) {
-      const due = callAt - off, k = `${callAt}_${off}`;
+      let due = callAt - off; const k = `${callAt}_${off}`;
+      due = quiet(due, callAt); if (due == null) continue;
       if (now >= due && now - due < LATE && !sent[k]) todo.push({ k, label, callAt });
     }
   }
@@ -54,12 +59,13 @@ exports.handler = async () => {
       const e = row.data || {};
       if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date || "")) continue;
       const hasT = /^\d{1,2}:\d{2}$/.test(e.time || "");
-      const [eh, em] = hasT ? e.time.split(":").map((x) => parseInt(x, 10)) : [8, 0];
+      const [eh, em] = hasT ? e.time.split(":").map((x) => parseInt(x, 10)) : [9, 0];
       const [Y, M, D] = e.date.split("-").map((x) => parseInt(x, 10));
       const at = Date.UTC(Y, M - 1, D, eh, em) - WAT;
-      const offs = e.zoom ? OFFSETS : hasT ? [[3600e3, "1 hour"], [15 * 60e3, "15 minutes"]] : [[0, "today"]];
+      const offs = e.zoom ? OFFSETS : LONG_OFFSETS.concat(EV_OFFSETS);
       for (const [off, label] of offs) {
-        const due = at - off, k = `ev_${row.key}_${at}_${off}`;
+        let due = at - off; const k = `ev_${row.key}_${at}_${off}`;
+        due = quiet(due, at); if (due == null) continue;
         if (now >= due && now - due < LATE && at > now - 3600e3 && !sent[k]) todo.push({ k, label, callAt: at, ev: e.zoom ? "" : (e.title || "Event"), hasT, zoom: !!e.zoom });
       }
     }
@@ -73,7 +79,7 @@ exports.handler = async () => {
   for (const t of todo) {
     const when = new Date(t.callAt + WAT).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
     const payload = t.ev
-      ? { kind: "reminder", title: "Reminder: " + t.ev, body: t.label === "today" ? `${t.ev} is today.` : `${t.ev} starts in ${t.label} (${when}).`, tag: "evrem-" + t.k, url: "/?goto=sched" }
+      ? { kind: "reminder", title: "Reminder: " + t.ev, body: `${t.ev} ${t.hasT ? "starts" : "is"} in ${t.label} (${new Date(t.callAt + WAT).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}${t.hasT ? ", " + when : ""}).`, tag: "evrem-" + t.k, url: "/?goto=sched" }
       : { kind: "reminder", title: "Family call reminder", body: `Your weekly call is in ${t.label} (${when}).`, tag: "callrem-" + t.k, url: "/?goto=call" };
     for (const m of members) {
       const key = `profiles/cp_${m.user_id}`;
