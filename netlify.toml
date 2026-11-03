@@ -24,3 +24,6 @@
 
 [functions."extra-check"]
   schedule = "*/15 * * * *"
+
+[functions."story-cleanup"]
+  schedule = "30 3 * * *"
