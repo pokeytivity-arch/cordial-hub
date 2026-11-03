@@ -49,10 +49,10 @@ button.quiet{background:none;border:0;color:var(--muted);font:inherit;font-size:
 .row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 140px}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.9rem;margin:0 0 10px}
 .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .dow{font-size:.75rem;color:var(--muted);text-align:center}
-.day{min-height:54px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);padding:4px;font:inherit;font-size:.85rem;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;overflow:hidden}
-.day.a{background:var(--a-bg);border-color:var(--a)}.day.b{background:var(--b-bg);border-color:var(--b)}.day.x{background:var(--x-bg);border-color:var(--x)}
+.day{height:56px;min-height:56px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:7px 2px 4px;font:inherit;font-size:.95rem;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:5px;overflow:hidden}.day b{font-weight:600;line-height:1.7em}.dots{display:flex;gap:3px;justify-content:center;min-height:6px}.dots i{width:6px;height:6px;border-radius:50%;display:block}.dots .dc{background:#1f6feb}.dots .de{background:#e0489a}.dots .dn{background:#8a8f98}.calkey{display:flex;gap:14px;justify-content:center;font-size:.78rem;color:var(--muted);margin:8px 0 0}.calkey i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+.day.a{background:var(--a-bg);border-color:transparent}.day.b{background:var(--b-bg);border-color:transparent}.day.x{background:var(--x-bg);border-color:transparent}
 .day.dflt{border-color:var(--line)}
 .day.sel{outline:3px solid var(--ink);outline-offset:1px}.day.today b{display:inline-flex;align-items:center;justify-content:center;min-width:1.7em;height:1.7em;padding:0 .2em;border-radius:50%;background:#e5484d;color:#fff;text-decoration:none;box-sizing:border-box}
 .day small{font-size:.68rem;line-height:1.15;color:var(--muted);overflow-wrap:anywhere}
@@ -1311,7 +1311,7 @@ function renderCal(){
     var k=y+"-"+pad(mo+1)+"-"+pad(d),e=S.sched[k]||{};
     var b=h("button","day"+(e.who?" "+e.who:" "+homeWho()+" dflt")+(k===S.sel?" sel":"")+(k===today?" today":""));
     b.appendChild(h("b",null,String(d)));
-    if(e.who)b.appendChild(h("small",null,nm(e.who)));
+    if(e.who)b.appendChild(h("small","dwho",nm(e.who)));
     if(e.note)b.appendChild(h("small",null,e.note));
     var dt=new Date(y,mo,d);
     if(k>=today){var zv=(S.events||[]).filter(function(x){return x.zoom});
@@ -1319,9 +1319,13 @@ function renderCal(){
       else if(k>=zplan().from&&zplan().days.indexOf(dt.getDay())>=0)b.appendChild(h("small","dcall","📞 "+zLocalTime(zplan().t)))}
     var ce=(S.events||[]).filter(function(x){return !x.zoom&&x.date===k});
     if(ce.length)b.appendChild(h("small","dcall","📌 "+ce[0].title+(ce.length>1?" +"+(ce.length-1):"")));
+    var dts=[],tip=[];[].slice.call(b.querySelectorAll("small")).forEach(function(x){var t=x.textContent;if(!x.classList.contains("dwho")){dts.push(/^📞/.test(t)?"dc":/^📌/.test(t)?"de":"dn");tip.push(t)}x.remove()});
+    if(dts.length){var dw=h("div","dots");dts.filter(function(v,i,a){return a.indexOf(v)===i}).forEach(function(c){dw.appendChild(h("i",c))});b.appendChild(dw)}
+    b.setAttribute("aria-label",d+" "+m.toLocaleDateString("en-US",{month:"long"})+(e.who?", "+nm(e.who):"")+(tip.length?", "+tip.join(", "):""));
     b.onclick=function(){S.sel=k;S.who=e.who||null;S.dayOpen=true;S.dvFor=null;openEditor();renderCal();window.scrollTo(0,0)};
     C.appendChild(b);
   })(d);
+  (function(){var kk=document.getElementById("calkey");if(!kk){kk=h("div","calkey");kk.id="calkey";kk.innerHTML="<span><i style='background:#1f6feb'></i>Call</span><span><i style='background:#e0489a'></i>Event</span><span><i style='background:#8a8f98'></i>Note</span>";C.parentNode.insertBefore(kk,C.nextSibling)}})();
   try{renderDay()}catch(err){}
 }
 /* day view: the selected day (today by default) as an hour-by-hour timeline */
@@ -2211,58 +2215,39 @@ function xtSup(){
 /* school fees: 15 academic sessions from 2026/2027, three terms each */
 var XTERMS=[["First term","September",0],["Second term","January",1],["Third term","May",1]];
 /* other school payments in a session: lessons, registration, uniform, books... each with its own receipts */
+function xtOtherRow(x){
+  var pr=h("div");pr.style.cssText="border-top:1px solid rgba(128,128,128,.25);padding:8px 0;margin-top:6px";
+  var tp=h("div",null,"🧾 "+(x.what||"Payment")+" · "+money(x.amount));tp.style.fontWeight="700";pr.appendChild(tp);
+  pr.appendChild(h("div","meta","Paid on "+new Date(x.paidOn||x.ts||0).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+" by "+xtName(x.paidBy)+(x.paidFromReceipt?" (date read from the receipt)":"")));
+  var rc=xtRc(x.receipts,"Receipt",x.aicheck&&x.aicheck.read);if(rc)pr.appendChild(rc);
+  var ck=x.aicheck;
+  if(ck&&ck.status==="pass"){var g=h("div","meta","✅ Checked by Cordial");g.style.color="#1f8a4c";pr.appendChild(g)}
+  else if(ck&&ck.status==="review"){var wn=h("div","meta","⚠️ Needs a look. "+(ck.reasons||[]).join(" "));wn.style.color="#c07a00";pr.appendChild(wn)}
+  else if(ck)pr.appendChild(h("div","meta","Cordial couldn’t read this one, but it is saved."));
+  pr.appendChild(xtConfirmBox(x,x.paidBy,"expenses"));
+  if(canWrite&&canRemoveRec({ts:x.ts}))pr.appendChild(xtBtn("Remove",function(){if(confirm("Remove this payment?"))db.doc("expenses/"+x.id).delete().catch(fail)},"quiet"));
+  return pr;
+}
+/* other school expenses saved before terms were added (no term chosen) */
 function xtOther(card,y){
+  var list=(S.xo||[]).filter(function(x){return x.kind==="feex"&&x.year===y&&!x.term}).sort(function(a,b){return (b.ts||0)-(a.ts||0)});
+  if(!list.length)return;
   var wrap=h("div","item");wrap.style.cssText="flex-direction:column;gap:6px;align-items:stretch";
-  var list=(S.xo||[]).filter(function(x){return x.kind==="feex"&&x.year===y}).sort(function(a,b){return (b.ts||0)-(a.ts||0)});
-  var tot=list.reduce(function(q,x){return q+(+x.amount||0)},0);
-  wrap.appendChild(h("b",null,"Other school payments"));
-  wrap.appendChild(h("div","meta","Lessons, registration, uniform, books and anything else outside the term fees."+(list.length?" Total so far: "+money(tot):"")));
-  list.forEach(function(x){
-    var pr=h("div");pr.style.cssText="border-top:1px solid rgba(128,128,128,.25);padding:8px 0";
-    var tp=h("div",null,(x.what||"Payment")+" · "+money(x.amount));tp.style.fontWeight="700";pr.appendChild(tp);
-    pr.appendChild(h("div","meta","Paid on "+new Date(x.paidOn||x.ts||0).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+" by "+xtName(x.paidBy)+(x.paidFromReceipt?" (date read from the receipt)":"")));
-    var rc=xtRc(x.receipts,"Receipt",x.aicheck&&x.aicheck.read);if(rc)pr.appendChild(rc);
-    var ck=x.aicheck;
-    if(ck&&ck.status==="pass"){var g=h("div","meta","✅ Checked by Cordial");g.style.color="#1f8a4c";pr.appendChild(g)}
-    else if(ck&&ck.status==="review"){var wn=h("div","meta","⚠️ Needs a look. "+(ck.reasons||[]).join(" "));wn.style.color="#c07a00";pr.appendChild(wn)}
-    else if(ck)pr.appendChild(h("div","meta","Cordial couldn’t read this one, but it is saved."));
-    pr.appendChild(xtConfirmBox(x,x.paidBy,"expenses"));
-    if(canWrite&&canRemoveRec({ts:x.ts}))pr.appendChild(xtBtn("Remove",function(){if(confirm("Remove this payment?"))db.doc("expenses/"+x.id).delete().catch(fail)},"quiet"));
-    wrap.appendChild(pr)});
-  if(canWrite){
-    var ap=h("div");ap.style.cssText="display:flex;flex-direction:column;gap:8px;border-top:1px solid rgba(128,128,128,.25);padding-top:8px";
-    var wi=h("input");wi.type="text";wi.placeholder="What it’s for (e.g. Extra lessons, Registration)";wi.maxLength=80;
-    var ai=h("input");ai.type="number";ai.min="0";ai.step="0.01";ai.inputMode="decimal";ai.placeholder="Amount (₦)";
-    var rf=h("input");rf.type="file";rf.accept="image/*,application/pdf";rf.multiple=true;
-    var rb=xtBtn("Add payment",async function(){
-      var what=wi.value.trim(),amt=parseFloat(ai.value);
-      if(!what)return note("Enter what this payment is for.");
-      if(!(amt>0))return note("Enter the amount.");
-      if(!rf.files||!rf.files.length)return note("Choose one or more receipts.");
-      note("");rb.disabled=true;
-      try{var add=[];for(var i=0;i<rf.files.length;i++)add.push(await xtUp(rf.files[i]));
-        var fck=await aiVerifyMany(rf.files,{kind:"fee",title:"School payment "+y+"/"+(y+1)+" – "+what,amount:amt,date:key(new Date())});
-        add.forEach(function(q){q.aicheck=fck});
-        var d0=fck&&fck.read&&fck.read.date,pd=Date.now(),fromRc=false;
-        if(/^\d{4}-\d{2}-\d{2}$/.test(d0||"")){var tm=new Date(d0+"T12:00:00").getTime();if(tm<=Date.now()&&tm>Date.now()-63072000000){pd=tm;fromRc=true}}
-        var nid="fx_"+y+"_"+Date.now().toString(36);
-        await xtDoc(nid,{kind:"feex",year:y,what:what,amount:amt,ts:Date.now(),by:myId,receipts:add,aicheck:fck,paid:true,paidBy:myId,paidOn:pd,paidFromReceipt:fromRc,_selfie:"paid"});
-        wi.value="";ai.value="";rf.value=""}catch(e){fail(e)}
-      rb.disabled=false});
-    ap.appendChild(wi);ap.appendChild(ai);ap.appendChild(rf);ap.appendChild(rb);wrap.appendChild(ap)}
+  wrap.appendChild(h("b",null,"Other school expenses (no term chosen)"));
+  list.forEach(function(x){wrap.appendChild(xtOtherRow(x))});
   card.appendChild(wrap);
 }
-async function xtSubmitOther(y,what,amt,files){
+async function xtSubmitOther(y,term,what,amt,files){
   var add=[];for(var i=0;i<files.length;i++)add.push(await xtUp(files[i]));
-  var fck=await aiVerifyMany(files,{kind:"fee",title:"School payment "+y+"/"+(y+1)+" – "+what,amount:amt,date:key(new Date())});
+  var fck=await aiVerifyMany(files,{kind:"fee",title:"School expense "+y+"/"+(y+1)+" term "+term+" – "+what,amount:amt,date:key(new Date())});
   add.forEach(function(q){q.aicheck=fck});
   var d0=fck&&fck.read&&fck.read.date,pd=Date.now(),fromRc=false;
   if(/^\d{4}-\d{2}-\d{2}$/.test(d0||"")){var tm=new Date(d0+"T12:00:00").getTime();if(tm<=Date.now()&&tm>Date.now()-63072000000){pd=tm;fromRc=true}}
   var nid="fx_"+y+"_"+Date.now().toString(36);
-  await xtDoc(nid,{kind:"feex",year:y,what:what,amount:amt,ts:Date.now(),by:myId,receipts:add,aicheck:fck,paid:true,paidBy:myId,paidOn:pd,paidFromReceipt:fromRc,_selfie:"paid"});
+  await xtDoc(nid,{kind:"feex",year:y,term:term,what:what,amount:amt,ts:Date.now(),by:myId,receipts:add,aicheck:fck,paid:true,paidBy:myId,paidOn:pd,paidFromReceipt:fromRc,_selfie:"paid"});
   return fck;
 }
-function xtOtherDlg(y0){
+function xtOtherDlg(y0,t0){
   var old=document.getElementById("pfs");if(old)old.remove();
   var o=h("div");o.id="pfs";var c=h("div");c.id="pfsc";
   var hd=h("div","pfsh");hd.appendChild(h("strong",null,"Add a school expense"));
@@ -2272,6 +2257,7 @@ function xtOtherDlg(y0){
   var wi=h("input");wi.type="text";wi.placeholder="What it’s for (e.g. Extra lessons, Uniform)";wi.maxLength=80;lab("What is the payment for?",wi);
   var ai=h("input");ai.type="number";ai.min="0";ai.step="0.01";ai.inputMode="decimal";ai.placeholder="Amount (₦)";lab("Amount (₦)",ai);
   var se=h("select");for(var y=2026;y<=2040;y++){var op=h("option",null,y+"/"+(y+1)+" session");op.value=y;if(y===y0)op.selected=true;se.appendChild(op)}lab("Academic session",se);
+  var te=h("select");XTERMS.forEach(function(q,i){var op=h("option",null,q[0]+" ("+q[1]+")");op.value=i+1;if(i+1===(t0||1))op.selected=true;te.appendChild(op)});lab("Term",te);
   var rf=h("input");rf.type="file";rf.accept="image/*,application/pdf";rf.multiple=true;lab("Receipt (photo or PDF)",rf);
   var er=h("p","bad");er.hidden=true;c.appendChild(er);
   var go=h("button","go","Add and let Cordial check");go.type="button";
@@ -2280,7 +2266,7 @@ function xtOtherDlg(y0){
     var bad=!what?"Enter what this payment is for.":!(amt>0)?"Enter the amount.":(!rf.files||!rf.files.length)?"Choose one or more receipts.":"";
     if(bad){er.textContent=bad;er.hidden=false;return}
     go.disabled=true;go.textContent="Cordial is checking the receipt…";
-    try{var ck=await xtSubmitOther(parseInt(se.value,10),what,amt,rf.files);
+    try{var ck=await xtSubmitOther(parseInt(se.value,10),parseInt(te.value,10),what,amt,rf.files);
       XT.open[parseInt(se.value,10)]=true;o.remove();
       note(ck&&ck.status==="pass"?"Added. Cordial checked the receipt ✅":ck&&ck.status==="review"?"Added. Cordial says it needs a look ⚠️":"Added. Cordial couldn’t read the receipt, but it is saved.");setTimeout(function(){note("")},5000)}
     catch(e){er.textContent="Couldn’t save. Check your connection and try again.";er.hidden=false;go.disabled=false;go.textContent="Add and let Cordial check"}
@@ -2295,7 +2281,7 @@ function xtFee(){
   var top=h("div","card");top.appendChild(h("h2",null,"School fees"));
   top.appendChild(h("p","meta","15 academic sessions, 2026/2027 to 2040/2041. Each has three terms: first (September), second (January), third (May)."));
   top.appendChild(h("div","meta","Entered so far: "+money(all)+" · Paid: "+money(paidAll)));
-  if(canWrite){var addb=xtBtn("＋ Add a school expense",function(){xtOtherDlg(curY)});addb.style.marginTop="8px";top.appendChild(addb)}
+  if(canWrite){var curT=(function(){var m=now.getMonth();return m>=8?1:m<=3?2:3})();var addb=xtBtn("＋ Add a school expense",function(){xtOtherDlg(curY,curT)});addb.style.marginTop="8px";top.appendChild(addb)}
   box.appendChild(top);
   for(var y=2026;y<=2040;y++)(function(y){
     var card=h("div","card");
@@ -2378,6 +2364,14 @@ function xtFee(){
       }
       if(r.paid&&!hasRc)row.appendChild(h("div","meta","No receipt was attached to this payment."));
       if(canWrite&&r.paid&&isAdminAcct())row.appendChild(xtBtn("Undo paid",function(){if(confirm("Undo this payment?"))xtDoc(id,{paid:false,paidBy:null,paidOn:null,paidFromReceipt:null,confirmedAt:null,confirmedBy:null,selfie_paid:null})},"quiet"));
+      var tx=(S.xo||[]).filter(function(x){return x.kind==="feex"&&x.year===y&&x.term===t+1}).sort(function(a,b){return (b.ts||0)-(a.ts||0)});
+      var txTot=tx.reduce(function(q,x){return q+(+x.amount||0)},0);
+      var xh=h("div");xh.style.cssText="border-top:1px solid rgba(128,128,128,.25);margin-top:8px;padding-top:8px";
+      xh.appendChild(h("b",null,"Other school expenses this term"));
+      xh.appendChild(h("div","meta",tx.length?tx.length+(tx.length===1?" expense":" expenses")+" · total "+money(txTot):"Lessons, uniform, books, registration… none added yet."));
+      tx.forEach(function(x){xh.appendChild(xtOtherRow(x))});
+      if(canWrite)xh.appendChild(xtBtn("＋ Add a school expense",function(){xtOtherDlg(y,t+1)}));
+      row.appendChild(xh);
       card.appendChild(row)})(t);
     if(open)xtOther(card,y);
     box.appendChild(card)})(y);
