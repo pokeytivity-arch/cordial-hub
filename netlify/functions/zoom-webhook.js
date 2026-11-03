@@ -102,13 +102,13 @@ function stepsTodos(text) {
   if (!m) return [];
   return m.split(/\r?\n/).map((l) => l.replace(/^[\s\-*•\d.)]+/, "").trim()).filter((l) => l.length > 3).slice(0, 12).map((l) => ({ task: l.slice(0, 300), who: "", due: "" }));
 }
-async function finish(uuid, topic, start, meetingId, text, from, transcript) {
+async function finish(uuid, topic, start, meetingId, text, from, transcript, noShare) {
   const old = await getNote(uuid);
   let d = await digest(topic, text);
   if (!d) d = { overview: String(text).split("Next steps from Zoom:")[0].trim().slice(0, 3000), takeaways: [], agreed: [], todos: stepsTodos(text) };
   const patch = { topic, start, summary: d.overview, takeaways: d.takeaways, agreed: d.agreed, todos: d.todos, next_steps: "", digestBy: from, meeting_id: meetingId };
   if (transcript) patch.transcript = String(transcript).slice(0, 150000);
-  if (!old.shared) { if (await shareChat(uuid, topic, start || old.start, d)) patch.shared = Date.now(); }
+  if (!old.shared && !noShare) { if (await shareChat(uuid, topic, start || old.start, d)) patch.shared = Date.now(); }
   await save(uuid, patch);
   // Each to-do becomes an agreed task: one parent marks it done, the other confirms.
   const nid = noteId(uuid);
@@ -247,3 +247,6 @@ exports.handler = async (event) => {
   } catch (e) { return out(500, { error: "failed" }); }
   return out(200, { ok: true });
 };
+
+// Shared with zoom-backfill.js
+exports._t = { zoomToken, encUuid, summaryText, nextSteps, cleanVtt, noteId, getNote, finish, save, logZoom };
