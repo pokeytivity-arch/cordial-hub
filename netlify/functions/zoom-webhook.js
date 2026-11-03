@@ -1,5 +1,5 @@
 // Receives Zoom events, turns each meeting into a short summary, key points, agreed items and a to-do list,
-// saves it to the hub (Meetings page) and shares it in the family chat. Transcripts are never stored.
+// saves it to the hub (Meetings page) together with the transcript, and shares the summary in the family chat.
 // Netlify environment variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 // ZOOM_WEBHOOK_SECRET (the app's "Secret Token"), ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET.
 // None of these keys ever go in the web page. They live only here, on the server.
@@ -48,7 +48,7 @@ async function getNote(uuid) {
 }
 const arr = (x, n) => (Array.isArray(x) ? x : []).map((v) => String(v || "").trim()).filter(Boolean).slice(0, n || 12).map((v) => v.slice(0, 300));
 
-// Cordial turns the text of a meeting into a neutral, factual digest. Nothing from the transcript is kept.
+// Cordial turns the text of a meeting into a neutral, factual digest.
 async function digest(topic, text) {
   if (!AKEY || !text) return null;
   try {
@@ -96,11 +96,18 @@ async function shareChat(uuid, topic, start, d) {
   return r.ok;
 }
 
-async function finish(uuid, topic, start, meetingId, text, from) {
+// If Cordial cannot write the digest (for example the AI key is missing), still turn Zoom's own "Next steps" into to-dos
+function stepsTodos(text) {
+  const m = String(text).split("Next steps from Zoom:")[1];
+  if (!m) return [];
+  return m.split(/\r?\n/).map((l) => l.replace(/^[\s\-*•\d.)]+/, "").trim()).filter((l) => l.length > 3).slice(0, 12).map((l) => ({ task: l.slice(0, 300), who: "", due: "" }));
+}
+async function finish(uuid, topic, start, meetingId, text, from, transcript) {
   const old = await getNote(uuid);
   let d = await digest(topic, text);
-  if (!d) d = { overview: String(text).slice(0, 3000), takeaways: [], agreed: [], todos: [] };
-  const patch = { topic, start, summary: d.overview, takeaways: d.takeaways, agreed: d.agreed, todos: d.todos, next_steps: "", transcript: null, digestBy: from, meeting_id: meetingId };
+  if (!d) d = { overview: String(text).split("Next steps from Zoom:")[0].trim().slice(0, 3000), takeaways: [], agreed: [], todos: stepsTodos(text) };
+  const patch = { topic, start, summary: d.overview, takeaways: d.takeaways, agreed: d.agreed, todos: d.todos, next_steps: "", digestBy: from, meeting_id: meetingId };
+  if (transcript) patch.transcript = String(transcript).slice(0, 150000);
   if (!old.shared) { if (await shareChat(uuid, topic, start || old.start, d)) patch.shared = Date.now(); }
   await save(uuid, patch);
   // Each to-do becomes an agreed task: one parent marks it done, the other confirms.
@@ -124,6 +131,20 @@ async function logZoom(uuid, topic, start, durSec) {
     method: "POST", headers: { ...h, Prefer: "resolution=ignore-duplicates,return=minimal" },
     body: JSON.stringify({ key: `calllog/${id}`, collection: "calllog", id, data }),
   });
+}
+
+// Reads the call transcript from Zoom's cloud recording (needs the Zoom API keys and recording + audio transcript turned on in Zoom)
+async function fetchTranscript(uuid) {
+  try {
+    const tk = await zoomToken(); if (!tk) return "";
+    const r = await fetch(`https://api.zoom.us/v2/meetings/${encUuid(uuid)}/recordings`, { headers: { Authorization: `Bearer ${tk}` } });
+    if (!r.ok) return "";
+    const j = await r.json();
+    const f = (j.recording_files || []).find((x) => x.file_type === "TRANSCRIPT" || x.recording_type === "audio_transcript");
+    if (!f || !f.download_url) return "";
+    const t = await fetch(f.download_url, { headers: { Authorization: `Bearer ${tk}` } });
+    return t.ok ? cleanVtt(await t.text()) : "";
+  } catch (e) { return ""; }
 }
 
 async function save(uuid, patch) {
@@ -207,17 +228,20 @@ exports.handler = async (event) => {
           if (r.ok) { const j = await r.json(); text = summaryText(j); steps = nextSteps(j); }
         }
       }
-      await finish(uuid, topic, start, o.meeting_id || o.id, (text + (steps ? "\n\nNext steps from Zoom:\n" + steps : "")).trim(), "summary");
+      await finish(uuid, topic, start, o.meeting_id || o.id, (text + (steps ? "\n\nNext steps from Zoom:\n" + steps : "")).trim(), "summary", await fetchTranscript(uuid));
     } else if (b.event === "recording.transcript_completed" || b.event === "recording.completed") {
-      // The transcript is read once to write the summary if Zoom has not sent one, then thrown away.
+      // The transcript is saved on the meeting note; if Zoom has not sent a summary, Cordial writes one from it.
       const old = await getNote(uuid);
-      if (old.digestBy === "summary" || old.summary) { if (old.transcript) await save(uuid, { transcript: null }); return out(200, { ok: true }); }
       const f = (o.recording_files || []).find((x) => x.file_type === "TRANSCRIPT" || x.recording_type === "audio_transcript");
       if (f && f.download_url) {
         const dt = b.download_token;
         let r = await fetch(dt ? `${f.download_url}?access_token=${encodeURIComponent(dt)}` : f.download_url);
         if (!r.ok) { const tk = await zoomToken(); if (tk) r = await fetch(f.download_url, { headers: { Authorization: `Bearer ${tk}` } }); }
-        if (r.ok) await finish(uuid, topic, start, o.id || o.meeting_id, cleanVtt(await r.text()), "transcript");
+        if (r.ok) {
+          const vtt = cleanVtt(await r.text());
+          if (old.digestBy === "summary" || old.summary) await save(uuid, { topic, transcript: vtt.slice(0, 150000) });
+          else await finish(uuid, topic, start, o.id || o.meeting_id, vtt, "transcript", vtt);
+        }
       }
     }
   } catch (e) { return out(500, { error: "failed" }); }
