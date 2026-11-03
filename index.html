@@ -1487,7 +1487,7 @@ function renderExp(){
 }
 
 /* ---------- Shopping list, monthly support and school fees (saved in the expenses collection, each with a "kind") ---------- */
-var XT={edit:{},tab:"exp",open:{}};S.xo=[];
+var XT={edit:{},tab:"exp",open:{},openT:{}};S.xo=[];
 var XTABS=[["exp","Expenses"],["sup","Support"],["fee","School fees"]];
 /* the shopping list now lives on the To-do and Shopping List page */
 var TDT="tasks";
@@ -2277,28 +2277,46 @@ function xtFee(){
   var box=$("#xs-fee");if(!box)return;box.textContent="";
   var recs={};(S.xo||[]).forEach(function(x){if(x.kind==="fee")recs[x.id]=x});
   var now=new Date(),curY=now.getMonth()>=8?now.getFullYear():now.getFullYear()-1;if(curY<2026)curY=2026;if(curY>2040)curY=2040;
+  var curT=(function(){if(now<new Date(2026,8,1))return 1;var m=now.getMonth();return m>=8?1:m<=3?2:3})();
   var all=0,paidAll=0;for(var y0=2026;y0<=2040;y0++)for(var t0=0;t0<3;t0++){var q=recs["fee_"+y0+"_"+t0];if(q&&q.amount){all+=q.amount;if(q.paid)paidAll+=q.amount}}
+  /* money actually spent on school: payments added to terms (or the fee itself when marked paid without separate payments) plus other school expenses */
+  function termSpent(y,t){var r=recs["fee_"+y+"_"+t]||{},ps=r.payments||[],pt=ps.reduce(function(q,p){return q+(+p.amount||0)},0);if(!pt&&r.paid&&r.amount)pt=+r.amount;
+    var ox=(S.xo||[]).filter(function(x){return x.kind==="feex"&&x.year===y&&x.term===t+1}).reduce(function(q,x){return q+(+x.amount||0)},0);return pt+ox}
+  var noTerm=function(y){return (S.xo||[]).filter(function(x){return x.kind==="feex"&&x.year===y&&!x.term}).reduce(function(q,x){return q+(+x.amount||0)},0)};
+  function sessionSpent(y){var q=noTerm(y);for(var t=0;t<3;t++)q+=termSpent(y,t);return q}
+  var spAll=0;for(var y1=2026;y1<=2040;y1++)spAll+=sessionSpent(y1);
+  var spSes=sessionSpent(curY),spTerm=termSpent(curY,curT-1);
   var top=h("div","card");top.appendChild(h("h2",null,"School fees"));
   top.appendChild(h("p","meta","15 academic sessions, 2026/2027 to 2040/2041. Each has three terms: first (September), second (January), third (May)."));
-  top.appendChild(h("div","meta","Entered so far: "+money(all)+" · Paid: "+money(paidAll)));
-  if(canWrite){var curT=(function(){var m=now.getMonth();return m>=8?1:m<=3?2:3})();var addb=xtBtn("＋ Add a school expense",function(){xtOtherDlg(curY,curT)});addb.style.marginTop="8px";top.appendChild(addb)}
+  top.appendChild(h("div","meta","Fees entered: "+money(all)+" · Fees marked paid: "+money(paidAll)));
+  var tot=h("div");tot.style.cssText="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 4px";
+  [["All school spending",spAll,"all time"],["This session",spSes,curY+"/"+(curY+1)],["This term",spTerm,XTERMS[curT-1][0]]].forEach(function(o){var c=h("div");c.style.cssText="border:1px solid rgba(128,128,128,.3);border-radius:12px;padding:8px 6px;text-align:center";var a1=h("div",null,money(o[1]));a1.style.cssText="font-weight:800;font-size:1.02rem";c.appendChild(a1);c.appendChild(h("div","meta",o[0]));c.appendChild(h("div","meta",o[2]));tot.appendChild(c)});
+  top.appendChild(tot);
+  top.appendChild(h("div","meta","Spending counts payments and receipts added to terms plus other school expenses."));
+  if(canWrite){var addb=xtBtn("＋ Add a school expense",function(){xtOtherDlg(curY,curT)});addb.style.marginTop="8px";top.appendChild(addb)}
   box.appendChild(top);
   for(var y=2026;y<=2040;y++)(function(y){
     var card=h("div","card");
     var sumPaid=0,sumAll=0;for(var t=0;t<3;t++){var q=recs["fee_"+y+"_"+t];if(q&&q.amount){sumAll+=q.amount;if(q.paid)sumPaid+=q.amount}}
     var open=XT.open[y]!==undefined?XT.open[y]:y===curY;
     var hd=h("button","quiet");hd.type="button";hd.style.cssText="display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;padding:0;background:none;text-decoration:none";
-    var l=h("div");l.appendChild(h("b",null,y+"/"+(y+1)+" Academic Session"));l.appendChild(h("div","meta",sumAll?money(sumPaid)+" paid of "+money(sumAll):"No fees entered yet"));
+    var l=h("div");l.appendChild(h("b",null,y+"/"+(y+1)+" Academic Session"+(y===curY?" · current":"")));l.appendChild(h("div","meta",(sumAll?money(sumPaid)+" paid of "+money(sumAll):"No fees entered yet")+" · spent "+money(sessionSpent(y))));
     hd.appendChild(l);hd.appendChild(h("span",null,open?"▾":"▸"));hd.onclick=function(){XT.open[y]=!open;xtFee()};card.appendChild(hd);
     if(open)for(var t=0;t<3;t++)(function(t){
       var id="fee_"+y+"_"+t,r=recs[id]||{},def=XTERMS[t],yr=y+def[2];
       var row=h("div","item");row.style.flexDirection="column";row.style.gap="4px";
       var tp=h("div");tp.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:8px";
-      tp.appendChild(h("b",null,def[0]+" · "+def[1]+" "+yr));
+      var tOpen=XT.openT[id]!==undefined?XT.openT[id]:(y===curY&&t+1===curT);
+      var cur=(y===curY&&t+1===curT);
+      tp.style.cursor="pointer";tp.setAttribute("role","button");tp.setAttribute("aria-expanded",tOpen?"true":"false");
+      var tl=h("b",null,(tOpen?"▾ ":"▸ ")+def[0]+" · "+def[1]+" "+yr+(cur?" · current term":""));tp.appendChild(tl);
       tp.appendChild(r.paid?xtChip("Paid","#1fa855"):xtChip(r.amount?"Unpaid":"No amount","#8a949c"));row.appendChild(tp);
+      tp.onclick=function(){XT.openT[id]=!tOpen;xtFee()};
       var editing=!!(XT.edit&&XT.edit[id]),dm={day:"numeric",month:"short",year:"numeric"};
       if(r.amount&&!editing){var am=h("div",null,money(r.amount));am.style.cssText="font-size:1.25rem;font-weight:800";row.appendChild(am)}
       row.appendChild(h("div","meta",r.paid?"Paid on "+new Date(r.paidOn||0).toLocaleDateString(undefined,dm)+" by "+xtName(r.paidBy)+(r.paidFromReceipt?" (date read from the receipt)":""):(r.amount?"Not paid yet":"Fee amount not set yet")));
+      if(!tOpen){var sp0=termSpent(y,t);row.appendChild(h("div","meta","Spent this term: "+money(sp0)+(r.amount?" · Fee "+money(r.amount):"")+" · tap to open"));card.appendChild(row);return}
+      row.appendChild(h("div","meta","Spent this term: "+money(termSpent(y,t))));
       function feeForm(){
         var ar=h("div");ar.style.cssText="display:flex;gap:8px;align-items:center;flex-wrap:wrap";
         var inp=h("input");inp.type="number";inp.min="0";inp.step="0.01";inp.inputMode="decimal";inp.placeholder="Fee amount (₦)";inp.value=r.amount||"";inp.style.cssText="flex:1;min-width:120px";
@@ -2738,7 +2756,7 @@ function renderTodos(){
   function sect(title,list,draw,collapsed){
     if(!list.length)return;var d=h("details");d.open=!collapsed;var sm=h("summary",null,title+" ("+list.length+")");sm.style.cssText="font-weight:700;margin:10px 0 4px;cursor:pointer";d.appendChild(sm);
     list.forEach(function(x){
-      var r=h("div","item");r.style.cssText+=";flex-direction:column;gap:2px;align-items:stretch";
+      var r=h("div","item");r.style.cssText+=";flex-direction:column;gap:2px;align-items:stretch";r.dataset.task=x.id;
       var t=h("div");t.appendChild(h("b",null,x.title));r.appendChild(t);
       var mt=todoWho(x)+(x.due?" · by "+x.due:"")+(x.topic?" · from “"+x.topic+"”":"");r.appendChild(h("div","meta",mt));
       draw(x,r);d.appendChild(r)});
@@ -2764,6 +2782,17 @@ function renderTodos(){
     r.appendChild(h("div","meta","Done by "+xtName(x.doneBy)+" · confirmed by "+xtName(x.confirmedBy)+" · "+when(x.confirmedAt)));
     var sl=selfieLinks(x,[["selfie_fulfilled","Done"],["selfie_confirmed","Confirmed"]]);if(sl)r.appendChild(sl)},true);
   box.appendChild(c);
+  todoFocusNow();
+}
+/* jump to one task: open its section, scroll to it and flash it */
+function todoFocusNow(){
+  var id=window.__todoFocus;if(!id)return;
+  var el=document.querySelector('#todocard [data-task="'+String(id).replace(/"/g,"")+'"]');if(!el)return;
+  window.__todoFocus=null;
+  var d=el.closest("details");if(d)d.open=true;
+  setTimeout(function(){try{el.scrollIntoView({block:"center",behavior:"smooth"})}catch(e){}
+    el.style.transition="background .4s,box-shadow .4s";el.style.background="rgba(24,119,242,.22)";el.style.boxShadow="0 0 0 3px #1877f2";
+    setTimeout(function(){el.style.background="";el.style.boxShadow=""},3500)},250);
 }
 var MOPEN={};
 function renderMeet(){
@@ -3907,7 +3936,7 @@ window.pushSubscribe=async function(){
   },3000);
 })();
 try{if(location.search.indexOf("ring=")>=0)history.replaceState(null,"",location.pathname)}catch(e){}
-function openFromUrl(u){try{var m=String(u||"").match(/[?&]chat=([\w-]+)/);if(m&&window.waOpenChat)waOpenChat(m[1]);var g=String(u||"").match(/[?&]goto=(\w+)/);if(g&&g[1]==="janet"){showTab("people");setTimeout(openJanetJournal,600)}else if(g&&g[1]==="chk"){showTab("todo");TDT="chk";tdTabs()}else if(g&&typeof showTab==="function")showTab(g[1])}catch(e){}}
+function openFromUrl(u){try{var m=String(u||"").match(/[?&]chat=([\w-]+)/);if(m&&window.waOpenChat)waOpenChat(m[1]);var g=String(u||"").match(/[?&]goto=(\w+)/);if(g&&g[1]==="janet"){showTab("people");setTimeout(openJanetJournal,600)}else if(g&&g[1]==="chk"){showTab("todo");TDT="chk";tdTabs()}else if(g&&g[1]==="todo"){var tk=String(u||"").match(/[?&]task=([\w-]+)/);window.__todoFocus=tk?tk[1]:null;showTab("todo");TDT="tasks";tdTabs();try{renderTodos()}catch(x){}}else if(g&&typeof showTab==="function")showTab(g[1])}catch(e){}}
 try{if(location.search.indexOf("chat=")>=0||location.search.indexOf("goto=")>=0){var cu=location.search;setTimeout(function(){openFromUrl(cu);try{history.replaceState(null,"",location.pathname)}catch(e){}},3500)}}catch(e){}
 try{if(navigator.serviceWorker)navigator.serviceWorker.addEventListener("message",function(e){if(e.data&&e.data.type==="open")openFromUrl(e.data.url)})}catch(e){}
 function previewText(m){
@@ -6667,8 +6696,8 @@ async function start(session){
       E.push({ts:new Date(k+"T00:00:00").getTime()-2*864e5,k:"event",lead:"Calendar",text:": "+new Date(d).toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})+(e.who?" · "+nm(e.who)+" has the kids":"")+(e.note?" · "+e.note:"")});
     });
     (S.xo||[]).filter(function(x){return x.kind==="todo"}).forEach(function(x){
-      if(x.status==="done"&&x.doneBy&&x.doneBy!==myId&&myRole())E.push({ts:x.doneAt||x.ts||0,k:"reminder",go:"todo",lead:"Task",text:": "+xtName(x.doneBy)+" marked “"+x.title+"” done. Please confirm."});
-      else if(x.status==="confirmed"&&x.doneBy===myId)E.push({ts:x.confirmedAt||x.ts||0,k:"reminder",go:"todo",lead:"Task",text:": “"+x.title+"” was confirmed by "+xtName(x.confirmedBy)+"."});
+      if(x.status==="done"&&x.doneBy&&x.doneBy!==myId&&myRole())E.push({ts:x.doneAt||x.ts||0,k:"reminder",go:"todo",task:x.id,lead:"Task",text:": "+xtName(x.doneBy)+" marked “"+x.title+"” done. Please confirm."});
+      else if(x.status==="confirmed"&&x.doneBy===myId)E.push({ts:x.confirmedAt||x.ts||0,k:"reminder",go:"todo",task:x.id,lead:"Task",text:": “"+x.title+"” was confirmed by "+xtName(x.confirmedBy)+"."});
     });
     (S.events||[]).forEach(function(ev){var mv=ev.moved;if(mv&&mv.by&&mv.by!==myId&&myRole()&&Date.now()-mv.ts<14*864e5)E.push({ts:mv.ts,k:"reminder",go:"sched",lead:"Rescheduled",text:": "+(ev.title||"Meeting")+" moved by "+(mv.byName||"a parent")+" to "+ev.date+(ev.time?" "+ev.time:"")+"."})});
     try{chkPending().forEach(function(l){E.push({ts:l.ts,k:"reminder",go:"chk",lead:"Checklist",text:": "+l.t+" was checked by "+l.who+". Please confirm it."})})}catch(e){}
@@ -6701,7 +6730,7 @@ async function start(session){
           r.classList.remove("un");
           if(e.go==="sched"){showTab("sched");window.scrollTo(0,0);return}
           if(e.go==="chk"){showTab("todo");TDT="chk";tdTabs();window.scrollTo(0,0);return}
-          if(e.go==="todo"){showTab("todo");TDT="tasks";tdTabs();window.scrollTo(0,0);return}
+          if(e.go==="todo"){window.__todoFocus=e.task||null;showTab("todo");TDT="tasks";tdTabs();try{renderTodos()}catch(x){}if(!e.task)window.scrollTo(0,0);return}
           if((e.k==="tag"||e.k==="post")&&e.post){showTab("feed");var pq=S.posts.filter(function(x){return x.id===e.post})[0];if(pq&&typeof openComments==="function")setTimeout(function(){openComments(pq)},250);return}
           if(e.k==="msg"&&/^\s*📝?\s*Meeting summary/i.test(e.text||"")){openCalPane("vm");return}
           if(e.k==="msg"&&e.chat&&window.waOpenChat){waOpenChat(e.chat);return}
@@ -7992,10 +8021,28 @@ function wsOpen(uid){
   var rs=E("button",null,"Send");rs.type="button";rs.style.cssText="border:0;border-radius:999px;padding:12px 18px;font:inherit;font-weight:700;background:#1fa855;color:#fff;cursor:pointer";
   rrow.appendChild(ri);rrow.appendChild(rs);
   var emr=E("div");emr.style.cssText="display:flex;justify-content:space-around";
-  ["❤️","😂","😮","😢","🙏","👍"].forEach(function(e){var eb=E("button",null,e);eb.type="button";eb.setAttribute("aria-label","React "+e);eb.style.cssText="border:0;background:none;font-size:1.7rem;padding:2px 6px;cursor:pointer";eb.onclick=function(){sendTo(e,true)};emr.appendChild(eb)});
+  ["❤️","😂","😮","😢","🙏","👍"].forEach(function(e){var eb=E("button",null,e);eb.type="button";eb.setAttribute("aria-label","React "+e);eb.style.cssText="border:0;background:none;font-size:1.7rem;padding:2px 6px;cursor:pointer";eb.onclick=function(){wsBurst(o,eb,e);sendTo(e,true)};emr.appendChild(eb)});
   rb.appendChild(emr);rb.appendChild(rrow);
   ri.onfocus=function(){clearTimeout(WSV.t);var f=bars.querySelector("i");if(f){f.style.transition="none"}};
   ri.onblur=function(){if(!ri.value.trim()&&WSV&&WSV.el===o)show(true)};
+  /* WhatsApp-style reaction: the tapped emoji pops big in the middle and a few more float up from the button */
+  function wsBurst(root,btn,em){
+    if(window.matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches)return;
+    try{if(navigator.vibrate)navigator.vibrate(12)}catch(x){}
+    try{btn.animate([{transform:"scale(1)"},{transform:"scale(1.7)"},{transform:"scale(1)"}],{duration:320,easing:"ease-out"})}catch(x){}
+    var W=root.clientWidth||innerWidth,H=root.clientHeight||innerHeight,br=btn.getBoundingClientRect();
+    var big=E("div",null,em);big.style.cssText="position:absolute;left:50%;top:42%;font-size:5.5rem;line-height:1;pointer-events:none;z-index:20;transform:translate(-50%,-50%) scale(.2);opacity:0";
+    root.appendChild(big);
+    try{big.animate([{transform:"translate(-50%,-50%) scale(.2)",opacity:0},{transform:"translate(-50%,-50%) scale(1.5)",opacity:1,offset:.35},{transform:"translate(-50%,-70%) scale(1.2)",opacity:1,offset:.7},{transform:"translate(-50%,-110%) scale(1)",opacity:0}],{duration:1100,easing:"ease-out"})}catch(x){}
+    setTimeout(function(){big.remove()},1150);
+    for(var i=0;i<9;i++)(function(i){
+      var f=E("div",null,em);var sz=1.2+Math.random()*1.3,x0=br.left+br.width/2+(Math.random()*40-20),dx=Math.random()*120-60,rise=H*(.35+Math.random()*.35);
+      f.style.cssText="position:fixed;left:"+x0+"px;top:"+(br.top)+"px;font-size:"+sz+"rem;line-height:1;pointer-events:none;z-index:10003;opacity:0";
+      document.body.appendChild(f);
+      try{f.animate([{transform:"translate(0,0) scale(.5)",opacity:0},{opacity:1,offset:.15},{transform:"translate("+dx+"px,-"+rise+"px) scale(1.1)",opacity:0}],{duration:1300+Math.random()*700,delay:i*70,easing:"ease-out",fill:"both"})}catch(x){}
+      setTimeout(function(){f.remove()},2200+i*70);
+    })(i);
+  }
   function sendReply(){sendTo(ri.value.trim(),false)}
   function sendTo(t,react){
     if(!t||!db)return;var u=users[WSV.ui],items=wsItems(u),it=items[Math.min(WSV.ii,items.length-1)];if(!it)return;
