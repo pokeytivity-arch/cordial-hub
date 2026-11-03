@@ -2797,6 +2797,27 @@ function todoFocusNow(){
 var MOPEN={};
 function renderMeet(){
   var L=$("#mnl");if(!L)return;L.textContent="";
+  if(!$("#mnzbtn")&&L.parentNode){
+    var zb=h("button","go sm","↻ Get past calls from Zoom");zb.id="mnzbtn";zb.type="button";zb.style.margin="6px 0 10px";
+    var zs=h("div","meta");zs.id="mnzst";zs.style.marginBottom="8px";
+    L.parentNode.insertBefore(zs,L);L.parentNode.insertBefore(zb,zs);
+    zb.onclick=async function(){
+      if(!canWrite)return toast("Only the parents can do this.");
+      zb.disabled=true;zs.textContent="Asking Zoom…";
+      try{
+        var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)throw new Error("Sign in again first.");
+        async function call(body){var r=await fetch("/api/zoom-backfill",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify(body)});var j={};try{j=await r.json()}catch(x){}
+          if(!r.ok)throw new Error(r.status===404&&!j.detail?"The hub can’t reach the Zoom importer yet. Upload zoom-backfill.js and zoom-webhook.js, then redeploy.":(j.detail||j.error||("error "+r.status)));return j}
+        var lst=await call({list:true}),todo=(lst.calls||[]).filter(function(c){return !c.hasNote||(!c.hasTranscript&&c.hasTranscriptInZoom)});
+        if(!todo.length){zs.textContent="Everything Zoom still has is already here.";zb.disabled=false;return}
+        var done=0,bad=0;
+        for(var i=0;i<todo.length;i++){zs.textContent="Bringing in "+(i+1)+" of "+todo.length+": "+todo[i].topic+"…";
+          try{await call({uuid:todo[i].uuid});done++}catch(e){bad++;zs.textContent="Couldn’t bring in “"+todo[i].topic+"”: "+e.message}}
+        zs.textContent=done+(done===1?" call":" calls")+" brought in"+(bad?" ("+bad+" failed: "+zs.textContent+")":".");
+      }catch(e){zs.textContent="Couldn’t get past calls: "+(e&&e.message||"try again")}
+      zb.disabled=false;
+    };
+  }
   var rows=S.mnotes.slice().sort(function(a,b){return (b.start||b.ts||0)-(a.start||a.ts||0)});
   if(!rows.length)L.appendChild(h("p","empty","No virtual meetings yet. Summaries from Zoom appear here after a meeting ends."));
   rows.forEach(function(m){
