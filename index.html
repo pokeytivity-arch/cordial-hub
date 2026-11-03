@@ -7093,11 +7093,12 @@ function aiAsk(t,att){
     if(x.r.ok&&x.j.reply)return done(x.j.reply,true,x.j.actions);
     if(x.r.status===501)return done("Live chat isn’t switched on yet.",false);
     if(x.r.status===429)return done("You’ve reached today’s question limit. Try again tomorrow.",false);
-    done("I couldn’t answer just now. Please try again in a moment.",false);
+    done("I couldn’t answer just now."+(x.j&&x.j.detail?" ("+(x.j.status||x.r.status)+": "+x.j.detail+")":x.r.status&&x.r.status!==200?" ("+x.r.status+")":"")+" Please try again in a moment.",false);
   }).catch(function(){done("I couldn’t connect. Check your internet and try again.",false)});
 }
 function aiActText(a){
   if(a.type==="event")return "📅 Add to calendar: "+a.title+" on "+evWhen({date:a.date,time:a.time});
+  if(a.type==="todo")return "✅ Add to To-do list: "+a.title+(a.due?" · due "+tdate(a.due):"")+(a.who?" · "+(a.who==="daddy"?"Our Daddy":a.who==="mummy"?"Our Mummy":"Both parents"):"");
   if(a.type==="request")return "📨 Post a request"+(a.to?" for "+a.to:"")+": “"+a.text+"”";
   if(a.type==="post")return "📝 Post on the timeline: “"+a.text+"”"+(a.image?" (with your photo)":"");
   if(a.type==="doc")return "📄 Save to Documents ("+a.cat+"): "+a.title;
@@ -7108,9 +7109,14 @@ function aiActText(a){
 }
 async function aiRun(a){
   if(a.type==="event"){
-    var ex=S.sched[a.date]||{},label=(a.time?a.time+" ":"")+a.title;
-    await db.doc("schedule/"+a.date).set({who:ex.who||a.who||"x",note:ex.note?ex.note+"; "+label:label});
+    var eid="ev_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    await db.doc("schedule/"+eid).set({title:a.title,date:a.date,time:a.time||"",place:"",notes:"",by:myId,ts:Date.now(),ai:true});
     return "Added to the calendar for "+evWhen({date:a.date})+".";
+  }
+  if(a.type==="todo"){
+    var tid="td_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    await db.doc("expenses/"+tid).set({kind:"todo",title:a.title,who:a.who||"",due:a.due||"",topic:"Added by Cordial",status:"open",date:key(new Date()),ts:Date.now(),by:myId,ai:true});
+    return "Added to the To-do list.";
   }
   var others=(typeof MEMBERS!=="undefined"?MEMBERS:[]).filter(function(m){return m.user_id!==myId});
   if(a.type==="request"){
