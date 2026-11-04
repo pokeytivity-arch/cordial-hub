@@ -14,7 +14,7 @@
   schedule = "0 19 * * *"
 
 [functions."live-check"]
-  schedule = "*/10 6-10 * * 1-5"
+  schedule = "*/10 5-14 * * *"
 
 [functions."call-reminders"]
   schedule = "*/5 * * * *"
