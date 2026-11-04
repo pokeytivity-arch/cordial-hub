@@ -3772,7 +3772,7 @@ function mentionAttach(ta,getList){
   function upd(){
     var pos=ta.selectionStart==null?raw().length:ta.selectionStart,before=raw().slice(0,pos),m=before.match(/(^|\s)@([^\s@]{0,20})$/);
     if(!m){hide();return}
-    var q=m[2].toLowerCase(),list=mAll(getList()).filter(function(u){return !(u.is_owner&&u.grp!=="parent")&&(u.name||"").toLowerCase().indexOf(q)>=0}).slice(0,6);
+    var q=m[2].toLowerCase(),list=mAll(getList()).filter(function(u){return (u.name||"").toLowerCase().indexOf(q)>=0}).slice(0,6);
     if(!list.length){hide();return}
     box.textContent="";
     list.forEach(function(u){
