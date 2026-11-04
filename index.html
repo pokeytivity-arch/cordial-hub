@@ -5201,7 +5201,7 @@ function buildPost(p,ps){
   var mb=h("button","pmore","•••");mb.setAttribute("aria-label","Post options");mb.onclick=function(){postMenu(p)};hd.appendChild(mb);
   c.appendChild(hd);
   if(p.text){
-    if(p.bg&&BGS[p.bg-1]&&!p.mid){var bgd=h("div","pbg",p.text);bgd.style.background=BGS[p.bg-1];c.appendChild(bgd)}
+    if(p.bg&&BGS[p.bg-1]&&!p.mid){var bgd=h("div","pbg");mfill(bgd,p.text,p.tags);bgd.style.background=BGS[p.bg-1];c.appendChild(bgd)}
     else{var pbd=h("div","pbody");var pmi=(p.tags||[]).slice();try{mentionIds(p.text||"",typeof MEMBERS!=="undefined"?MEMBERS:[]).forEach(function(i){if(pmi.indexOf(i)<0)pmi.push(i)})}catch(e){}mentionFill(pbd,p.text||"",pmi,true);c.appendChild(pbd)}
   }
   if(p.sh){
@@ -9040,6 +9040,37 @@ setInterval(function(){if(WA.open&&!document.hidden)render();try{if(!document.hi
   ["visibilitychange","pageshow","orientationchange","resize","touchend"].forEach(function(ev){window.addEventListener(ev,function(){setTimeout(fix,100)},{passive:true})});
   setInterval(fix,1000);
   fix();
+})();
+</script>
+<script>
+/* Janet's greeting: the first time the hub is opened each morning, afternoon, evening and night, Daddy or Mummy sees Janet say hello (once per part of the day, per phone) */
+(function(){
+  function part(d){var h=d.getHours();return h>=5&&h<12?"morning":h>=12&&h<17?"afternoon":h>=17&&h<21?"evening":"night"}
+  function keyOf(d){var x=new Date(d.getTime()-5*3600000);return x.getFullYear()+"-"+(x.getMonth()+1)+"-"+x.getDate()+"|"+part(d)}
+  function show(who){
+    var d=new Date(),pt=part(d),old=document.getElementById("jgreet");if(old)old.remove();
+    var o=document.createElement("div");o.id="jgreet";o.style.cssText="position:fixed;inset:0;z-index:10100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;color:#fff;opacity:0;transition:opacity .5s;background:"+({morning:"linear-gradient(160deg,#ff9a56,#ffcf6b)",afternoon:"linear-gradient(160deg,#2f9bff,#7fd0ff)",evening:"linear-gradient(160deg,#8a4fff,#ff7eb3)",night:"linear-gradient(160deg,#0b1030,#2a2f6b)"})[pt];
+    var av=document.createElement("div");av.style.cssText="width:170px;height:170px;border-radius:50%;background:#fff3 center/cover no-repeat;border:5px solid #fff;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:4rem;font-weight:800";
+    var a=PF(BABY_ID).avatar;if(a&&typeof setBg==="function")setBg(av,a);else av.textContent="J";
+    var t=document.createElement("div");t.style.cssText="font-size:2rem;font-weight:800;line-height:1.2;text-shadow:0 2px 8px rgba(0,0,0,.25)";t.textContent="Good "+pt+", "+who+"!";
+    var sb=document.createElement("div");sb.style.cssText="font-size:1rem;opacity:.9";sb.textContent="— Janet";
+    o.appendChild(av);o.appendChild(t);o.appendChild(sb);document.body.appendChild(o);
+    requestAnimationFrame(function(){o.style.opacity="1"});
+    function close(){o.style.opacity="0";setTimeout(function(){o.remove()},500)}
+    o.onclick=close;setTimeout(close,3800);
+  }
+  function check(){
+    try{
+      if(document.hidden||document.body.classList.contains("locked"))return;
+      if(typeof S==="undefined"||!S.profLoaded||typeof myRole!=="function")return;
+      var r=myRole();if(!r)return;
+      var k=keyOf(new Date()),last=null;try{last=localStorage.getItem("hubGreet")}catch(e){}
+      if(last===k)return;
+      try{localStorage.setItem("hubGreet",k)}catch(e){return}
+      show(r==="daddy"?"Daddy":"Mummy");
+    }catch(e){}
+  }
+  setInterval(check,3000);document.addEventListener("visibilitychange",function(){setTimeout(check,400)});
 })();
 </script>
 </body>
