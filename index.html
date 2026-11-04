@@ -8170,6 +8170,8 @@ function wsOpen(uid){
 window.waStatusOpen=wsOpen;window.hubVideoCompose=function(){wsCompose("video")};window.hubPhotoCompose=function(){wsCompose("photo")};window.WSBG=WSBG;
 function wsCompose(mode){
   var ov=E("div");ov.style.cssText="position:fixed;inset:0;z-index:9500;background:#111;color:#fff;display:flex;flex-direction:column";
+  var cmsg=E("div");cmsg.style.cssText="position:absolute;left:12px;right:12px;top:calc(60px + env(safe-area-inset-top,0px));z-index:5;background:#b3261e;color:#fff;border-radius:12px;padding:10px 14px;font-weight:600;display:none";ov.appendChild(cmsg);
+  function ctoast(t){cmsg.textContent=t;cmsg.style.display="block";clearTimeout(cmsg._t);cmsg._t=setTimeout(function(){cmsg.style.display="none"},6000)}
   var top=E("div");top.style.cssText="display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 8px";
   var cx=E("button",null,"✕");cx.type="button";cx.style.cssText="border:0;background:none;color:#fff;font-size:1.5rem;padding:4px 10px;cursor:pointer";cx.onclick=function(){ov.remove()};top.appendChild(cx);
   top.appendChild(T("b",null,"Add to story"));ov.appendChild(top);
@@ -8190,14 +8192,16 @@ function wsCompose(mode){
   var vin=E("input");vin.type="file";vin.accept="video/*";vin.setAttribute("data-story-video","1");vin.hidden=true;
   vpick.onclick=function(){vin.click()};
   function handleVideo(f){if(!f)return;
-    if(f.size>SV_MAX_MB*1048576)return toast("That video is too big ("+Math.round(f.size/1048576)+" MB). Keep it under "+SV_MAX_MB+" MB, about "+SV_MAX_S+" seconds.");
-    var u=URL.createObjectURL(f),pv=document.createElement("video");pv.preload="metadata";
-    pv.onloadedmetadata=function(){var d=pv.duration;URL.revokeObjectURL(u);
-      if(isFinite(d)&&d>SV_MAX_S+0.5)return toast("That video is "+Math.round(d)+" seconds. Story videos can be up to "+SV_MAX_S+" seconds. Trim it in Photos and try again.");
-      vfile=f;vmeta={dur:isFinite(d)?Math.round(d):0};photo=null;img.style.display="none";ta.style.display="none";bgb.style.display="none";cap.style.display="";
-      vprev.src=URL.createObjectURL(f);vprev.style.display="";vprev.play().catch(function(){});stage.style.background="#000";cap.focus()};
-    pv.onerror=function(){URL.revokeObjectURL(u);vfile=f;vmeta={dur:0};photo=null;img.style.display="none";ta.style.display="none";cap.style.display="";vprev.src=URL.createObjectURL(f);vprev.style.display="";vprev.play().catch(function(){})};
-    pv.src=u}
+    if(f.size>SV_MAX_MB*1048576)return ctoast("That video is too big ("+Math.round(f.size/1048576)+" MB). Keep it under "+SV_MAX_MB+" MB, about "+SV_MAX_S+" seconds.");
+    /* iPhone does not load video details until it is shown, so the file is accepted straight away and checked as the preview loads */
+    vfile=f;vmeta={dur:0};photo=null;img.style.display="none";ta.style.display="none";bgb.style.display="none";cap.style.display="";
+    var vu=URL.createObjectURL(f);
+    vprev.onloadedmetadata=function(){var d=vprev.duration;
+      if(isFinite(d)&&d>SV_MAX_S+0.5){vfile=null;vprev.pause();vprev.removeAttribute("src");vprev.style.display="none";return ctoast("That video is "+Math.round(d)+" seconds. Story videos can be up to "+SV_MAX_S+" seconds. Trim it in Photos and try again.")}
+      vmeta={dur:isFinite(d)?Math.round(d):0}};
+    vprev.onerror=function(){ctoast("This phone can’t preview that video, but you can still post it.")};
+    vprev.src=vu;vprev.style.display="";stage.style.background="#000";try{vprev.load()}catch(e){}vprev.play().catch(function(){});
+    cap.placeholder="Add a caption…"}
   vin.onchange=function(){var f=vin.files&&vin.files[0];vin.value="";handleVideo(f)};
   function setMode(m){
     if(m!=="video"){vfile=null;vprev.pause();vprev.style.display="none"}
@@ -8208,10 +8212,10 @@ function wsCompose(mode){
   bgb.onclick=function(){bgi=(bgi+1)%WSBG.length;stage.style.background=WSBG[bgi]};
   pick.onclick=function(){file.click()};
   file.onchange=function(){var f=file.files&&file.files[0];file.value="";if(!f)return;if(/^video\//.test(f.type||"")||/\.(mp4|mov|m4v|webm)$/i.test(f.name||""))return handleVideo(f);
-    shrink(f).then(function(r){photo=r;img.src=r.data;setMode("photo");cap.style.display="";cap.focus()}).catch(function(){toast("Couldn’t read that photo. Try another.")})};
+    shrink(f).then(function(r){photo=r;img.src=r.data;setMode("photo");cap.style.display="";cap.focus()}).catch(function(){ctoast("Couldn’t read that photo. Try another.")})};
   post.onclick=async function(){
     var text=ta.style.display==="none"?cap.value.trim():ta.value.trim();
-    if(!photo&&!text&&!vfile)return toast("Add a photo or video, or type something first.");
+    if(!photo&&!text&&!vfile)return ctoast("Add a photo or video, or type something first.");
     if(!db)return;post.disabled=true;post.textContent="Posting…";
     try{
       var p={wa:1,by:myId||"",ts:Date.now(),text:text};
@@ -8219,7 +8223,7 @@ function wsCompose(mode){
       else if(photo){var ref=db.collection("media").doc();await ref.set({data:photo.data,w:photo.w,h:photo.h,ts:Date.now(),by:myId||""});MEDIA[ref.id]=Promise.resolve({data:photo.data});p.mid=ref.id;p.w=photo.w;p.h=photo.h}
       else p.bg=bgi+1;
       await db.collection("posts").add(p);ov.remove();toast("Added to your story. It stays for 7 days.");
-    }catch(e){post.disabled=false;post.textContent="Post";toast("That didn’t post. Check your connection and try again.")}
+    }catch(e){post.disabled=false;post.textContent="Post";var em=String((e&&(e.message||e.error_description||e.error))||"");ctoast(em==="toolarge"||/exceeded|too large|maximum/i.test(em)?"That file is too big. Keep videos under 45 MB.":"That didn’t post"+(em?" ("+em.slice(0,90)+")":"")+". Check your connection and try again.")}
   };
   bot.appendChild(pick);bot.appendChild(tx);bot.appendChild(bgb);bot.appendChild(cap);bot.appendChild(post);
   ov.appendChild(bot);ov.appendChild(file);ov.appendChild(vin);document.body.appendChild(ov);
