@@ -5238,7 +5238,7 @@ function buildPost(p,ps){
       cms=S.pcom.filter(function(x){return x.post===p.id}).sort(function(a,b){return a.ts-b.ts}),
       mt=myReact(p),mr=mt?rdef(mt):null;
   var st=h("div","pstats"),total=0,cnt={};
-  likes.forEach(function(l){var n=1,t=l.type||"like";total+=n;cnt[t]=(cnt[t]||0)+n});
+  likes.forEach(function(l){var n=l.n||1,t=l.type||"like";total+=n;cnt[t]=(cnt[t]||0)+n});
   if(total){
     var top=Object.keys(cnt).sort(function(a,b){return cnt[b]-cnt[a]}).slice(0,3).map(function(t){return rdef(t)[1]}).join("");
     var rb2=h("button","quiet",top+" "+total);rb2.style.cssText="text-decoration:none;color:inherit;font-size:.9rem;padding:0";rb2.onclick=function(){showReactors(p)};st.appendChild(rb2);
@@ -7160,7 +7160,7 @@ async function start(session){
       var p=x.post,who=memberName(p.by);
       lines.push("Posted "+when+" · "+ago(x.ts));
       var likes=S.plikes.filter(function(l){return l.post===p.id}),tot=0,cnt={};
-      likes.forEach(function(l){var n=1,t=l.type||"like";tot+=n;cnt[t]=(cnt[t]||0)+n});
+      likes.forEach(function(l){var n=l.n||1,t=l.type||"like";tot+=n;cnt[t]=(cnt[t]||0)+n});
       var cms=S.pcom.filter(function(c){return c.post===p.id}).length,bits=[];
       if(tot)bits.push(Object.keys(cnt).sort(function(a,b){return cnt[b]-cnt[a]}).slice(0,3).map(function(t){return rdef(t)[1]}).join("")+" "+tot+(tot===1?" reaction":" reactions"));else bits.push("No reactions yet");
       bits.push(cms?cms+(cms===1?" comment":" comments"):"No comments");
