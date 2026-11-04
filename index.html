@@ -7589,15 +7589,17 @@ function ytOpen(vid){
   var o=E("div");o.id="ytv";o.style.cssText="position:fixed;inset:0;z-index:10100;background:#000;display:flex;flex-direction:column";
   var bar=E("div");bar.style.cssText="display:flex;justify-content:flex-end;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px";
   var x=T("button",null,"Close");x.type="button";x.style.cssText="background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:999px;padding:9px 18px;font:inherit;font-weight:600";x.onclick=function(){o.remove()};bar.appendChild(x);
-  var fr=E("iframe");fr.setAttribute("allow","autoplay; encrypted-media; picture-in-picture; fullscreen");fr.setAttribute("allowfullscreen","");fr.style.cssText="flex:1;border:0;width:100%";
+  var fr=E("iframe");fr.setAttribute("allow","autoplay; encrypted-media; picture-in-picture; fullscreen");fr.setAttribute("allowfullscreen","");fr.setAttribute("referrerpolicy","strict-origin-when-cross-origin");fr.style.cssText="flex:1;border:0;width:100%";
   o.appendChild(bar);o.appendChild(fr);document.body.appendChild(o);
   /* a finished live stream plays back like any video while it is still on YouTube; if it was removed, say so */
   function play(){if(o.isConnected)fr.src="https://www.youtube.com/embed/"+encodeURIComponent(vid)+"?autoplay=1&playsinline=1&rel=0&disablekb=1"}
   function gone(){if(!o.isConnected)return;fr.remove();var m=E("div");m.style.cssText="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#fff;text-align:center;padding:24px";m.appendChild(T("div",null,"📺"));m.lastChild.style.fontSize="3rem";var t=T("b",null,"This video is no longer available");t.style.fontSize="1.2rem";m.appendChild(t);m.appendChild(T("div",null,"The live stream or its replay was removed from YouTube."));o.appendChild(m)}
+  /* start playing at once (as before); check in the background whether the video still exists */
+  play();
   try{
-    var ac=window.AbortController?new AbortController():null,to=setTimeout(function(){if(ac)ac.abort()},4000);
-    fetch("https://www.youtube.com/oembed?url="+encodeURIComponent("https://www.youtube.com/watch?v="+vid)+"&format=json",ac?{signal:ac.signal}:{}).then(function(r){clearTimeout(to);if(r.status===404||r.status===401||r.status===403||r.status===400)gone();else play()}).catch(function(){clearTimeout(to);play()});
-  }catch(e){play()}
+    var ac=window.AbortController?new AbortController():null,to=setTimeout(function(){if(ac)ac.abort()},5000);
+    fetch("https://www.youtube.com/oembed?url="+encodeURIComponent("https://www.youtube.com/watch?v="+vid)+"&format=json",ac?{signal:ac.signal}:{}).then(function(r){clearTimeout(to);if(r.status===404||r.status===400)gone()}).catch(function(){clearTimeout(to)});
+  }catch(e){}
 }
 var feedAt=0;
 function feedRefresh(){
