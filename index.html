@@ -292,7 +292,7 @@ ul.help{margin:0;padding-left:18px}ul.help li{margin-bottom:6px}
 .agrid .tl{font-size:.85rem}
 .bub.media{padding:4px}
 .bub.media .quote{margin:4px 4px 6px}
-.mimg{display:block;max-width:100%;height:auto;border-radius:12px;cursor:pointer;background:rgba(127,127,127,.2)}
+.mimg{-webkit-user-drag:none;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none;display:block;max-width:100%;height:auto;border-radius:12px;cursor:pointer;background:rgba(127,127,127,.2)}
 .attc{display:flex;flex-direction:column;gap:5px;min-width:170px;align-items:flex-start}
 .attc a{color:inherit;text-decoration:underline}
 .meta2{font-size:.78rem;opacity:.8}
@@ -3576,9 +3576,10 @@ function closePick(){var p=$("#pick");if(p)p.remove()}
 document.addEventListener("pointerdown",function(e){var p=$("#pick");if(p&&!p.contains(e.target))closePick()});
 function gesture(row,m,col){
   var x0=0,y0=0,dx=0,drag=false,down=false,tm=null;
+  row.style.touchAction="pan-y";row.addEventListener("dragstart",function(e){e.preventDefault()});
   function end(){clearTimeout(tm);down=false}
   row.addEventListener("pointerdown",function(e){
-    if(e.target.closest(".chip,.quote,.bbtn,.attc a"))return;
+    if(e.target.closest(".chip,.bbtn,.attc a"))return;
     down=true;drag=false;dx=0;x0=e.clientX;y0=e.clientY;
     tm=setTimeout(function(){if(down&&!drag){down=false;openPick(m,row);if(navigator.vibrate)navigator.vibrate(15)}},450)});
   row.addEventListener("pointermove",function(e){
@@ -8247,7 +8248,7 @@ function renderPinBar(){
 function jump(id){var r=CH.list&&CH.list.querySelector(".wm[data-id='"+id+"']");if(r){r.scrollIntoView({block:"center",behavior:"smooth"});r.classList.add("flash");setTimeout(function(){r.classList.remove("flash")},1200)}}
 /* gestures: swipe right to reply, press and hold for actions */
 function gest(row,m,b){
-  var x0=0,y0=0,dx=0,down=false,tm=null,drag=false;
+  var x0=0,y0=0,dx=0,down=false,tm=null,drag=false,ico=null,hit=false;
   function end(){clearTimeout(tm);down=false}
   if(ST.chat===BOT_ID||m.by===BOT_ID){
     if(isOwner&&m.kind==="announce"){
@@ -8258,15 +8259,23 @@ function gest(row,m,b){
     }
     return;
   }
+  row.style.touchAction="pan-y";row.addEventListener("dragstart",function(e){e.preventDefault()});
   row.addEventListener("pointerdown",function(e){
-    if(e.target.closest("button,a,.wq,.wrx,.mimg,.wvoice"))return;
+    if(e.target.closest("button,a,.wrx,input,audio"))return;
     down=true;drag=false;dx=0;x0=e.clientX;y0=e.clientY;
     tm=setTimeout(function(){if(down&&!drag){down=false;msgMenu(m);if(navigator.vibrate)navigator.vibrate(12)}},420)});
   row.addEventListener("pointermove",function(e){
     if(!down)return;var mx=e.clientX-x0,my=e.clientY-y0;
     if(!drag&&Math.abs(my)>10&&Math.abs(my)>Math.abs(mx)){end();return}
-    if(mx<-8){drag=true;clearTimeout(tm);dx=Math.max(-70,mx);b.style.transition="none";b.style.transform="translateX("+dx+"px)"}});
-  function up(){if(down&&drag&&dx<=-56)WA.setReply(m);b.style.transition="transform .2s";b.style.transform="";end()}
+    if(Math.abs(mx)>8){drag=true;clearTimeout(tm);
+      /* follows the finger with a little resistance, so it can be pulled well across the screen */
+      var ax=Math.abs(mx),mv=ax<60?ax:60+(ax-60)*.55;mv=Math.min(mv,260);dx=mx<0?-mv:mv;
+      b.style.transition="none";b.style.transform="translateX("+dx+"px)";
+      if(!ico){ico=E("span");ico.innerHTML=ic("back",20);ico.style.cssText="position:absolute;top:50%;width:34px;height:34px;margin-top:-17px;border-radius:50%;background:rgba(120,120,120,.55);color:#fff;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;z-index:2";row.style.position="relative";row.appendChild(ico)}
+      var p=Math.min(1,ax/56);ico.style[mx>0?"left":"right"]="10px";ico.style[mx>0?"right":"left"]="auto";
+      ico.style.opacity=String(p);ico.style.transform="scale("+(.5+.5*p)+")";
+      if(ax>=56&&!hit){hit=true;try{if(navigator.vibrate)navigator.vibrate(10)}catch(e){}}else if(ax<56)hit=false}});
+  function up(){if(down&&drag&&Math.abs(dx)>=56)WA.setReply(m);b.style.transition="transform .2s";b.style.transform="";if(ico){ico.style.transition="opacity .2s";ico.style.opacity="0"}hit=false;end()}
   row.addEventListener("pointerup",up);row.addEventListener("pointercancel",up);
   row.addEventListener("contextmenu",function(e){e.preventDefault();msgMenu(m)});
 }
@@ -8974,20 +8983,29 @@ setInterval(function(){if(WA.open&&!document.hidden)render();try{if(!document.hi
 
 </script>
 <script>
-/* keep the bottom menu pinned to the visible screen (iPhone moves fixed bars when the keyboard or date picker opens) */
+/* keep the bottom menu pinned to the visible screen (iPhone moves fixed bars when the keyboard or date picker opens).
+   It is hidden only while a text box really has the keyboard open, and it re-checks itself every second so it can never stay hidden or drift off-screen. */
 (function(){
   var r=document.documentElement,vv=window.visualViewport;
+  function kb(){return vv?(window.innerHeight-vv.height)>120&&!(vv.scale>1.02):false}
   function pin(){
-    if(!vv)return;
-    var off=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);
+    var off=0;
+    if(vv&&!(vv.scale>1.02)){off=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);if(off>window.innerHeight*.6)off=0}
     r.style.setProperty("--vvoff",off+"px");
   }
-  if(vv){vv.addEventListener("resize",pin);vv.addEventListener("scroll",pin)}
-  function typing(){var a=document.activeElement,t=a&&a.tagName;if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT")r.setAttribute("data-typing","1");else r.removeAttribute("data-typing")}
-  document.addEventListener("focusin",typing);
-  document.addEventListener("focusout",function(){setTimeout(typing,120)});
+  function typing(){
+    var a=document.activeElement,t=a&&a.tagName,ty=a&&a.type;
+    var textish=(t==="TEXTAREA"||t==="SELECT"||(t==="INPUT"&&!/^(checkbox|radio|range|file|button|submit|color)$/i.test(ty||"")))&&document.documentElement.contains(a)&&a.offsetParent!==null;
+    if(textish&&kb())r.setAttribute("data-typing","1");else r.removeAttribute("data-typing");
+  }
+  function fix(){pin();typing()}
+  if(vv){vv.addEventListener("resize",fix);vv.addEventListener("scroll",pin)}
+  document.addEventListener("focusin",function(){setTimeout(fix,150)});
+  document.addEventListener("focusout",function(){setTimeout(fix,150)});
   window.addEventListener("scroll",pin,{passive:true});
-  pin();
+  ["visibilitychange","pageshow","orientationchange","resize","touchend"].forEach(function(ev){window.addEventListener(ev,function(){setTimeout(fix,100)},{passive:true})});
+  setInterval(fix,1000);
+  fix();
 })();
 </script>
 </body>
