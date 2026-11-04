@@ -27,3 +27,6 @@
 
 [functions."story-cleanup"]
   schedule = "30 3 * * *"
+
+[functions."unseen-reminder"]
+  schedule = "*/30 * * * *"
