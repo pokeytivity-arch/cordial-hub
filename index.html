@@ -5601,7 +5601,18 @@ function renderStories(){
     var t=document.createElement("div");t.style.cssText="position:absolute;left:8px;right:8px;bottom:8px;font-weight:700;font-size:.9rem;line-height:1.15;text-shadow:0 1px 3px rgba(0,0,0,.6);overflow:hidden;text-overflow:ellipsis";t.textContent=name;c.appendChild(t);
     c.onclick=onclick;el.appendChild(c);return c;
   }
-  if(canWrite)card(null,"Add to story",function(){if(window.hubPhotoCompose)hubPhotoCompose();else toast("Stories are not ready yet. Reload the hub.")},true);
+  if(canWrite){
+    /* "Create story": your profile photo on top, a blue + on the edge, the label below, like Facebook */
+    var cs=document.createElement("button");cs.type="button";cs.setAttribute("aria-label","Create story");
+    cs.style.cssText="flex:none;width:104px;height:170px;border:1px solid var(--line,#dadde1);border-radius:14px;position:relative;overflow:hidden;background:var(--surface,#fff);color:var(--ink,#050505);cursor:pointer;font:inherit;padding:0;text-align:center";
+    var ctop=document.createElement("div");ctop.style.cssText="position:absolute;left:0;right:0;top:0;height:118px;background:"+(typeof colorOf==="function"?colorOf(myId):"#1877f2")+" center/cover no-repeat;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:2.2rem";
+    var pfa=PF(myId).avatar;if(pfa)setBg(ctop,pfa);else ctop.textContent=(S.me||"?").charAt(0).toUpperCase();
+    var cpl=document.createElement("span");cpl.textContent="+";cpl.style.cssText="position:absolute;left:50%;top:118px;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:#1877f2;color:#fff;border:3px solid var(--surface,#fff);display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:700;line-height:1;padding-bottom:2px;box-sizing:border-box";
+    var clb=document.createElement("div");clb.textContent="Create story";clb.style.cssText="position:absolute;left:6px;right:6px;bottom:8px;font-weight:700;font-size:.85rem;line-height:1.15";
+    cs.appendChild(ctop);cs.appendChild(cpl);cs.appendChild(clb);
+    cs.onclick=function(){if(window.hubPhotoCompose)hubPhotoCompose();else toast("Stories are not ready yet. Reload the hub.")};
+    el.appendChild(cs);
+  }
   us.forEach(function(u){var it=storyItems(u),last=it[it.length-1];
     var vi=it.slice().reverse().filter(function(x){return x.vpath||x.mid||x.tmid})[0]||last;
     var cc=card(vi.mid||vi.tmid||null,(!vi.mid&&!vi.tmid&&!vi.vpath?"Aa ":"")+(u===myId?"Your story":memberName(u)),function(){openStory(u)},false,u,!(window.hubStoryNew&&hubStoryNew(u)));
@@ -8329,7 +8340,7 @@ function wsCompose(mode){
   function ctoast(t){cmsg.textContent=t;cmsg.style.display="block";clearTimeout(cmsg._t);cmsg._t=setTimeout(function(){cmsg.style.display="none"},6000)}
   var top=E("div");top.style.cssText="display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 8px";
   var cx=E("button",null,"✕");cx.type="button";cx.style.cssText="border:0;background:none;color:#fff;font-size:1.5rem;padding:4px 10px;cursor:pointer";cx.onclick=function(){ov.remove()};top.appendChild(cx);
-  top.appendChild(T("b",null,"Add to story"));ov.appendChild(top);
+  top.appendChild(T("b",null,"Create story"));ov.appendChild(top);
   var stage=E("div");stage.style.cssText="flex:1;position:relative;display:flex;align-items:center;justify-content:center;min-height:0;background:#000";ov.appendChild(stage);
   var photo=null,bgi=0;
   var img=E("img");img.alt="";img.style.cssText="max-width:100%;max-height:100%;object-fit:contain;display:none";stage.appendChild(img);
