@@ -4,6 +4,7 @@
 // Variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY. Optional: YT_EXTRA_SEEDS = comma-separated video ids.
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ytn = require("./yt-notify.js");
 const SEEDS = String(process.env.YT_EXTRA_SEEDS || "GkIAp6nj5vY,qihY3KKkbfw").split(",").map((s) => s.trim()).filter(Boolean);
 const KEYNAME = "profiles/yt_extra";
 const H = { apikey: KEY, Authorization: `Bearer ${KEY}` };
@@ -62,10 +63,12 @@ async function run(event) {
         try { const t = await (await fetch(`https://www.youtube.com/channel/${ch}/videos`, { headers: UA, signal: AbortSignal.timeout(5000) })).text(); const v = t.match(/"videoId":"([\w-]{11})"/); if (v) vid = v[1]; } catch {}
       }
       if (!vid) vid = old.vid || seed;
+      const chName = name || old.channel || "YouTube";
+      const extra = await ytn.liveTransition(old, { channel: chName, liveVid });
       return {
-        seed, channelId: ch, channel: name || old.channel || "YouTube", vid, title: title || old.title || "",
+        seed, channelId: ch, channel: chName, vid, title: title || old.title || "",
         url: `https://www.youtube.com/watch?v=${vid}`, live: `https://www.youtube.com/channel/${ch}/live`,
-        liveNow: !!liveVid, liveVid, published: pub, seen: old.vid === vid ? (old.seen || now) : now,
+        liveNow: !!liveVid, liveVid, published: pub, seen: old.vid === vid ? (old.seen || now) : now, ...extra,
       };
     } catch (e) { why[seed] = "error"; return old.vid ? old : null; }
   }));

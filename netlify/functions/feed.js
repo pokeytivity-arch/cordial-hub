@@ -4,6 +4,7 @@
 // and the app can also ask it to refresh (at most once every 10 minutes).
 // Environment variables in Netlify: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
 // Optional: YT_CHANNEL_ID (starts with UC), YT_SEED_VIDEO (any video id from the channel; default by4HnBk9Kg0).
+const ytn = require("./yt-notify.js");
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SEED = process.env.YT_SEED_VIDEO || "by4HnBk9Kg0";
@@ -88,7 +89,9 @@ exports.handler = async (event) => {
     return out(502, { error: "feed_failed", why });
   }
   const liveVid = await liveVideo(ch);
+  const extra = await ytn.liveTransition(saved, { channel: chName || saved.channel || "YouTube", liveVid });
   const data = {
+    ...extra,
     liveNow: !!liveVid, liveVid,
     channelId: ch, channel: chName || saved.channel || "YouTube", vid, title,
     url: `https://www.youtube.com/watch?v=${vid}`, live: `https://www.youtube.com/channel/${ch}/live`,
