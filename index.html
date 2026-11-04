@@ -1164,13 +1164,13 @@ var SKINS=["","🏻","🏼","🏽","🏾","🏿"],SKINC=["#ffcc22","#f7d7c4","#e
 var TONABLE=Array.from("👍👎👏🙌🙏💪👋🤞👌✋👊✊👶👧👦👨👩");
 function skinGet(){try{return localStorage.getItem("hubSkin")||""}catch(e){return ""}}
 function tone(e){var k=skinGet();return k&&TONABLE.indexOf(e)>=0?e+k:e}
-/* videos are not accepted anywhere in the hub */
+/* videos are not accepted anywhere in the hub, except on stories (inputs marked data-story-video); stories are deleted after 7 days */
 document.addEventListener("change",function(e){
-  var t=e.target;if(!t||t.tagName!=="INPUT"||t.type!=="file"||!t.files)return;
+  var t=e.target;if(!t||t.tagName!=="INPUT"||t.type!=="file"||!t.files)return;if(t.hasAttribute&&t.hasAttribute("data-story-video"))return;
   var bad=false;Array.prototype.forEach.call(t.files,function(f){if(/^video\//i.test(f.type||"")||/\.(mp4|mov|m4v|avi|mkv|webm|3gp|wmv|flv|mpg|mpeg)$/i.test(f.name||""))bad=true});
   if(!bad)return;
   e.stopImmediatePropagation();e.preventDefault();try{t.value=""}catch(x){}
-  var m="Videos can’t be added to the hub. Please use photos or documents.";
+  var m="Videos can only be added to stories (they disappear after 7 days). Use Add to story, or use photos or documents here.";
   try{if(typeof toast==="function")toast(m);else if(typeof note==="function")note(m);else alert(m)}catch(x){}
 },true);
 function soundOn(){try{return localStorage.getItem("hubSound")!=="0"}catch(e){return true}}
@@ -3429,17 +3429,29 @@ function openAskJanet(){
   var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto";
   var bx=h("div","card");bx.style.cssText="max-width:440px;width:100%;margin:auto";
   bx.appendChild(h("h3",null,"Ask Cordial to post for Janet ✨"));
-  bx.appendChild(h("p","meta","Add up to 3 photos and tell Cordial what you want the post to say. Cordial looks at the photos to write it. You can change the words before it posts as Janet."));
-  var ph=h("input");ph.type="file";ph.accept="image/*";ph.multiple=true;bx.appendChild(h("label","meta","Photos (optional, up to 3)"));bx.appendChild(ph);
+  bx.appendChild(h("p","meta","Add up to 3 photos, or one video for her story, and tell Cordial what you want to say. Cordial looks at the photos to write it. You can change the words before it posts as Janet. Videos go on her story only and disappear after 7 days."));
+  var ph=h("input");ph.type="file";ph.accept="image/*,video/*";ph.setAttribute("data-story-video","1");ph.multiple=true;bx.appendChild(h("label","meta","Photos or one video (optional)"));bx.appendChild(ph);
   var th=h("div");th.style.cssText="display:flex;gap:6px;margin:6px 0;flex-wrap:wrap";bx.appendChild(th);
-  var files=[];
-  ph.onchange=function(){files=Array.prototype.slice.call(ph.files||[],0,3);th.textContent="";files.forEach(function(f){var im=h("img");im.src=URL.createObjectURL(f);im.alt="";im.style.cssText="width:64px;height:64px;object-fit:cover;border-radius:8px";th.appendChild(im)})};
+  var files=[],vfile=null,vdur=0,ds=null;
+  ph.onchange=function(){
+    var all=Array.prototype.slice.call(ph.files||[],0,3),vv=all.filter(function(f){return /^video\//i.test(f.type||"")||/\.(mp4|mov|m4v|webm)$/i.test(f.name||"")});
+    vfile=null;vdur=0;th.textContent="";
+    if(vv.length){
+      var f0=vv[0];
+      if(f0.size>45*1048576){ph.value="";files=[];return toast("That video is too big ("+Math.round(f0.size/1048576)+" MB). Keep it under 45 MB, about 30 seconds.")}
+      var u0=URL.createObjectURL(f0),pv0=document.createElement("video");pv0.preload="metadata";
+      pv0.onloadedmetadata=function(){var d=pv0.duration;URL.revokeObjectURL(u0);if(isFinite(d)&&d>30.5){ph.value="";files=[];vfile=null;th.textContent="";return toast("That video is "+Math.round(d)+" seconds. Story videos can be up to 30 seconds.")}vdur=isFinite(d)?Math.round(d):0};
+      pv0.src=u0;
+      vfile=f0;files=[];shrunk=null;thumbs=null;if(ds)ds.value="story";
+      var chip=h("div","meta","🎬 "+(f0.name||"video")+" · goes on Janet’s story");th.appendChild(chip);return;
+    }
+    files=all;shrunk=null;thumbs=null;files.forEach(function(f){var im=h("img");im.src=URL.createObjectURL(f);im.alt="";im.style.cssText="width:64px;height:64px;object-fit:cover;border-radius:8px";th.appendChild(im)})};
   bx.appendChild(h("label","meta","What should the post say?"));
   var ins=h("textarea");ins.rows=3;ins.maxLength=500;ins.style.width="100%";ins.placeholder="Her first day at the park. Say she loved the swing and thank Mummy.";bx.appendChild(ins);
   var r1=h("div");r1.style.cssText="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap";
   function sel(lbl,opts){var l=h("label","meta",lbl);l.style.flex="1 1 140px";var s=h("select");s.style.width="100%";opts.forEach(function(o){var x=h("option",null,o[1]);x.value=o[0];s.appendChild(x)});l.appendChild(s);r1.appendChild(l);return s}
   var tg=sel("Tag",[["both","Daddy and Mummy"],["daddy","Daddy"],["mummy","Mummy"]]);
-  var tn=sel("Style",[["","Sweet"],["funny","Funny"]]);bx.appendChild(r1);
+  var tn=sel("Style",[["","Sweet"],["funny","Funny"]]);ds=sel("Post to",[["feed","Janet’s feed"],["story","Janet’s story (7 days)"]]);bx.appendChild(r1);
   var out=h("div");out.hidden=true;out.style.marginTop="12px";
   out.appendChild(h("label","meta","Cordial’s post (you can edit it)"));
   var dr=h("textarea");dr.rows=4;dr.maxLength=600;dr.style.width="100%";out.appendChild(dr);bx.appendChild(out);
@@ -3450,12 +3462,12 @@ function openAskJanet(){
   var pb=h("button","go","Post as Janet");pb.type="button";pb.hidden=true;
   var shrunk=null,thumbs=null;
   wr.onclick=async function(){
-    if(!files.length&&!ins.value.trim()){msg.textContent="Add a photo or tell Cordial what to say.";return}
+    if(!files.length&&!vfile&&!ins.value.trim()){msg.textContent="Add a photo or video, or tell Cordial what to say.";return}
     msg.textContent="";wr.disabled=true;wr.textContent="Cordial is writing…";
     try{
       if(!shrunk){shrunk=[];thumbs=[];for(var i=0;i<files.length;i++){shrunk.push(await shrink(files[i]));thumbs.push(await aiThumb(files[i]))}}
       var o=ownerM(),m=mumM(),ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)throw 0;
-      var r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({baby:{event:"",instruction:ins.value.trim()||"Write a lovely post about these photos.",images:thumbs.map(function(d){return{media:"image/jpeg",data:d.slice(d.indexOf(",")+1)}}),target:tg.value,dad:o?mFirst(o.name):"Daddy",mum:m?mFirst(m.name):"Mummy",age:babyAge(),tone:tn.value}})});
+      var r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({baby:{event:"",instruction:ins.value.trim()||(vfile?"Write a lovely short caption for Janet\u2019s story video.":"Write a lovely post about these photos."),images:thumbs.map(function(d){return{media:"image/jpeg",data:d.slice(d.indexOf(",")+1)}}),target:tg.value,dad:o?mFirst(o.name):"Daddy",mum:m?mFirst(m.name):"Mummy",age:babyAge(),tone:tn.value}})});
       var j={};try{j=await r.json()}catch(x){}
       if(!r.ok||!j.text){var er=new Error("api");er.status=r.status;er.code=j.error;er.detail=j.detail||"";er.up=j.status||"";throw er}
       dr.value=j.text;out.hidden=false;pb.hidden=false;wr.textContent="Write it again";
@@ -3466,6 +3478,15 @@ function openAskJanet(){
     var t=dr.value.trim();if(!t){msg.textContent="The post is empty.";return}
     pb.disabled=true;pb.textContent="Posting…";
     try{
+      if(ds&&ds.value==="story"||vfile){
+        var sp0={wa:1,by:BABY_ID,ts:Date.now(),text:t.slice(0,300),ai:true,askedBy:myId||""};
+        if(vfile){pb.textContent="Uploading video…";sp0.vpath=await upload("chat",vfile,"story-"+(vfile.name||"video.mp4"));sp0.vtype=vfile.type||"video/mp4";sp0.vdur=vdur||0;await db.collection("posts").add(sp0)}
+        else if((shrunk||[]).length){
+          for(var si=0;si<shrunk.length;si++){var sx=shrunk[si],sr=db.collection("media").doc();await sr.set({data:sx.data,w:sx.w,h:sx.h,ts:Date.now(),by:myId||""});MEDIA[sr.id]=Promise.resolve({data:sx.data});
+            var spx=Object.assign({},sp0,{ts:Date.now()+si,mid:sr.id,w:sx.w,h:sx.h});if(si>0)spx.text="";await db.collection("posts").add(spx)}
+        }else{sp0.bg=1+Math.floor(Math.random()*7);await db.collection("posts").add(sp0)}
+        ov.remove();note("Added to Janet’s story. It stays for 7 days.");setTimeout(function(){note("")},2500);return;
+      }
       var ph2=[];for(var i=0;i<(shrunk||[]).length;i++){var s0=shrunk[i],rf=db.collection("media").doc();await rf.set({data:s0.data,w:s0.w,h:s0.h,ts:Date.now(),by:myId||""});MEDIA[rf.id]=Promise.resolve({data:s0.data});ph2.push({mid:rf.id,w:s0.w,h:s0.h})}
       var o2=ownerM(),m2=mumM(),tags=[];if((tg.value==="daddy"||tg.value==="both")&&o2)tags.push(o2.user_id);if((tg.value==="mummy"||tg.value==="both")&&m2)tags.push(m2.user_id);
       var np={text:t.slice(0,600),ts:Date.now(),by:BABY_ID,ai:true,tags:tags,askedBy:myId||""};
@@ -8163,10 +8184,10 @@ function wsCompose(mode){
   [pick,tx,bgb].forEach(function(b){b.style.cssText="border:0;border-radius:999px;padding:11px 14px;font:inherit;font-weight:700;background:#2a2f33;color:#fff;cursor:pointer;white-space:nowrap"});
   bgb.style.display="none";
   post.style.cssText="border:0;border-radius:999px;padding:12px 22px;font:inherit;font-weight:700;background:#1fa855;color:#fff;cursor:pointer";
-  var file=E("input");file.type="file";file.accept="image/*,video/*";file.hidden=true;
+  var file=E("input");file.type="file";file.accept="image/*,video/*";file.setAttribute("data-story-video","1");file.hidden=true;
   var vfile=null,vmeta=null,vprev=E("video");vprev.muted=true;vprev.loop=true;vprev.setAttribute("playsinline","");vprev.playsInline=true;vprev.style.cssText="max-width:100%;max-height:100%;object-fit:contain;display:none";stage.appendChild(vprev);
   var vpick=E("button",null,"🎬 Video");vpick.type="button";vpick.style.cssText="border:0;border-radius:999px;padding:11px 14px;font:inherit;font-weight:700;background:#2a2f33;color:#fff;cursor:pointer;white-space:nowrap";
-  var vin=E("input");vin.type="file";vin.accept="video/*";vin.hidden=true;
+  var vin=E("input");vin.type="file";vin.accept="video/*";vin.setAttribute("data-story-video","1");vin.hidden=true;
   vpick.onclick=function(){vin.click()};
   function handleVideo(f){if(!f)return;
     if(f.size>SV_MAX_MB*1048576)return toast("That video is too big ("+Math.round(f.size/1048576)+" MB). Keep it under "+SV_MAX_MB+" MB, about "+SV_MAX_S+" seconds.");
