@@ -3432,7 +3432,8 @@ function openAskJanet(){
   bx.appendChild(h("p","meta","Add up to 3 photos, or one video for her story, and tell Cordial what you want to say. Cordial looks at the photos to write it. You can change the words before it posts as Janet. Videos go on her story only and disappear after 7 days."));
   var ph=h("input");ph.type="file";ph.accept="image/*,video/*";ph.setAttribute("data-story-video","1");ph.multiple=true;bx.appendChild(h("label","meta","Photos or one video (optional)"));bx.appendChild(ph);
   var th=h("div");th.style.cssText="display:flex;gap:6px;margin:6px 0;flex-wrap:wrap";bx.appendChild(th);
-  var files=[],vfile=null,vdur=0,ds=null;
+  var files=[],vfile=null,vdur=0,ds=null,jvs=0,jve=0;
+  var jtb=h("div");jtb.style.cssText="display:none;margin:6px 0";var jtl=h("div","meta");jtl.style.fontWeight="700";var jtr=h("input");jtr.type="range";jtr.min="0";jtr.max="0";jtr.step="0.5";jtr.value="0";jtr.style.width="100%";jtb.appendChild(jtl);jtb.appendChild(jtr);
   ph.onchange=function(){
     var all=Array.prototype.slice.call(ph.files||[],0,3),vv=all.filter(function(f){return /^video\//i.test(f.type||"")||/\.(mp4|mov|m4v|webm)$/i.test(f.name||"")});
     vfile=null;vdur=0;th.textContent="";
@@ -3440,10 +3441,14 @@ function openAskJanet(){
       var f0=vv[0];
       if(f0.size>45*1048576){ph.value="";files=[];return toast("That video is too big ("+Math.round(f0.size/1048576)+" MB). Keep it under 45 MB, about 30 seconds.")}
       var u0=URL.createObjectURL(f0),pv0=document.createElement("video");pv0.preload="metadata";
-      pv0.onloadedmetadata=function(){var d=pv0.duration;URL.revokeObjectURL(u0);if(isFinite(d)&&d>30.5){ph.value="";files=[];vfile=null;th.textContent="";return toast("That video is "+Math.round(d)+" seconds. Story videos can be up to 30 seconds.")}vdur=isFinite(d)?Math.round(d):0};
-      pv0.src=u0;
+      jvs=0;jve=0;jtb.style.display="none";
+      function jm(x){x=Math.max(0,Math.round(x));return Math.floor(x/60)+":"+("0"+(x%60)).slice(-2)}
+      pv0.onloadedmetadata=function(){var d=pv0.duration;vdur=isFinite(d)?Math.round(d):0;
+        if(isFinite(d)&&d>30.5){jvs=0;jve=30;jtr.max=String(Math.floor((d-30)*2)/2);jtr.value="0";jtl.textContent="Choose the 30 seconds to share: "+jm(jvs)+" to "+jm(jve);jtb.style.display="block";
+          jtr.oninput=function(){jvs=parseFloat(jtr.value)||0;jve=Math.min(d,jvs+30);jtl.textContent="Choose the 30 seconds to share: "+jm(jvs)+" to "+jm(jve)}}};
+      pv0.preload="metadata";pv0.muted=true;pv0.setAttribute("playsinline","");pv0.style.cssText="width:100%;max-height:200px;background:#000;border-radius:8px";pv0.controls=true;pv0.src=u0;th.appendChild(pv0);
       vfile=f0;files=[];shrunk=null;thumbs=null;if(ds)ds.value="story";
-      var chip=h("div","meta","🎬 "+(f0.name||"video")+" · goes on Janet’s story");th.appendChild(chip);return;
+      var chip=h("div","meta","🎬 "+(f0.name||"video")+" · goes on Janet’s story");th.appendChild(chip);th.appendChild(jtb);return;
     }
     files=all;shrunk=null;thumbs=null;files.forEach(function(f){var im=h("img");im.src=URL.createObjectURL(f);im.alt="";im.style.cssText="width:64px;height:64px;object-fit:cover;border-radius:8px";th.appendChild(im)})};
   bx.appendChild(h("label","meta","What should the post say?"));
@@ -3480,7 +3485,7 @@ function openAskJanet(){
     try{
       if(ds&&ds.value==="story"||vfile){
         var sp0={wa:1,by:BABY_ID,ts:Date.now(),text:t.slice(0,300),ai:true,askedBy:myId||""};
-        if(vfile){pb.textContent="Uploading video…";sp0.vpath=await upload("chat",vfile,"story-"+(vfile.name||"video.mp4"));sp0.vtype=vfile.type||"video/mp4";sp0.vdur=vdur||0;await db.collection("posts").add(sp0)}
+        if(vfile){pb.textContent="Uploading video…";sp0.vpath=await upload("chat",vfile,"story-"+(vfile.name||"video.mp4"));sp0.vtype=vfile.type||"video/mp4";sp0.vdur=(jve>jvs)?Math.round(jve-jvs):(vdur||0);if(jve>jvs){sp0.vstart=jvs;sp0.vend=jve}await db.collection("posts").add(sp0)}
         else if((shrunk||[]).length){
           for(var si=0;si<shrunk.length;si++){var sx=shrunk[si],sr=db.collection("media").doc();await sr.set({data:sx.data,w:sx.w,h:sx.h,ts:Date.now(),by:myId||""});MEDIA[sr.id]=Promise.resolve({data:sx.data});
             var spx=Object.assign({},sp0,{ts:Date.now()+si,mid:sr.id,w:sx.w,h:sx.h});if(si>0)spx.text="";await db.collection("posts").add(spx)}
@@ -5380,7 +5385,7 @@ function storyItems(uid){
   /* stories are their own thing: statuses (photo, video, text) kept 7 days, shared with the WhatsApp-look. Feed posts never appear here. */
   var now=Date.now();
   return (S.wstat||[]).filter(function(p){return p.by===uid&&(p.mid||p.vpath||p.text||p.bg)&&now-(p.ts||0)<=STORY_MS}).map(function(p){
-    return {id:p.id,mid:p.mid||null,vpath:p.vpath||null,vdur:p.vdur||0,bg:p.bg||0,ts:p.ts,text:p.text||"",st:p};
+    return {id:p.id,mid:p.mid||null,vpath:p.vpath||null,vdur:p.vdur||0,vstart:p.vstart||0,vend:p.vend||0,bg:p.bg||0,ts:p.ts,text:p.text||"",st:p};
   }).sort(function(a,b){return a.ts-b.ts});
 }
 function storyUsers(first){
@@ -8084,6 +8089,9 @@ var SV_MAX_MB=45,SV_MAX_S=30;
 function svVideoEl(){var v=document.createElement("video");v.playsInline=true;v.setAttribute("playsinline","");v.setAttribute("webkit-playsinline","");v.preload="auto";v.style.cssText="max-width:100%;max-height:100%;object-fit:contain;display:none;background:#000";return v}
 function svPlay(vid,it,onend){
   vid.pause();vid.removeAttribute("src");vid.style.display="";
+  var vs=Number(it.vstart)||0,ve=Number(it.vend)||0;vid.ontimeupdate=null;
+  if(ve>vs){vid.addEventListener("loadedmetadata",function once(){vid.removeEventListener("loadedmetadata",once);try{vid.currentTime=vs}catch(e){}});
+    vid.ontimeupdate=function(){if(vid.currentTime>=ve-0.05){vid.ontimeupdate=null;vid.pause();if(onend)onend()}}}
   signed(it.vpath).then(function(u){vid.src=u;vid.onended=onend;var pr=vid.play();if(pr&&pr.catch)pr.catch(function(){vid.muted=true;vid.play().catch(function(){})})}).catch(function(){toast("That video isn’t available.")});
 }
 function svStop(vid){try{vid.pause();vid.removeAttribute("src");vid.load()}catch(e){}}
@@ -8157,7 +8165,7 @@ function wsOpen(uid){
         p._gone=1;S.wstat=S.wstat.filter(function(x){return x.id!==p.id});if(!wsItems(u).length&&users.length===1){wsClose();return}show()};hd.appendChild(del)}
     var x=E("button",null,"✕");x.type="button";x.setAttribute("aria-label","Close");x.style.cssText="border:0;background:none;color:#fff;font-size:1.5rem;padding:4px 8px;cursor:pointer";x.onclick=wsClose;hd.appendChild(x);
     if(it.vpath){txt.style.display="none";img.style.display="none";stage.style.background="#000";cap.textContent=it.text||"";
-      vid.onloadedmetadata=function(){var f=bars.children[WSV&&WSV.ii]&&bars.children[WSV.ii].firstChild;if(f){f.style.transition="none";f.style.width="0";void f.offsetWidth;f.style.transition="width "+Math.max(1,vid.duration||it.vdur||10)+"s linear";f.style.width="100%"}};
+      vid.onloadedmetadata=function(){var f=bars.children[WSV&&WSV.ii]&&bars.children[WSV.ii].firstChild;if(f){f.style.transition="none";f.style.width="0";void f.offsetWidth;f.style.transition="width "+Math.max(1,it.vdur||vid.duration||10)+"s linear";f.style.width="100%"}};
       svPlay(vid,it,function(){next()})}
     else if(it.mid){vid.style.display="none";svStop(vid);txt.style.display="none";stage.style.background="#000";img.style.display="";img.removeAttribute("src");cap.textContent=it.text||"";getMedia(it.mid).then(function(d){if(WSV&&d&&d.data)img.src=d.data}).catch(function(){})}
     else{vid.style.display="none";svStop(vid);img.style.display="none";txt.style.display="flex";txt.style.background=WSBG[(it.bg||1)-1]||WSBG[0];txt.textContent=it.text||"";cap.textContent=""}
@@ -8187,6 +8195,8 @@ function wsCompose(mode){
   bgb.style.display="none";
   post.style.cssText="border:0;border-radius:999px;padding:12px 22px;font:inherit;font-weight:700;background:#1fa855;color:#fff;cursor:pointer";
   var file=E("input");file.type="file";file.accept="image/*,video/*";file.setAttribute("data-story-video","1");file.hidden=true;
+  var vstart=0,vend=0,trimBox=E("div"),tlab=E("div"),trng=E("input");
+  trimBox.style.cssText="display:none;padding:10px 16px;background:#111;color:#fff";tlab.style.cssText="font-weight:700;margin-bottom:6px";trng.type="range";trng.min="0";trng.max="0";trng.step="0.5";trng.value="0";trng.style.cssText="width:100%;margin:0";trimBox.appendChild(tlab);trimBox.appendChild(trng);
   var vfile=null,vmeta=null,vprev=E("video");vprev.muted=true;vprev.loop=true;vprev.setAttribute("playsinline","");vprev.playsInline=true;vprev.style.cssText="max-width:100%;max-height:100%;object-fit:contain;display:none";stage.appendChild(vprev);
   var vpick=E("button",null,"🎬 Video");vpick.type="button";vpick.style.cssText="border:0;border-radius:999px;padding:11px 14px;font:inherit;font-weight:700;background:#2a2f33;color:#fff;cursor:pointer;white-space:nowrap";
   var vin=E("input");vin.type="file";vin.accept="video/*";vin.setAttribute("data-story-video","1");vin.hidden=true;
@@ -8196,15 +8206,23 @@ function wsCompose(mode){
     /* iPhone does not load video details until it is shown, so the file is accepted straight away and checked as the preview loads */
     vfile=f;vmeta={dur:0};photo=null;img.style.display="none";ta.style.display="none";bgb.style.display="none";cap.style.display="";
     var vu=URL.createObjectURL(f);
+    vstart=0;vend=0;trimBox.style.display="none";
+    function mmss(x){x=Math.max(0,Math.round(x));return Math.floor(x/60)+":"+("0"+(x%60)).slice(-2)}
+    function trimLab(){tlab.textContent="Choose the "+SV_MAX_S+" seconds to share: "+mmss(vstart)+" to "+mmss(vend)}
     vprev.onloadedmetadata=function(){var d=vprev.duration;
-      if(isFinite(d)&&d>SV_MAX_S+0.5){vfile=null;vprev.pause();vprev.removeAttribute("src");vprev.style.display="none";return ctoast("That video is "+Math.round(d)+" seconds. Story videos can be up to "+SV_MAX_S+" seconds. Trim it in Photos and try again.")}
-      vmeta={dur:isFinite(d)?Math.round(d):0}};
+      vmeta={dur:isFinite(d)?Math.round(d):0};
+      if(isFinite(d)&&d>SV_MAX_S+0.5){
+        vstart=0;vend=SV_MAX_S;trng.max=String(Math.floor((d-SV_MAX_S)*2)/2);trng.value="0";trimLab();trimBox.style.display="block";
+        trng.oninput=function(){vstart=parseFloat(trng.value)||0;vend=Math.min(d,vstart+SV_MAX_S);trimLab();try{vprev.currentTime=vstart}catch(e){}};
+        vprev.ontimeupdate=function(){if(vend&&vprev.currentTime>=vend)vprev.currentTime=vstart};
+        try{vprev.currentTime=0}catch(e){}
+      }};
     vprev.onerror=function(){ctoast("This phone can’t preview that video, but you can still post it.")};
     vprev.src=vu;vprev.style.display="";stage.style.background="#000";try{vprev.load()}catch(e){}vprev.play().catch(function(){});
     cap.placeholder="Add a caption…"}
   vin.onchange=function(){var f=vin.files&&vin.files[0];vin.value="";handleVideo(f)};
   function setMode(m){
-    if(m!=="video"){vfile=null;vprev.pause();vprev.style.display="none"}
+    if(m!=="video"){vfile=null;vprev.pause();vprev.style.display="none";trimBox.style.display="none";vstart=0;vend=0}
     if(m==="text"){photo=null;img.style.display="none";ta.style.display="block";cap.style.display="none";bgb.style.display="";stage.style.background=WSBG[bgi];setTimeout(function(){ta.focus()},50)}
     else{ta.style.display="none";bgb.style.display="none";cap.style.display=photo?"":"none";stage.style.background="#000";img.style.display=photo?"":"none"}
   }
@@ -8219,14 +8237,14 @@ function wsCompose(mode){
     if(!db)return;post.disabled=true;post.textContent="Posting…";
     try{
       var p={wa:1,by:myId||"",ts:Date.now(),text:text};
-      if(vfile){post.textContent="Uploading video…";var vp=await upload("chat",vfile,"story-"+(vfile.name||"video.mp4"));p.vpath=vp;p.vtype=vfile.type||"video/mp4";p.vdur=(vmeta&&vmeta.dur)||0}
+      if(vfile){post.textContent="Uploading video…";var vp=await upload("chat",vfile,"story-"+(vfile.name||"video.mp4"));p.vpath=vp;p.vtype=vfile.type||"video/mp4";p.vdur=(vend>vstart)?Math.round(vend-vstart):((vmeta&&vmeta.dur)||0);if(vend>vstart){p.vstart=vstart;p.vend=vend}}
       else if(photo){var ref=db.collection("media").doc();await ref.set({data:photo.data,w:photo.w,h:photo.h,ts:Date.now(),by:myId||""});MEDIA[ref.id]=Promise.resolve({data:photo.data});p.mid=ref.id;p.w=photo.w;p.h=photo.h}
       else p.bg=bgi+1;
       await db.collection("posts").add(p);ov.remove();toast("Added to your story. It stays for 7 days.");
     }catch(e){post.disabled=false;post.textContent="Post";var em=String((e&&(e.message||e.error_description||e.error))||"");ctoast(em==="toolarge"||/exceeded|too large|maximum/i.test(em)?"That file is too big. Keep videos under 45 MB.":"That didn’t post"+(em?" ("+em.slice(0,90)+")":"")+". Check your connection and try again.")}
   };
   bot.appendChild(pick);bot.appendChild(tx);bot.appendChild(bgb);bot.appendChild(cap);bot.appendChild(post);
-  ov.appendChild(bot);ov.appendChild(file);ov.appendChild(vin);document.body.appendChild(ov);
+  ov.appendChild(trimBox);ov.appendChild(bot);ov.appendChild(file);ov.appendChild(vin);document.body.appendChild(ov);
   cx.onclick=function(){vprev.pause();ov.remove()};
   if(mode==="text")setMode("text");else if(mode==="photo")file.click();else if(mode==="video")vin.click();
 }
