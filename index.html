@@ -5201,7 +5201,7 @@ function buildPost(p,ps){
   var mb=h("button","pmore","•••");mb.setAttribute("aria-label","Post options");mb.onclick=function(){postMenu(p)};hd.appendChild(mb);
   c.appendChild(hd);
   if(p.text){
-    if(p.bg&&BGS[p.bg-1]&&!p.mid){var bgd=h("div","pbg");mfill(bgd,p.text,p.tags);bgd.style.background=BGS[p.bg-1];c.appendChild(bgd)}
+    if(p.bg&&BGS[p.bg-1]&&!p.mid){var bgd=h("div","pbg"),bgs0=h("span");mfill(bgs0,p.text,p.tags);bgd.appendChild(bgs0);bgd.style.background=BGS[p.bg-1];c.appendChild(bgd)}
     else{var pbd=h("div","pbody");var pmi=(p.tags||[]).slice();try{mentionIds(p.text||"",typeof MEMBERS!=="undefined"?MEMBERS:[]).forEach(function(i){if(pmi.indexOf(i)<0)pmi.push(i)})}catch(e){}mentionFill(pbd,p.text||"",pmi,true);c.appendChild(pbd)}
   }
   if(p.sh){
@@ -8550,7 +8550,7 @@ function wsOpen(uid){
     if(it.vpath){txt.style.display="none";img.style.display="none";stage.style.background="#000";svCap(cap,it.text||"");
       svPlay(vid,it,function(){next()})}
     else if(it.mid){vid.style.display="none";svStop(vid);txt.style.display="none";stage.style.background="#000";img.style.display="";img.removeAttribute("src");svCap(cap,it.text||"");img._for=it.id;img.style.opacity="0";svSpin(stage,1);img.onload=function(){img.style.opacity="1";svSpin(stage,0)};getMedia(it.mid).then(function(d){if(WSV&&d&&d.data&&img._for===it.id)img.src=d.data;else svSpin(stage,0)}).catch(function(){svSpin(stage,0)})}
-    else{vid.style.display="none";svStop(vid);img.style.display="none";txt.style.display="flex";txt.style.background=WSBG[(it.bg||1)-1]||WSBG[0];svCap(txt,it.text||"");cap.textContent=""}
+    else{vid.style.display="none";svStop(vid);img.style.display="none";txt.style.display="flex";txt.style.background=WSBG[(it.bg||1)-1]||WSBG[0];txt.textContent="";var tsp=E("span");svCap(tsp,it.text||"");txt.appendChild(tsp);cap.textContent=""}
     WSV.t=setTimeout(function(){next()},it.vpath?((it.vdur||SV_MAX_S)*1000+6000):6000);
   }
   function next(skip){var items=wsItems(users[WSV.ui]);if(!skip&&WSV.ii<items.length-1){WSV.ii++;return show()}if(WSV.ui<users.length-1){WSV.ui++;WSV.ii=0;return show()}wsClose()}
