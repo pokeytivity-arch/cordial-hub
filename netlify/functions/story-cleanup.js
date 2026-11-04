@@ -27,8 +27,9 @@ exports.handler = async () => {
         else continue; // keep the row so the next run tries again
       } catch (e) { continue; }
     }
-    if (d.mid) {
-      try { await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent("media/" + d.mid)}`, { method: "DELETE", headers: H }); } catch (e) {}
+    for (const m of [d.mid, d.tmid]) {
+      if (!m) continue;
+      try { await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent("media/" + m)}`, { method: "DELETE", headers: H }); } catch (e) {}
     }
     try {
       const xr = await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent(row.key)}`, { method: "DELETE", headers: H });
