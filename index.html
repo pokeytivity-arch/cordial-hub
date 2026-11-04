@@ -7739,7 +7739,7 @@ function botMsgs(){
     for(var dj=0;dj<7;dj++){var dd=new Date();dd.setDate(dd.getDate()-dj);dd.setHours(9,0,0,0);if((dd.getDay()===2||dd.getDay()===5)&&dd.getTime()<=Date.now()&&dd.getTime()>bs+5000)jn.push(dd.getTime())}
   }
   if(AIH===null)AIH=aiLoad();
-  var yd0=S.prof&&S.prof.cordial_daily;var key=bs+"|"+new Date().getHours()+"|"+day.getTime()+"|"+(new Date().getHours()>=8?1:0)+"|"+AIH.length+(AIPEND?"p":"")+"|"+(yd0?yd0.vid+(yd0.seen||"")+(nsppdLive(yd0)?"L":""):"")+"|"+((S.prof&&S.prof.cordial_recap&&S.prof.cordial_recap.items||[]).map(function(x){return x.ts}).join(","));
+  var yd0=S.prof&&S.prof.cordial_daily;var key=bs+"|"+new Date().getHours()+"|"+day.getTime()+"|"+(new Date().getHours()>=8?1:0)+"|"+AIH.length+(AIPEND?"p":"")+"|"+(yd0?yd0.vid+(yd0.seen||"")+(nsppdLive(yd0)?"L":""):"")+"|"+((S.prof&&S.prof.cordial_recap&&S.prof.cordial_recap.items||[]).map(function(x){return x.ts}).join(","))+"|"+((S.prof&&S.prof.cordial_summaries&&S.prof.cordial_summaries.items||[]).map(function(x){return x.ts}).join(","));
   if(botCache.key===key)return botCache.list;
   var L=[{id:"bot_w",by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs,text:"Hi, I’m Cordial 👋\n\nI’m the AI agent for this hub, and I’m not a real person. I send co-parenting tips and help with the hub, and you can ask me questions here.\n\nI can make mistakes, and I’m not a lawyer, doctor or counsellor. I can’t see your private messages, files or calendar."}];
   BOT_HELP.forEach(function(t,i){L.push({id:"bot_h"+i,by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs+1000*(i+1),text:t})});
@@ -7749,9 +7749,11 @@ function botMsgs(){
     if(t>bs+5000&&t<=Date.now()){var n=Math.floor(t/86400000);L.push({id:"bot_t"+n,by:BOT_ID,chat:BOT_ID,kind:"text",ts:t,text:"💡 Tip of the day\n\n"+BOT_TIPS[n%BOT_TIPS.length]})}
   }
   var yd=S.prof&&S.prof.cordial_daily;
-  if(yd&&yd.vid)L.push({id:"bot_yt_"+yd.vid+(nsppdLive(yd)?"L":""),by:BOT_ID,chat:BOT_ID,kind:"ytcard",ts:Math.max(yd.seen||0,bs+1500),vid:(nsppdLive(yd)&&yd.liveVid)?yd.liveVid:yd.vid,title:yd.title||"",channel:yd.channel||"YouTube",live:nsppdLive(yd)?(yd.live||""):"",url:yd.url||""});
+  /* YouTube live cards from NSPPD / Pastor Jerry are no longer sent by Cordial */
   var rc=S.prof&&S.prof.cordial_recap;
   if(rc&&rc.items)rc.items.forEach(function(x){if(x&&x.text)L.push({id:"bot_rc_"+x.day,by:BOT_ID,chat:BOT_ID,kind:"text",ts:Math.max(x.ts||0,bs+1500),text:x.text})});
+  var sm=S.prof&&S.prof.cordial_summaries;
+  if(sm&&sm.items)sm.items.forEach(function(x){if(x&&x.text)L.push({id:"bot_sm_"+x.id,by:BOT_ID,chat:BOT_ID,kind:"text",ts:Math.max(x.ts||0,bs+1500),text:x.text})});
   AIH.forEach(function(x,i){L.push({id:"ai_"+x.ts+"_"+i,by:x.by==="bot"?BOT_ID:myId,chat:BOT_ID,kind:"text",ts:x.ts,text:x.text,img:x.img,fname:x.fname});if(x.acts&&x.acts.length)L.push({id:"aia_"+x.ts+"_"+i,by:BOT_ID,chat:BOT_ID,kind:"aiact",ts:x.ts+1,acts:x.acts,mi:i})});
   if(AIPEND)L.push({id:"ai_pending",by:BOT_ID,chat:BOT_ID,kind:"text",ts:Date.now(),text:"…"});
   botCache={key:key,list:L};return L;
