@@ -80,7 +80,8 @@ exports.handler = async (event) => {
     return out(502, { error: "feed_failed", why });
   }
   const liveVid = await liveVideo(ch);
-  if (liveVid) { vid = liveVid; const vi = await ytn.videoInfo(liveVid); if (vi.title) title = vi.title; pub = now; }
+  if (liveVid) { vid = liveVid; title = ""; pub = now; }
+  title = await ytn.titleFor(vid, title);
   const extra = await ytn.liveTransition(saved, { channel: chName || saved.channel || "YouTube", liveVid });
   const data = {
     ...extra,

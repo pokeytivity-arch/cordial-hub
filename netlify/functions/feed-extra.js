@@ -55,12 +55,13 @@ async function run(event) {
       if (!vid) {
         try { const lv = await ytn.latestVideoOf(ch); if (lv.vid) { vid = lv.vid; title = lv.title || ""; } } catch {}
       }
-      if (liveVid) { vid = liveVid; const vi = await ytn.videoInfo(liveVid); if (vi.title) title = vi.title; pub = now; }
+      if (liveVid) { vid = liveVid; title = ""; pub = now; }
       if (!vid) vid = old.vid || seed;
+      title = await ytn.titleFor(vid, title || (old.vid === vid ? old.title : ""));
       const chName = name || old.channel || "YouTube";
       const extra = await ytn.liveTransition(old, { channel: chName, liveVid });
       return {
-        seed, channelId: ch, channel: chName, vid, title: title || old.title || "",
+        seed, channelId: ch, channel: chName, vid, title,
         url: `https://www.youtube.com/watch?v=${vid}`, live: `https://www.youtube.com/channel/${ch}/live`,
         liveNow: !!liveVid, liveVid, published: pub, seen: old.vid === vid ? (old.seen || now) : now, ...extra,
       };
