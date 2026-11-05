@@ -46,8 +46,8 @@ async function notifyAll(payload) {
 async function liveTransition(old, cur) {
   const extra = { liveTitle: old.liveTitle || "", notedLive: old.notedLive || "", notedEnd: old.notedEnd || "", lastLive: old.lastLive || null };
   const name = cur.channel || old.channel || "YouTube";
-  // Live alerts for the pastors' channels (NSPPD, Pastor Jerry) are switched off. Set YT_NOTIFY=1 in Netlify to turn them back on.
-  if (process.env.YT_NOTIFY !== "1") return extra;
+  // Live alerts for the pastors' channels (NSPPD, Pastor Jerry) are switched off. On by default; set YT_NOTIFY=0 in Netlify to switch them off.
+  if (process.env.YT_NOTIFY === "0") return extra;
   try {
     if (cur.liveVid) {
       if (cur.liveVid !== old.liveVid || !extra.liveTitle) extra.liveTitle = (await videoInfo(cur.liveVid)).title || extra.liveTitle;
