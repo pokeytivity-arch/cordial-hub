@@ -5564,7 +5564,7 @@ function feedFilter(a){
 function pinFirst(a){return a.slice().sort(function(x,y){if(!!x.pinned!==!!y.pinned)return x.pinned?-1:1;if(x.pinned&&y.pinned)return (y.pinTs||0)-(x.pinTs||0);return 0})}
 function syncBar(){var e=$("#fbav");if(!e)return;var p=PF(myId);e.textContent=(S.me||"?").charAt(0).toUpperCase();if(p.avatar)setBg(e,p.avatar);else{e.style.backgroundImage="";e.classList.remove("has")}}
 function nsppdLive(d){
-  if(!d||!d.liveNow||!d.checked||Date.now()-d.checked>25*60*1000)return false;
+  if(!d||!d.liveNow||!d.liveVid||!d.checked||Date.now()-d.checked>25*60*1000)return false;
   var n=new Date(Date.now()+3600000),wd=n.getUTCDay();
   var hr=n.getUTCHours();return wd>=1&&wd<=5&&hr>=7&&hr<12;
 }
