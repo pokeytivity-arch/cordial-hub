@@ -33,14 +33,7 @@ async function channelFromHandle(vid) {
 }
 
 // Is the channel streaming right now? Reads the channel's "/live" page. Returns the live video id or "".
-async function liveVideo(ch) {
-  try {
-    const t = await (await fetch(`https://www.youtube.com/channel/${ch}/live`, { headers: UA })).text();
-    if (!/"isLiveNow":true|"isLive":true/.test(t)) return "";
-    const m = t.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([\w-]{6,20})"/) || t.match(/"videoId":"([\w-]{11})"/);
-    return m ? m[1] : "";
-  } catch { return ""; }
-}
+async function liveVideo(ch) { return ytn.liveVideoOf(ch); }
 
 async function readSaved() {
   const r = await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent(KEYNAME)}&select=data`, { headers: H });
@@ -77,10 +70,8 @@ exports.handler = async (event) => {
   }
   if (!vid) {
     try {
-      const t = await (await fetch(`https://www.youtube.com/channel/${ch}/videos`, { headers: UA })).text();
-      const v = t.match(/"videoId":"([\w-]{11})"/);
-      const tt = t.match(/"title":\{"runs":\[\{"text":"([^"]+)"/);
-      if (v) { vid = v[1]; title = tt ? JSON.parse('"' + tt[1] + '"') : ""; }
+      const lv = await ytn.latestVideoOf(ch);
+      if (lv.vid) { vid = lv.vid; title = lv.title || ""; }
     } catch { why = why || "videos_page_failed"; }
   }
   if (!vid) {
@@ -89,6 +80,7 @@ exports.handler = async (event) => {
     return out(502, { error: "feed_failed", why });
   }
   const liveVid = await liveVideo(ch);
+  if (liveVid) { vid = liveVid; const vi = await ytn.videoInfo(liveVid); if (vi.title) title = vi.title; pub = now; }
   const extra = await ytn.liveTransition(saved, { channel: chName || saved.channel || "YouTube", liveVid });
   const data = {
     ...extra,

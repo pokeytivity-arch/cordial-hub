@@ -21,14 +21,7 @@ async function channelOf(vid) {
   } catch {}
   return "";
 }
-async function liveVideo(ch) {
-  try {
-    const t = await (await fetch(`https://www.youtube.com/channel/${ch}/live`, { headers: UA, signal: AbortSignal.timeout(5000) })).text();
-    if (!/"isLiveNow":true|"isLive":true/.test(t)) return "";
-    const m = t.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([\w-]{6,20})"/) || t.match(/"videoId":"([\w-]{11})"/);
-    return m ? m[1] : "";
-  } catch { return ""; }
-}
+async function liveVideo(ch) { return ytn.liveVideoOf(ch); }
 async function readSaved() {
   const r = await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent(KEYNAME)}&select=data`, { headers: H });
   return ((r.ok ? await r.json() : [])[0] || {}).data || {};
@@ -60,8 +53,9 @@ async function run(event) {
         name = dec((feedRes.match(/<author>\s*<name>([\s\S]*?)<\/name>/) || [])[1]).trim().slice(0, 80);
       }
       if (!vid) {
-        try { const t = await (await fetch(`https://www.youtube.com/channel/${ch}/videos`, { headers: UA, signal: AbortSignal.timeout(5000) })).text(); const v = t.match(/"videoId":"([\w-]{11})"/); if (v) vid = v[1]; } catch {}
+        try { const lv = await ytn.latestVideoOf(ch); if (lv.vid) { vid = lv.vid; title = lv.title || ""; } } catch {}
       }
+      if (liveVid) { vid = liveVid; const vi = await ytn.videoInfo(liveVid); if (vi.title) title = vi.title; pub = now; }
       if (!vid) vid = old.vid || seed;
       const chName = name || old.channel || "YouTube";
       const extra = await ytn.liveTransition(old, { channel: chName, liveVid });

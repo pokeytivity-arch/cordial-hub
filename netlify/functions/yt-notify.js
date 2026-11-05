@@ -68,6 +68,34 @@ async function liveTransition(old, cur) {
   return extra;
 }
 
+// Is the channel streaming right now? Reads the channel's "/live" page, and only trusts the video that belongs to THIS channel and is live (not related or suggested videos).
+async function liveVideoOf(ch) {
+  try {
+    const t = await (await fetch(`https://www.youtube.com/channel/${ch}/live`, { headers: UA, signal: AbortSignal.timeout(6000) })).text();
+    const m = t.match(/"videoDetails":\{"videoId":"([\w-]{11})"/);
+    if (!m) return "";
+    const seg = t.slice(m.index, m.index + 8000);
+    if (!seg.includes(`"channelId":"${ch}"`)) return "";
+    if (!/"isLive":true/.test(seg) || /"isUpcoming":true/.test(seg)) return "";
+    return m[1];
+  } catch { return ""; }
+}
+
+// Newest video on the channel's Videos page: reads the first real video entry (id and its own title), never page text like "Keyboard shortcuts".
+async function latestVideoOf(ch) {
+  try {
+    const t = await (await fetch(`https://www.youtube.com/channel/${ch}/videos`, { headers: UA, signal: AbortSignal.timeout(6000) })).text();
+    const m = t.match(/"(?:video|gridVideo)Renderer":\{"videoId":"([\w-]{11})"/);
+    if (!m) return {};
+    const seg = t.slice(m.index, m.index + 3000);
+    const tt = seg.match(/"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"/);
+    let title = ""; try { title = tt ? JSON.parse('"' + tt[1] + '"') : ""; } catch {}
+    return { vid: m[1], title: title.slice(0, 200) };
+  } catch { return {}; }
+}
+
+exports.latestVideoOf = latestVideoOf;
+exports.liveVideoOf = liveVideoOf;
 exports.liveTransition = liveTransition;
 exports.videoInfo = videoInfo;
 exports.handler = async () => ({ statusCode: 404, body: "not_a_page" });
