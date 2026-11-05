@@ -72,12 +72,14 @@ async function liveTransition(old, cur) {
 async function liveVideoOf(ch) {
   try {
     const t = await (await fetch(`https://www.youtube.com/channel/${ch}/live`, { headers: UA, signal: AbortSignal.timeout(6000) })).text();
-    const m = t.match(/"videoDetails":\{"videoId":"([\w-]{11})"/);
-    if (!m) return "";
-    const seg = t.slice(m.index, m.index + 30000);
-    if (!seg.includes(`"channelId":"${ch}"`) && !seg.includes(`"externalChannelId":"${ch}"`)) return "";
+    // YouTube sends /channel/<id>/live to the channel's own stream: that page's canonical link is the video. Suggested videos are never used.
+    const c = t.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})"/);
+    if (!c) return "";
+    const at = t.indexOf(`"videoDetails":{"videoId":"${c[1]}"`);
+    if (at < 0) return "";
+    const seg = t.slice(at, at + 30000);
     if (!/"isLive":true/.test(seg) || /"isUpcoming":true/.test(seg)) return "";
-    return m[1];
+    return c[1];
   } catch { return ""; }
 }
 
