@@ -5738,7 +5738,7 @@ function svCap(el,t){el.textContent="";try{mentionFill(el,t,mentionIds(t,typeof 
 window.svCap=svCap;
 /* where to start in someone's story: the first item you have not seen yet (or the first one if you have seen them all) */
 function svStart(uid,items){
-  try{var seen=(typeof wsSeenGet==="function"?wsSeenGet():{})[uid]||0;for(var i=0;i<items.length;i++)if((items[i].ts||0)>seen)return i}catch(e){}
+  try{var seen=(JSON.parse(localStorage.getItem("hubWsSeen")||"{}"))[uid]||0;for(var i=0;i<items.length;i++)if((items[i].ts||0)>seen)return i}catch(e){}
   return 0;
 }
 function openStory(uid){
