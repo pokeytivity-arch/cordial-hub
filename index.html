@@ -4214,7 +4214,7 @@ function fillBody(b,m){
   if(k==="file"){
     var c=h("div","attc");c.appendChild(h("div",null,"📄 "+(m.name||"Document")));
     c.appendChild(h("div","meta2",fmtSize(m.size)));
-    var fr=h("div");fr.style.cssText="display:flex;gap:6px;flex-wrap:wrap";var ob=h("button","bbtn","Open");ob.onclick=function(){openFile(m)};fr.appendChild(ob);var sb=h("button","bbtn","Save");sb.onclick=function(){saveFileMsg(m)};fr.appendChild(sb);c.appendChild(fr);
+    var fr=h("div");fr.style.cssText="display:flex;gap:6px;flex-wrap:wrap";var ob=h("button","bbtn","Open");ob.onclick=function(){openFile(m)};fr.appendChild(ob);c.appendChild(fr);
     b.appendChild(c);return;
   }
   if(k==="contact"){
@@ -4247,7 +4247,7 @@ async function fileBlob(m){
   return await r.blob();
 }
 async function openFile(m){
-  try{var u=await signed(m.path);preview({title:m.name,name:m.name,type:m.ftype,size:m.size,path:m.path,url:u})}
+  try{var u=await signed(m.path);preview({title:m.name,name:m.name,type:m.ftype,size:m.size,path:m.path,url:u,viewOnly:true})}
   catch(e){note("That file isn’t available.")}
 }
 async function saveFileMsg(m){
@@ -4871,7 +4871,7 @@ function openOffice(c,u,kind,d){
   var box=h("div","docview","Opening…");
   box.style.cssText="background:#fff;color:#111;padding:18px 16px;border-radius:10px;overflow:auto;max-height:100%;line-height:1.55;font-size:1rem;word-break:break-word";
   c.appendChild(box);
-  function fail(){box.textContent="Couldn’t open this file here. It can only be viewed in the hub."}
+  function fail(){box.textContent="Couldn’t open this file here."+(d.viewOnly?"":" Use Download or Share outside.")}
   fetch(u).then(function(r){if(!r.ok)throw 0;return r.arrayBuffer()}).then(function(buf){
     if(kind==="docx"){
       return loadLib("https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js").then(function(){return mammoth.convertToHtml({arrayBuffer:buf})}).then(function(r){
@@ -4892,7 +4892,6 @@ function openOffice(c,u,kind,d){
   }).catch(fail);
 }
 function preview(d){
-  try{$("#ova").hidden=true}catch(e){}
   var u=d.url,c=$("#ovc"),t=d.type||"";c.textContent="";
   $("#ovt").textContent=d.title||d.name||"File";
   if(t.indexOf("image/")===0){var i=h("img");i.src=u;i.alt=d.title;c.appendChild(i)}
@@ -4902,11 +4901,16 @@ function preview(d){
   else if(t.indexOf("text/")===0||t==="application/json"){var p=h("pre","pre","Loading…");c.appendChild(p);fetch(u).then(function(r){return r.text()}).then(function(x){p.textContent=x}).catch(function(){p.textContent="Couldn’t load a preview."})}
   else if(/\.docx$/i.test(d.name||d.title||"")||t==="application/vnd.openxmlformats-officedocument.wordprocessingml.document"){openOffice(c,u,"docx",d)}
   else if(/\.(xlsx|xls|csv)$/i.test(d.name||d.title||"")||/spreadsheetml|ms-excel/.test(t)){openOffice(c,u,"xlsx",d)}
-  else{var bx=h("div","empty");bx.appendChild(h("div",null,"📄")).style.fontSize="3rem";bx.appendChild(h("p",null,(d.name||d.title||"This file")+(d.size?" · "+fmtSize(d.size):"")));bx.appendChild(h("p","meta","This file type can’t be shown here. It can only be viewed in the hub."));c.appendChild(bx)}
+  else{var bx=h("div","empty");bx.appendChild(h("div",null,"📄")).style.fontSize="3rem";bx.appendChild(h("p",null,(d.name||d.title||"This file")+(d.size?" · "+fmtSize(d.size):"")));bx.appendChild(h("p","meta","This file type can’t be shown here."+(d.viewOnly?"":" Download it or share it with the buttons above.")+""));c.appendChild(bx)}
   var A=$("#ova");A.textContent="";
   function btn(label,fn){var b=h("button","go sm",label);b.type="button";b.onclick=fn;A.appendChild(b)}
-  /* view only: no download or share buttons */
-  A.hidden=true;
+  A.hidden=!!d.viewOnly; /* documents shared in chat can only be viewed */
+  function btn(label,fn){var b=h("button","go sm",label);b.type="button";b.onclick=fn;A.appendChild(b)}
+  if(!d.viewOnly){
+    btn("⬇ Download",function(){dlDoc(d)});
+    if(d.path&&db)btn("↪ Share in the hub",function(){shareInHub(d)});
+    btn("📤 Share outside",function(){shareOut(d)});
+  }
   $("#ov").hidden=false;$("#ovx").focus();
 }
 async function docBlob(d){var r=await fetch(d.url);if(!r.ok)throw new Error("x");return await r.blob()}
