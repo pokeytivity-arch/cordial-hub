@@ -4725,7 +4725,19 @@ function closeZoom(){
   ZCLI=null;if(ZC){ZC.hidden=true;var r=ZC.querySelector("#zcroot");if(r)r.textContent=""}
 }
 function zoomFallback(msg){closeZoom();note(msg+" Opening Zoom instead.");window.open(ZURL,"_blank","noopener")}
-async function openZoomInHub(){
+/* Zoom call buttons open the Zoom app itself (not the hub) */
+function openZoomInHub(){
+  var mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent||"");
+  if(!mobile){window.open(ZURL,"_blank","noopener");return}
+  var pw=(String(ZURL).match(/[?&]pwd=([^&]+)/)||[])[1]||"";
+  var app="zoommtg://us06web.zoom.us/join?action=join&confno="+ZNUM+(pw?"&pwd="+pw:"");
+  var gone=false,t=setTimeout(function(){if(!gone){window.open(ZURL,"_blank","noopener")}},1800);
+  function left(){gone=true;clearTimeout(t);document.removeEventListener("visibilitychange",left);window.removeEventListener("pagehide",left)}
+  document.addEventListener("visibilitychange",function(){if(document.hidden)left()});
+  window.addEventListener("pagehide",left);
+  window.location.href=app;
+}
+async function openZoomInHubOld(){
   if(OBS){note("The Cordial Co-Parenting account can’t chat, call or join meetings.");setTimeout(function(){note("")},2500);return}
   if(!ZC){
     ZC=h("div");ZC.id="zc";ZC.hidden=true;ZC.setAttribute("role","dialog");ZC.setAttribute("aria-label","Zoom call");
