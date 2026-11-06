@@ -50,7 +50,7 @@ function cleanAction(t, i, a) {
   return null;
 }
 
-exports.handler = async (event) => {
+const _handler = async (event) => {
   if (event.httpMethod !== "POST" && event.httpMethod !== "GET") return out(405, { error: "post_only" });
   if (!URL_ || !KEY || !AKEY) return out(501, { error: "not_configured" });
 
@@ -192,7 +192,7 @@ exports.handler = async (event) => {
       const j = await r.json();
       const text = (j.content || []).filter((c) => c.type === "text").map((c) => c.text).join("").trim().replace(/^["“]|["”]$/g, "").slice(0, ba.instruction ? 600 : 400);
       try { const tt = await getDoc("aiuse/total"); await putDoc("aiuse/total", { in: (tt.in || 0) + ((j.usage || {}).input_tokens || 0), out: (tt.out || 0) + ((j.usage || {}).output_tokens || 0), n: (tt.n || 0) + 1 }); } catch {}
-      if (!text) return out(502, { error: "ai_failed" });
+      if (!text) return out(502, { error: "ai_failed", detail: "no text came back (" + String(j.stop_reason || "empty") + ", " + String(MODEL) + ")" });
       return out(200, { text });
     } catch (e) { return out(502, { error: "ai_failed", detail: String(e && e.message || e).slice(0, 120) }); }
   }
@@ -257,4 +257,10 @@ exports.handler = async (event) => {
   });
   try { const tt = await getDoc("aiuse/total"); await putDoc("aiuse/total", { in: (tt.in || 0) + (usage.input_tokens || 0), out: (tt.out || 0) + (usage.output_tokens || 0), n: (tt.n || 0) + 1 }); } catch {}
   return out(200, { reply, actions, left: Math.max(0, LIMIT - n - 1) });
+};
+
+// Any crash comes back as readable JSON (so the app can show what went wrong) instead of a blank gateway error.
+exports.handler = async (event, context) => {
+  try { return await _handler(event, context); }
+  catch (e) { return out(502, { error: "crash", detail: String((e && e.message) || e).slice(0, 140) }); }
 };
