@@ -1489,12 +1489,11 @@ function reimbBox(rec,payerId,save,what){
   if(!isPar||OBS||!canWrite||!payerId)return w;
   var otherId=payerId===A?B:A;
   if(payerId===myId){
-    if(rec.reimbReqAt){var rq=h("div","meta","🔔 You asked for reimbursement on "+new Date(rec.reimbReqAt).toLocaleDateString(undefined,{day:"numeric",month:"short"})+". Waiting for the other parent.");w.appendChild(rq)}
-    else w.appendChild(xtBtn("🔔 Request reimbursement",async function(){
+    if(rec.reimbReqAt){var rq=h("div","meta","↩️ You asked for reimbursement on "+new Date(rec.reimbReqAt).toLocaleDateString(undefined,{day:"numeric",month:"short"})+". Waiting for the other parent.");w.appendChild(rq)}
+    else w.appendChild(xtBtn("↩️ Request reimbursement",async function(){
       try{await save({reimbReqAt:Date.now(),reimbReqBy:myId});note("Reimbursement requested ✓");
         try{var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(tk&&otherId)fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:"task",to:[otherId],title:(S.me||"Your co-parent")+" asked you to reimburse",body:(rec.desc||what||"An expense")+" · "+money(rec.amount),tag:"reimb-"+(rec.id||""),goto:"exp"})})}catch(e){}
       }catch(e){fail(e)}},"quiet"));
-    if(otherId)w.appendChild(xtBtn("✅ I’ve been reimbursed",function(){if(confirm("Confirm that the other parent has paid you back "+money(amt0(rec))+"? It will stop counting as your spending."))save({reimbAt:Date.now(),reimbBy:otherId,reimbConfirmedBy:myId})},"quiet"));
     return w}
   if(rec.reimbReqAt){var q2=h("div","meta","🔔 "+xtName(rec.reimbReqBy||payerId)+" asked you to reimburse this.");q2.style.fontWeight="600";w.appendChild(q2)}
   var amt=+rec.amount||0,st=h("div","meta");st.style.cssText="margin-top:6px;font-weight:600";
