@@ -67,7 +67,7 @@ async function write(p, facts) {
   const sys = `You are Cordial, the friendly AI agent in a private family co-parenting hub. Write the ${p.kind}ly summary the whole family reads on the last day of the ${p.kind}.
 Plain text only, no markdown symbols and no # headings. Start with "📋 ${p.label}". Then short sections, each with a title line and lines starting with "• ", only for sections that have something: Meetings, Events, Documents, Support and expenses (mention amounts only if they are in the data), Notes, Posts and photos, Calls and messages (counts only). End with one warm, calm sentence. Use only the data given; never invent names, amounts, dates or promises. Under 260 words.`;
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "x-api-key": AKEY, "anthropic-version": "2023-06-01", "content-type": "application/json" }, body: JSON.stringify({ model: MODEL, max_tokens: 700, system: sys, messages: [{ role: "user", content: JSON.stringify(facts) }] }) });
+    const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "x-api-key": AKEY, "anthropic-version": "2023-06-01", "content-type": "application/json" }, body: JSON.stringify({ model: MODEL, max_tokens: 16000, system: sys, messages: [{ role: "user", content: JSON.stringify(facts) }] }) });
     if (!r.ok) return plain(p, facts);
     const j = await r.json();
     return (j.content || []).filter((c) => c.type === "text").map((c) => c.text).join("\n").trim() || plain(p, facts);

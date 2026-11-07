@@ -86,7 +86,7 @@ async function run() {
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST", headers: { "x-api-key": AKEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: MODEL, max_tokens: 500, system: SYSTEM, messages: [{ role: "user", content: user }] }),
+      body: JSON.stringify({ model: MODEL, max_tokens: 16000, system: SYSTEM, messages: [{ role: "user", content: user }] }),
     });
     if (!r.ok) return { code: 502, body: { error: "ai_failed", status: r.status } };
     const j = await r.json();
