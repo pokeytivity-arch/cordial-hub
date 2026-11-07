@@ -805,7 +805,7 @@ main{max-width:100%}
   <div class="hello"><div class="avatar" id="avt">•</div><div><div class="hi" id="hi">Hello</div><div class="meta" id="hdate"></div></div><button class="go" id="addbtn">+ Add</button></div>
   <div class="card" id="addm" hidden></div>
   <div class="card" id="famcard"><h2 style="margin:0 0 6px">Family Overview</h2><div id="fam"></div></div>
-  <div class="card" id="spendcard" hidden><h2 style="margin:0 0 6px">Money spent</h2><div id="spendtabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div><div id="spendnav" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px"></div><div id="spend"></div></div>
+  <div class="card" id="spendcard" hidden><h2 id="spendhd" style="margin:0;cursor:pointer;display:flex;justify-content:space-between;align-items:center" role="button" tabindex="0"><span>Money spent</span><span id="spendchev" style="font-size:1rem">▾</span></h2><div id="spendbody" style="margin-top:8px"><div id="spendview" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div><div id="spendtabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div><div id="spendnav" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px"></div><div id="spend"></div></div></div>
   <div class="card" id="acctcard">
     <h2 style="margin:0 0 4px">Account and settings</h2>
     <div class="arow"><span>Interface</span><span id="lookwrap"></span></div>
@@ -1477,6 +1477,13 @@ function xtConfirmBox(rec,payerId,coll){
   if(cid&&cid===myId&&canWrite)w.appendChild(xtBtn("✅ Confirm",function(){db.doc("expenses/"+rec.id).update({confirmedAt:Date.now(),confirmedBy:myId,_selfie:"confirmed"}).catch(fail)}));
   return w;
 }
+function reimbBox(rec,save){
+  var w=h("div");w.style.marginTop="6px";
+  if(rec.reimbAt){var c=h("div","meta","↩️ Reimbursed on "+new Date(rec.reimbAt).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+(rec.reimbBy?" · marked by "+xtName(rec.reimbBy):""));c.style.color="#1f8a4c";w.appendChild(c);
+    if(canWrite&&(rec.reimbBy===myId||isAdminAcct()))w.appendChild(xtBtn("Undo reimbursed",function(){save({reimbAt:null,reimbBy:null})},"quiet"))}
+  else if(canWrite&&!OBS)w.appendChild(xtBtn("↩️ Mark as reimbursed",function(){if(confirm("Mark this as reimbursed? It will stop counting as spent for the parent who paid."))save({reimbAt:Date.now(),reimbBy:myId})},"quiet"));
+  return w;
+}
 function renderExp(){
   var pa=0,pb=0;S.exp.forEach(function(x){if(x.review&&x.review.state==="rejected")return;if(x.by==="a")pa+=x.amount;else pb+=x.amount});
   (function(){var b=$("#bal");b.textContent="";if(!S.exp.length){b.textContent="No expenses yet";return}
@@ -1500,6 +1507,7 @@ function renderExp(){
     var bg=aiBadge(x,"expenses");if(bg)l.appendChild(bg);var xsh=shareLine(x,"expenses");if(xsh)l.appendChild(xsh);
     if(x.review&&x.review.state==="rejected")l.style.opacity=".55";
     var xpid=(x.by==="b"?(mumM()||{}).user_id:(ownerM()||{}).user_id);l.appendChild(xtConfirmBox(x,xpid,"expenses"));
+    l.appendChild(reimbBox(x,function(pt){db.doc("expenses/"+x.id).update(pt).catch(fail)}));
     var rt=h("div");rt.style.textAlign="right";rt.appendChild(h("div","amt",money(x.amount)));
     var rm=h("button","quiet","Remove");rm.onclick=function(){db.doc("expenses/"+x.id).delete().catch(fail)};
     if(canWrite&&canRemoveRec(x))rt.appendChild(rm);r.appendChild(l);r.appendChild(rt);L.appendChild(r)});
@@ -2230,6 +2238,7 @@ function xtSup(){
       else acts.appendChild(h("div","meta",to?"Waiting for Our Mummy to confirm.":"Waiting for Our Mummy to join and confirm."));
       if(isAdminAcct())acts.appendChild(xtBtn("Undo paid",function(){xtDoc(id,{paidAt:null,paidBy:null,receipt:null,selfie_paid:null})},"quiet"));
     }
+    if(r.paidAt)acts.appendChild(reimbBox(r,function(pt){xtDoc(id,pt)}));
     row.appendChild(acts);L.appendChild(row)});
   box.appendChild(L);
 }
@@ -3311,7 +3320,7 @@ function famTodo(){
 }
 
 /* ---------- Money spent (week / month / quarter / year) ---------- */
-var SPD={per:"month",off:0};
+var SPD={per:"month",off:0,view:"spent"};
 function spdRange(){
   var n=new Date(),a,b,lbl,M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],f=function(d){return d.getDate()+" "+M[d.getMonth()]};
   if(SPD.per==="week"){var dw=(n.getDay()+6)%7;a=new Date(n.getFullYear(),n.getMonth(),n.getDate()-dw+SPD.off*7);b=new Date(a.getFullYear(),a.getMonth(),a.getDate()+7);lbl=f(a)+" – "+f(new Date(b.getTime()-864e5))+" "+new Date(b.getTime()-864e5).getFullYear()}
@@ -3324,9 +3333,9 @@ function spdItems(){
   var A=(ownerM()||{}).user_id||"",B=(mumM()||{}).user_id||"",out=[];
   function who(id){return id===B?"b":id===A?"a":"o"}
   function dt(s){var p=String(s||"").split("-");return p.length>2?new Date(+p[0],+p[1]-1,+p[2]).getTime():0}
-  (S.exp||[]).forEach(function(x){if(x.review&&x.review.state==="rejected")return;out.push({w:x.by==="b"?"b":"a",t:dt(x.date)||x.ts||0,amt:+x.amount||0,c:"Expenses"})});
+  (S.exp||[]).forEach(function(x){if(x.review&&x.review.state==="rejected")return;out.push({w:x.by==="b"?"b":"a",t:dt(x.date)||x.ts||0,amt:+x.amount||0,c:"Expenses",r:x.reimbAt||0})});
   (S.xo||[]).forEach(function(x){
-    if(x.kind==="sup"&&x.paidAt)out.push({w:who(x.paidBy),t:x.paidAt,amt:+x.amount||0,c:"Support"});
+    if(x.kind==="sup"&&x.paidAt)out.push({w:who(x.paidBy),t:x.paidAt,amt:+x.amount||0,c:"Support",r:x.reimbAt||0});
     else if(x.kind==="feex"&&x.paid)out.push({w:who(x.paidBy||x.by),t:x.paidOn||x.ts||0,amt:+x.amount||0,c:"School fees"});
     else if(x.kind==="fee")(x.payments||[]).forEach(function(p){out.push({w:who(p.by),t:p.ts||0,amt:+p.amount||0,c:"School fees"})});
   });
@@ -3336,13 +3345,20 @@ function renderSpend(){
   var card=$("#spendcard");if(!card)return;
   var ok=false;try{ok=tabOk("exp")}catch(e){}
   card.hidden=!ok;card.style.display=ok?"":"none";if(!ok)return;
+  var op=true;try{op=localStorage.getItem("hubSpdOpen")!=="0"}catch(e){}
+  $("#spendbody").style.display=op?"":"none";$("#spendchev").textContent=op?"▾":"▸";
+  var hd=$("#spendhd");if(!hd._w){hd._w=1;hd.onclick=function(){var o=$("#spendbody").style.display==="none";try{localStorage.setItem("hubSpdOpen",o?"1":"0")}catch(e){}renderSpend()}}
+  if(!op)return;
+  var V=$("#spendview");V.textContent="";
+  [["spent","Spent"],["reimb","Reimbursed"]].forEach(function(p){var b=h("button",SPD.view===p[0]?"":"quiet",p[1]);b.onclick=function(){SPD.view=p[0];renderSpend()};V.appendChild(b)});
   var T=$("#spendtabs");T.textContent="";
   [["week","Week"],["month","Month"],["quarter","Quarter"],["year","Year"]].forEach(function(p){var b=h("button",SPD.per===p[0]?"":"quiet",p[1]);b.onclick=function(){SPD.per=p[0];SPD.off=0;renderSpend()};T.appendChild(b)});
   var R=spdRange(),N=$("#spendnav");N.textContent="";
   var pv=h("button","quiet","‹"),nx=h("button","quiet","›");pv.onclick=function(){SPD.off--;renderSpend()};nx.onclick=function(){if(SPD.off<0){SPD.off++;renderSpend()}};nx.disabled=SPD.off>=0;
   var lb=h("div",null,R.lbl);lb.style.cssText="font-weight:700;text-align:center;flex:1";N.appendChild(pv);N.appendChild(lb);N.appendChild(nx);
   var A=(ownerM()||{}).user_id||"",B=(mumM()||{}).user_id||"";
-  var items=spdItems().filter(function(i){return i.t>=R.a&&i.t<R.b});
+  var RB=SPD.view==="reimb";
+  var items=spdItems().filter(function(i){if(RB)return i.r&&i.r>=R.a&&i.r<R.b;return !i.r&&i.t>=R.a&&i.t<R.b});
   var admin=isAdminAcct(),mine=myId===B?"b":myId===A?"a":"";
   var who=admin?["a","b"]:(mine?[mine]:[]);
   var L=$("#spend");L.textContent="";
@@ -3351,11 +3367,11 @@ function renderSpend(){
   who.forEach(function(w){
     var mine_=items.filter(function(i){return i.w===w}),tot=mine_.reduce(function(q,i){return q+i.amt},0);grand+=tot;
     var row=h("div","item"),c=h("div");c.style.flex="1";
-    c.appendChild(h("div","meta",admin?nm(w):"You"));
+    c.appendChild(h("div","meta",(admin?nm(w):"You")+(RB?" · paid back":"")));
     var big=h("div",null,money(tot));big.style.cssText="font-size:1.25rem;font-weight:800";c.appendChild(big);
     cats.forEach(function(k){var v=mine_.filter(function(i){return i.c===k}).reduce(function(q,i){return q+i.amt},0);c.appendChild(h("div","meta",k+": "+money(v)))});
     row.appendChild(c);L.appendChild(row)});
-  if(admin){var g=h("div","item"),gc=h("div");gc.appendChild(h("div","meta","Together"));var gb=h("div",null,money(grand));gb.style.cssText="font-size:1.25rem;font-weight:800";gc.appendChild(gb);g.appendChild(gc);L.appendChild(g)}
+  if(admin){var g=h("div","item"),gc=h("div");gc.appendChild(h("div","meta","Together"+(RB?" · paid back":"")));var gb=h("div",null,money(grand));gb.style.cssText="font-size:1.25rem;font-weight:800";gc.appendChild(gb);g.appendChild(gc);L.appendChild(g)}
 }
 function renderHome(){
   var e=S.sched[key(new Date())],L=$("#fam");L.textContent="";
@@ -6995,6 +7011,14 @@ async function start(session){
       if(bk&&bk.r){sb.auth.setSession({access_token:bk.a,refresh_token:bk.r}).then(function(x){if(!(x&&x.data&&x.data.session))location.reload();else try{db.reloadAll()}catch(e){}}).catch(function(){location.reload()})}
       else setTimeout(function(){location.reload()},0);
     }
+  });
+  document.addEventListener("visibilitychange",function(){
+    if(document.visibilityState!=="visible"||!STARTED||window.__userOut)return;
+    sb.auth.getSession().then(function(x){
+      if(x&&x.data&&x.data.session)return;
+      var bk=null;try{bk=JSON.parse(localStorage.getItem("hubAuthBak")||"null")}catch(e){}
+      if(bk&&bk.r)sb.auth.setSession({access_token:bk.a,refresh_token:bk.r}).then(function(y){if(y&&y.data&&y.data.session){try{db.reloadAll()}catch(e){}}}).catch(function(){});
+    }).catch(function(){});
   });
   var r=await sb.auth.getSession();
   if(!r.data.session){
