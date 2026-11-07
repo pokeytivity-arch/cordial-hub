@@ -1543,6 +1543,16 @@ function renderExp(){
     var bg=aiBadge(x,"expenses");if(bg)l.appendChild(bg);var xsh=shareLine(x,"expenses");if(xsh)l.appendChild(xsh);
     if(x.review&&x.review.state==="rejected")l.style.opacity=".55";
     var xpid=(x.by==="b"?(mumM()||{}).user_id:(ownerM()||{}).user_id);l.appendChild(xtConfirmBox(x,xpid,"expenses"));
+    try{var hasIt=(x.rcItems&&x.rcItems.length)||(x.aicheck&&x.aicheck.read&&(x.aicheck.read.items||[]).length)||(x.proofs||[]).some(function(q){return q&&q.aicheck&&q.aicheck.read&&(q.aicheck.read.items||[]).length}),pl=(x.proofs&&x.proofs.length?x.proofs:(x.proof?[x.proof]:[])).filter(function(q){return q&&q.path});
+      if(hasIt)l.appendChild(h("div","meta","🧾 Prices read from this receipt for the Shopping List."));
+      else if(pl.length&&canWrite&&!OBS){var rb2=h("button","quiet","🧾 Read item prices from the receipt");rb2.type="button";rb2.style.cssText="padding:2px 0;text-decoration:underline;font-size:.9rem";
+        rb2.onclick=async function(){rb2.disabled=true;rb2.textContent="Cordial is reading the receipt…";
+          try{var fs=[];for(var qi=0;qi<pl.length&&qi<3;qi++){var u=await signed(pl[qi].path),bl=await (await fetch(u)).blob();fs.push(new File([bl],"receipt"+qi+(bl.type==="application/pdf"?".pdf":".jpg"),{type:bl.type}))}
+            var ck=await aiVerifyMany(fs,{kind:"expense",title:x.desc||"Receipt",amount:x.amount,date:x.date}),its=(ck&&ck.read&&ck.read.items)||[];
+            if(!its.length){rb2.disabled=false;rb2.textContent="🧾 Read item prices from the receipt";return note("Cordial couldn’t read items on that receipt. A flat, well-lit photo works best.")}
+            await db.doc("expenses/"+x.id).update({rcItems:its,rcShop:(ck.read.payee||"")});note("Read "+its.length+" items ✓")}
+          catch(e){rb2.disabled=false;rb2.textContent="🧾 Read item prices from the receipt";fail(e)}};
+        l.appendChild(rb2)}}catch(e){}
     l.appendChild(reimbBox(x,xpid,function(pt){return db.doc("expenses/"+x.id).update(pt)},"expense"));if(x.reimbAt)l.style.opacity=".7";
     var rt=h("div");rt.style.textAlign="right";rt.appendChild(h("div","amt",money(x.amount)));
     var rm=h("button","quiet","Remove");rm.onclick=function(){db.doc("expenses/"+x.id).delete().catch(fail)};
@@ -2059,6 +2069,19 @@ function aiBadge(rec,coll){
 /* shopping list */
 var SHPRIO=[[1,"🔴 Urgent","#d93025"],[2,"🟠 High","#e8833a"],[3,"🟡 Normal","#c9a227"],[4,"⚪ Low","#8a949c"]];
 function shPrio(x){return x&&x.prio>=1&&x.prio<=4?x.prio:3}
+/* prices read from receipts (Cordial lists the items on each checked receipt) */
+function priceWords(t){return String(t||"").toLowerCase().replace(/[^a-z0-9. ]+/g," ").split(/\s+/).filter(function(w){return w.length>2&&!/^(the|and|for|with|pcs|pack|each|large|small|big)$/.test(w)})}
+function priceBook(){
+  var out=[];
+  function take(rec,when){var rd=rec&&((rec.rcItems&&{items:rec.rcItems,payee:rec.rcShop})||(rec.aicheck&&rec.aicheck.read));if(!rd||!Array.isArray(rd.items))return;rd.items.forEach(function(it){var u=it.unit||(it.total&&it.qty?it.total/it.qty:it.total);if(it&&it.name&&u>0)out.push({w:priceWords(it.name),name:it.name,price:u,ts:when||rec.ts||0,shop:rd.payee||""})})}
+  (S.exp||[]).forEach(function(x){take(x,x.ts||Date.parse(x.date||"")||0);(x.proofs||[]).forEach(function(q){take(q,x.ts)})});
+  return out.sort(function(a,b){return b.ts-a.ts});
+}
+function priceFor(item){
+  var iw=priceWords(item.brand?item.brand:(item.title||""));if(!iw.length)return null;var best=null,bs=0;
+  priceBook().forEach(function(p){var hit=iw.filter(function(w){return p.w.some(function(x){return x===w||(w.length>3&&(x.indexOf(w)===0||w.indexOf(x)===0))})}).length,sc=hit/iw.length;if(sc>=.5&&sc>bs){bs=sc;best=p}});
+  return best;
+}
 function shopRows(list){
   return list.map(function(x){return {store:x.store||"Not decided",item:x.title||"",cat:x.cat||(x.chk&&x.chk.section)||"",brand:x.brand||"",qty:x.qty||"",prio:(SHPRIO[shPrio(x)-1]||[0,""])[1].replace(/^\S+\s/,""),lasts:x.days?chkDur(x.days):"",by:memberName(x.by)||"",note:x.note||""}});
 }
@@ -2145,7 +2168,7 @@ function xtShop(){
       top.appendChild(h("b",null,x.title));r.appendChild(top);
       var meta="Requested by "+xtName(x.by)+" · "+when(x.ts);
       if(x.note)meta+=" · "+x.note;r.appendChild(h("div","meta",meta));
-      var det=[];if(x.brand)det.push("Brand: "+x.brand);if(x.qty)det.push("Qty: "+x.qty);if(x.days)det.push("Lasts about "+chkDur(x.days));if(x.store)det.push("Buy at: "+x.store);if(x.chk){det.push("From the checklist");var lq=chkLastMap()[x.chk.k];if(lq)det.push("Last bought "+new Date(lq.ts).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}))}if(det.length){var dd=h("div","meta",det.join(" · "));dd.style.fontWeight="600";r.appendChild(dd)}
+      var det=[];if(x.brand)det.push("Brand: "+x.brand);if(x.qty)det.push("Qty: "+x.qty);if(x.days)det.push("Lasts about "+chkDur(x.days));if(x.store)det.push("Buy at: "+x.store);try{var pf=priceFor(x);if(pf){det.push("Last price: "+money(pf.price)+(pf.shop?" at "+pf.shop:"")+" ("+new Date(pf.ts).toLocaleDateString(undefined,{day:"numeric",month:"short"})+")");if(x.days>0)det.push("≈ "+money(pf.price*30/x.days)+" a month")}}catch(e){}if(x.chk){det.push("From the checklist");var lq=chkLastMap()[x.chk.k];if(lq)det.push("Last bought "+new Date(lq.ts).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}))}if(det.length){var dd=h("div","meta",det.join(" · "));dd.style.fontWeight="600";r.appendChild(dd)}
       if(x.link){var la=h("a","meta","🔗 Open link");la.href=x.link;la.target="_blank";la.rel="noopener noreferrer";la.style.textDecoration="underline";r.appendChild(la)}
       if(x.photo&&x.photo.path){var pim=h("img");pim.alt="Reference photo";pim.style.cssText="width:84px;height:84px;object-fit:cover;border-radius:10px;margin-top:4px;cursor:pointer;background:rgba(127,127,127,.2)";signed(x.photo.path).then(function(u){pim.src=u}).catch(function(){});pim.onclick=function(){signed(x.photo.path).then(function(u){preview(Object.assign({},x.photo,{url:u}))})};r.appendChild(pim)}
       draw(x,r,top);var sl2=selfieLinks(x,[["selfie","Requested"],["selfie_fulfilled","Fulfilled"],["selfie_confirmed","Confirmed"]]);if(sl2)r.appendChild(sl2);var ssh=shareLine(x,"expenses");if(ssh)r.appendChild(ssh);c.appendChild(r)});
@@ -4113,7 +4136,38 @@ function rpShow(html,fname){
   var bar=document.createElement("div");bar.style.cssText="display:flex;gap:8px;padding:10px;background:#222;flex-wrap:wrap";
   function bt(t,fn,pri){var b=document.createElement("button");b.type="button";b.textContent=t;b.style.cssText="border:0;border-radius:999px;padding:9px 16px;font:inherit;font-weight:600;background:"+(pri?"#1fa855":"#555")+";color:#fff";b.onclick=fn;bar.appendChild(b)}
   var fr=document.createElement("iframe");fr.style.cssText="flex:1;border:0;width:100%;background:#fff";fr.srcdoc=html;
-  bt("Print / Save as PDF",function(){try{fr.contentWindow.focus();fr.contentWindow.print()}catch(e){toast("Use Download, then print the file.")}},true);
+  var pdfName=String(fname||"report").replace(/\.html?$/i,"")+".pdf";
+  async function mkPdf(){
+    var wrap=null;
+    try{
+      await loadLib("https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js");
+      var css=(html.match(/<style>([\s\S]*?)<\/style>/)||[])[1]||"",bd=(html.match(/<body[^>]*>([\s\S]*)<\/body>/)||[])[1]||html;
+      css=css.replace(/(^|\})\s*([^{}]+)\{/g,function(_,c,sel){return c+sel.split(",").map(function(x){x=x.trim();return x==="body"?"#pdfwrap":"#pdfwrap "+x}).join(",")+"{"});
+      wrap=document.createElement("div");wrap.id="pdfwrap";wrap.style.cssText="position:absolute;left:-10000px;top:0;width:700px;background:#fff;color:#111";
+      var st=document.createElement("style");st.textContent=css;wrap.appendChild(st);var bx=document.createElement("div");bx.innerHTML=bd;wrap.appendChild(bx);document.body.appendChild(wrap);
+      return await html2pdf().set({margin:[10,8,10,8],filename:pdfName,image:{type:"jpeg",quality:.95},html2canvas:{scale:2,useCORS:true,backgroundColor:"#ffffff"},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},pagebreak:{mode:["css","legacy"],avoid:"tr"}}).from(wrap).outputPdf("blob");
+    }finally{if(wrap)wrap.remove()}
+  }
+  function busy(ev,txt,fn){var btn=ev&&ev.target,old=btn&&btn.textContent;if(btn){btn.disabled=true;btn.textContent=txt}return Promise.resolve().then(fn).catch(function(e){toast("Couldn’t do that. Try again, or use Print.")}).then(function(){if(btn){btn.disabled=false;btn.textContent=old}})}
+  bt("Save as PDF",function(ev){busy(ev,"Making PDF…",async function(){
+    var blob=await mkPdf(),file=new File([blob],pdfName,{type:"application/pdf"});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:pdfName});return}catch(e){if(e&&e.name==="AbortError")return}}
+    saveFile(pdfName,blob,"application/pdf");
+  })},true);
+  if(!OBS&&typeof db!=="undefined"&&db)bt("Share in chat",function(ev){busy(ev,"Preparing…",async function(){
+    var blob=await mkPdf(),path=await upload("chat",blob,pdfName);
+    var cs=window.waChats?waChats():[{id:"family",name:"Family chat"}];
+    var pk=document.createElement("div");pk.style.cssText="position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:5;display:flex;align-items:center;justify-content:center;padding:20px";
+    var bx=document.createElement("div");bx.style.cssText="background:#fff;border-radius:14px;padding:14px;max-width:340px;width:100%;max-height:80%;overflow:auto;color:#111";
+    var tt=document.createElement("strong");tt.textContent="Send the PDF to…";tt.style.cssText="display:block;margin-bottom:8px";bx.appendChild(tt);
+    function opt(t,fn){var b=document.createElement("button");b.type="button";b.textContent=t;b.style.cssText="display:block;width:100%;text-align:left;border:0;background:#f1f3f4;border-radius:10px;padding:12px;margin:6px 0;font:inherit;color:#111";b.onclick=fn;bx.appendChild(b)}
+    cs.forEach(function(c){opt("💬 "+c.name,function(){
+      var m={kind:"file",name:pdfName,size:blob.size,ftype:"application/pdf",path:path,ts:Date.now(),by:myId||""};if(c.id!=="family")m.chat=c.id;
+      db.collection("messages").add(m).then(function(){try{if(window.hubNotifyMsg)hubNotifyMsg(m)}catch(e){}pk.remove();toast("Sent to "+c.name+" ✓")},function(e){fail(e)})})});
+    opt("Cancel",function(){pk.remove()});
+    pk.appendChild(bx);o.appendChild(pk);
+  })});
+  bt("Print",function(){try{fr.contentWindow.focus();fr.contentWindow.print()}catch(e){toast("Use Download, then print the file.")}});
   bt("Download",function(){saveFile(fname,html,"text/html")});
   bt("Close",function(){o.remove()});
   o.appendChild(bar);o.appendChild(fr);document.body.appendChild(o);
