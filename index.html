@@ -805,6 +805,7 @@ main{max-width:100%}
   <div class="hello"><div class="avatar" id="avt">•</div><div><div class="hi" id="hi">Hello</div><div class="meta" id="hdate"></div></div><button class="go" id="addbtn">+ Add</button></div>
   <div class="card" id="addm" hidden></div>
   <div class="card" id="famcard"><h2 style="margin:0 0 6px">Family Overview</h2><div id="fam"></div></div>
+  <div class="card" id="spendcard" hidden><h2 style="margin:0 0 6px">Money spent</h2><div id="spendtabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div><div id="spendnav" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px"></div><div id="spend"></div></div>
   <div class="card" id="acctcard">
     <h2 style="margin:0 0 4px">Account and settings</h2>
     <div class="arow"><span>Interface</span><span id="lookwrap"></span></div>
@@ -3308,6 +3309,54 @@ function famTodo(){
     return parts.join(" · ")+(t.length&&t[0].title?" · next: "+t[0].title:"");
   }catch(x){return "—"}
 }
+
+/* ---------- Money spent (week / month / quarter / year) ---------- */
+var SPD={per:"month",off:0};
+function spdRange(){
+  var n=new Date(),a,b,lbl,M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],f=function(d){return d.getDate()+" "+M[d.getMonth()]};
+  if(SPD.per==="week"){var dw=(n.getDay()+6)%7;a=new Date(n.getFullYear(),n.getMonth(),n.getDate()-dw+SPD.off*7);b=new Date(a.getFullYear(),a.getMonth(),a.getDate()+7);lbl=f(a)+" – "+f(new Date(b.getTime()-864e5))+" "+new Date(b.getTime()-864e5).getFullYear()}
+  else if(SPD.per==="month"){a=new Date(n.getFullYear(),n.getMonth()+SPD.off,1);b=new Date(a.getFullYear(),a.getMonth()+1,1);lbl=M[a.getMonth()]+" "+a.getFullYear()}
+  else if(SPD.per==="quarter"){var q=Math.floor(n.getMonth()/3)+SPD.off;a=new Date(n.getFullYear(),q*3,1);b=new Date(a.getFullYear(),a.getMonth()+3,1);lbl="Q"+(Math.floor(a.getMonth()/3)+1)+" "+a.getFullYear()+" ("+M[a.getMonth()]+" – "+M[(a.getMonth()+2)%12]+")"}
+  else{a=new Date(n.getFullYear()+SPD.off,0,1);b=new Date(a.getFullYear()+1,0,1);lbl=String(a.getFullYear())}
+  return {a:a.getTime(),b:b.getTime(),lbl:lbl};
+}
+function spdItems(){
+  var A=(ownerM()||{}).user_id||"",B=(mumM()||{}).user_id||"",out=[];
+  function who(id){return id===B?"b":id===A?"a":"o"}
+  function dt(s){var p=String(s||"").split("-");return p.length>2?new Date(+p[0],+p[1]-1,+p[2]).getTime():0}
+  (S.exp||[]).forEach(function(x){if(x.review&&x.review.state==="rejected")return;out.push({w:x.by==="b"?"b":"a",t:dt(x.date)||x.ts||0,amt:+x.amount||0,c:"Expenses"})});
+  (S.xo||[]).forEach(function(x){
+    if(x.kind==="sup"&&x.paidAt)out.push({w:who(x.paidBy),t:x.paidAt,amt:+x.amount||0,c:"Support"});
+    else if(x.kind==="feex"&&x.paid)out.push({w:who(x.paidBy||x.by),t:x.paidOn||x.ts||0,amt:+x.amount||0,c:"School fees"});
+    else if(x.kind==="fee")(x.payments||[]).forEach(function(p){out.push({w:who(p.by),t:p.ts||0,amt:+p.amount||0,c:"School fees"})});
+  });
+  return out;
+}
+function renderSpend(){
+  var card=$("#spendcard");if(!card)return;
+  var ok=false;try{ok=tabOk("exp")}catch(e){}
+  card.hidden=!ok;card.style.display=ok?"":"none";if(!ok)return;
+  var T=$("#spendtabs");T.textContent="";
+  [["week","Week"],["month","Month"],["quarter","Quarter"],["year","Year"]].forEach(function(p){var b=h("button",SPD.per===p[0]?"":"quiet",p[1]);b.onclick=function(){SPD.per=p[0];SPD.off=0;renderSpend()};T.appendChild(b)});
+  var R=spdRange(),N=$("#spendnav");N.textContent="";
+  var pv=h("button","quiet","‹"),nx=h("button","quiet","›");pv.onclick=function(){SPD.off--;renderSpend()};nx.onclick=function(){if(SPD.off<0){SPD.off++;renderSpend()}};nx.disabled=SPD.off>=0;
+  var lb=h("div",null,R.lbl);lb.style.cssText="font-weight:700;text-align:center;flex:1";N.appendChild(pv);N.appendChild(lb);N.appendChild(nx);
+  var A=(ownerM()||{}).user_id||"",B=(mumM()||{}).user_id||"";
+  var items=spdItems().filter(function(i){return i.t>=R.a&&i.t<R.b});
+  var admin=isAdminAcct(),mine=myId===B?"b":myId===A?"a":"";
+  var who=admin?["a","b"]:(mine?[mine]:[]);
+  var L=$("#spend");L.textContent="";
+  if(!who.length){L.appendChild(h("p","empty","Nothing to show for this account."));return}
+  var cats=["Expenses","Support","School fees"],grand=0;
+  who.forEach(function(w){
+    var mine_=items.filter(function(i){return i.w===w}),tot=mine_.reduce(function(q,i){return q+i.amt},0);grand+=tot;
+    var row=h("div","item"),c=h("div");c.style.flex="1";
+    c.appendChild(h("div","meta",admin?nm(w):"You"));
+    var big=h("div",null,money(tot));big.style.cssText="font-size:1.25rem;font-weight:800";c.appendChild(big);
+    cats.forEach(function(k){var v=mine_.filter(function(i){return i.c===k}).reduce(function(q,i){return q+i.amt},0);c.appendChild(h("div","meta",k+": "+money(v)))});
+    row.appendChild(c);L.appendChild(row)});
+  if(admin){var g=h("div","item"),gc=h("div");gc.appendChild(h("div","meta","Together"));var gb=h("div",null,money(grand));gb.style.cssText="font-size:1.25rem;font-weight:800";gc.appendChild(gb);g.appendChild(gc);L.appendChild(g)}
+}
 function renderHome(){
   var e=S.sched[key(new Date())],L=$("#fam");L.textContent="";
   var last=S.msgs.length?previewText(S.msgs[S.msgs.length-1]):"";
@@ -3320,6 +3369,7 @@ function renderHome(){
     var g=h("span","dg","⠿");g.style.cssText="width:26px;flex:none;align-self:center";row.dataset.k=r[0];row.appendChild(g);row.appendChild(c);row.style.justifyContent="flex-start";L.appendChild(row)});
   var ord=lsGet("hubFamOrder",[]);
   Array.prototype.slice.call(L.children).sort(function(a,b){var x=ord.indexOf(a.dataset.k),y=ord.indexOf(b.dataset.k);return (x<0?99:x)-(y<0?99:y)}).forEach(function(r){L.appendChild(r)});
+  try{renderSpend()}catch(e){}
 }
 
 /* messages */
@@ -6866,7 +6916,7 @@ function subscribeAll(){
   db.collection("documents").orderBy("ts","desc").limit(300).onSnapshot(function(s){S.docs=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderDocs();renderTrips();safe(renderShop)();if(SHOPV&&!SHOPV.hidden)safe(shopDraw)()},function(e){fail(e)});
   var err=function(e){fail(e)};
   db.collection("schedule").onSnapshot(function(s){S.sched={};S.events=[];s.docs.forEach(function(d){if(/^ev_/.test(d.id))S.events.push(Object.assign({},d.data(),{id:d.id}));else S.sched[d.id]=d.data()});renderCal();openEditor();safe(renderEvents)()},err);
-  db.collection("expenses").orderBy("date","desc").limit(1000).onSnapshot(function(s){var all=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});S.exp=all.filter(function(x){return !x.kind});S.xo=all.filter(function(x){return !!x.kind});renderExp();safe(renderXtra)();safe(renderTodos)()},err);
+  db.collection("expenses").orderBy("date","desc").limit(1000).onSnapshot(function(s){var all=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});S.exp=all.filter(function(x){return !x.kind});S.xo=all.filter(function(x){return !!x.kind});renderExp();safe(renderXtra)();safe(renderTodos)();safe(renderSpend)()},err);
   db.collection("profiles").limit(300).onSnapshot(function(s){S.prof={};s.docs.forEach(function(d){S.prof[d.id]=d.data()});S.profLoaded=true;try{window.__navAv&&window.__navAv()}catch(e){}renderProf();safe(renderNsppd)();safe(renderShop)();var nlc=S.prof.cordial_shoplatest&&S.prof.cordial_shoplatest.code;if(nlc!==SHOPLC){SHOPLC=nlc;if(SHOPV&&!SHOPV.hidden&&SHOPMODE==="latest")safe(shopDraw)()}if(window.waRender)waRender()},err);
   db.collection("highlights").limit(500).onSnapshot(function(s){S.hl=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderProf()},err);
   db.collection("meetingnotes").limit(300).onSnapshot(function(s){S.mnotes=s.docs.map(function(d){return Object.assign({},d.data(),{id:d.id})});renderMeet()},err);
