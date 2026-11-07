@@ -1477,15 +1477,49 @@ function xtConfirmBox(rec,payerId,coll){
   if(cid&&cid===myId&&canWrite)w.appendChild(xtBtn("✅ Confirm",function(){db.doc("expenses/"+rec.id).update({confirmedAt:Date.now(),confirmedBy:myId,_selfie:"confirmed"}).catch(fail)}));
   return w;
 }
-function reimbBox(rec,save){
+function amt0(r){return +r.amount||0}
+function reimbBox(rec,payerId,save,what){
   var w=h("div");w.style.marginTop="6px";
-  if(rec.reimbAt){var c=h("div","meta","↩️ Reimbursed on "+new Date(rec.reimbAt).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+(rec.reimbBy?" · marked by "+xtName(rec.reimbBy):""));c.style.color="#1f8a4c";w.appendChild(c);
-    if(canWrite&&(rec.reimbBy===myId||isAdminAcct()))w.appendChild(xtBtn("Undo reimbursed",function(){save({reimbAt:null,reimbBy:null})},"quiet"))}
-  else if(canWrite&&!OBS)w.appendChild(xtBtn("↩️ Mark as reimbursed",function(){if(confirm("Mark this as reimbursed? It will stop counting as spent for the parent who paid."))save({reimbAt:Date.now(),reimbBy:myId})},"quiet"));
+  if(rec.reimbAt){
+    var c=h("div","meta","↩️ Reimbursed on "+new Date(rec.reimbAt).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+(rec.reimbBy?" by "+xtName(rec.reimbBy):"")+" · "+money(rec.amount)+(rec.reimbConfirmedBy?" · confirmed by "+xtName(rec.reimbConfirmedBy):""));c.style.color="#1f8a4c";w.appendChild(c);
+    var rl=xtRc(rec.reimbReceipts||[],"Reimbursement receipt");if(rl)w.appendChild(rl);
+    if(canWrite&&(isAdminAcct()||(rec.reimbConfirmedBy&&rec.reimbConfirmedBy===myId)))w.appendChild(xtBtn("Undo reimbursed",function(){if(confirm("Undo this reimbursement?"))save({reimbAt:null,reimbBy:null,reimbReceipts:null,reimbCheck:null,reimbConfirmedBy:null,reimbReqAt:null,reimbReqBy:null})},"quiet"));
+    return w}
+  var A=(ownerM()||{}).user_id,B=(mumM()||{}).user_id,isPar=myId&&(myId===A||myId===B);
+  if(!isPar||OBS||!canWrite||!payerId)return w;
+  var otherId=payerId===A?B:A;
+  if(payerId===myId){
+    if(rec.reimbReqAt){var rq=h("div","meta","🔔 You asked for reimbursement on "+new Date(rec.reimbReqAt).toLocaleDateString(undefined,{day:"numeric",month:"short"})+". Waiting for the other parent.");w.appendChild(rq)}
+    else w.appendChild(xtBtn("🔔 Request reimbursement",async function(){
+      try{await save({reimbReqAt:Date.now(),reimbReqBy:myId});note("Reimbursement requested ✓");
+        try{var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(tk&&otherId)fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:"task",to:[otherId],title:(S.me||"Your co-parent")+" asked you to reimburse",body:(rec.desc||what||"An expense")+" · "+money(rec.amount),tag:"reimb-"+(rec.id||""),goto:"exp"})})}catch(e){}
+      }catch(e){fail(e)}},"quiet"));
+    if(otherId)w.appendChild(xtBtn("✅ I’ve been reimbursed",function(){if(confirm("Confirm that the other parent has paid you back "+money(amt0(rec))+"? It will stop counting as your spending."))save({reimbAt:Date.now(),reimbBy:otherId,reimbConfirmedBy:myId})},"quiet"));
+    return w}
+  if(rec.reimbReqAt){var q2=h("div","meta","🔔 "+xtName(rec.reimbReqBy||payerId)+" asked you to reimburse this.");q2.style.fontWeight="600";w.appendChild(q2)}
+  var amt=+rec.amount||0,st=h("div","meta");st.style.cssText="margin-top:6px;font-weight:600";
+  var lb=h("div","meta","To reimburse, attach the transfer receipt for exactly "+money(amt)+". Cordial checks the amount.");lb.style.marginTop="6px";
+  var fl=h("input");fl.type="file";fl.multiple=true;fl.accept="image/*,application/pdf";fl.style.marginTop="6px";
+  var say=function(t){st.textContent=t;note(t)};
+  var bt=xtBtn("↩️ Reimburse",async function(){
+    if(!fl.files||!fl.files[0])return say("Attach the transfer receipt first.");
+    bt.disabled=true;say("Uploading the receipt…");
+    try{
+      var rcs=[];for(var i=0;i<fl.files.length;i++)rcs.push(await xtUp(fl.files[i]));
+      var chk=await aiVerifyMany(fl.files,{kind:"reimbursement",title:"Reimbursement of "+(what||"expense")+(rec.desc?" – "+rec.desc:""),amount:amt,date:key(new Date())});
+      var got=chk&&chk.read&&typeof chk.read.amount==="number"?chk.read.amount:null;
+      if(chk.status==="unchecked"||got===null){bt.disabled=false;return say("Cordial couldn’t read an amount on that receipt. Try a clearer photo or screenshot.")}
+      if(Math.round(got*100)!==Math.round(amt*100)){bt.disabled=false;return say("The receipt shows "+money(got)+" but this must be exactly "+money(amt)+", so it was not counted.")}
+      rcs.forEach(function(q){q.aicheck=chk});
+      await save({reimbAt:Date.now(),reimbBy:myId,reimbReceipts:rcs,reimbCheck:chk});
+      say("Reimbursed ✓")
+    }catch(e){fail(e);say("Couldn’t save the reimbursement: "+String((e&&(e.message||e.code))||"unknown error").slice(0,140))}
+    bt.disabled=false});
+  w.appendChild(lb);w.appendChild(fl);w.appendChild(bt);w.appendChild(st);
   return w;
 }
 function renderExp(){
-  var pa=0,pb=0;S.exp.forEach(function(x){if(x.review&&x.review.state==="rejected")return;if(x.by==="a")pa+=x.amount;else pb+=x.amount});
+  var pa=0,pb=0;S.exp.forEach(function(x){if(x.review&&x.review.state==="rejected")return;var pay=x.reimbAt?(x.by==="a"?"b":"a"):x.by;if(pay==="a")pa+=x.amount;else pb+=x.amount});
   (function(){var b=$("#bal");b.textContent="";if(!S.exp.length){b.textContent="No expenses yet";return}
     var tot=pa+pb,wa=tot>0?Math.round(pa/tot*1000)/10:50,wb=tot>0?100-wa:50;
     var bar=document.createElement("div");bar.style.cssText="display:flex;height:26px;border-radius:13px;overflow:hidden;background:rgba(0,0,0,.08);margin:6px 0 8px";
@@ -1507,7 +1541,7 @@ function renderExp(){
     var bg=aiBadge(x,"expenses");if(bg)l.appendChild(bg);var xsh=shareLine(x,"expenses");if(xsh)l.appendChild(xsh);
     if(x.review&&x.review.state==="rejected")l.style.opacity=".55";
     var xpid=(x.by==="b"?(mumM()||{}).user_id:(ownerM()||{}).user_id);l.appendChild(xtConfirmBox(x,xpid,"expenses"));
-    l.appendChild(reimbBox(x,function(pt){db.doc("expenses/"+x.id).update(pt).catch(fail)}));
+    l.appendChild(reimbBox(x,xpid,function(pt){return db.doc("expenses/"+x.id).update(pt)},"expense"));if(x.reimbAt)l.style.opacity=".7";
     var rt=h("div");rt.style.textAlign="right";rt.appendChild(h("div","amt",money(x.amount)));
     var rm=h("button","quiet","Remove");rm.onclick=function(){db.doc("expenses/"+x.id).delete().catch(fail)};
     if(canWrite&&canRemoveRec(x))rt.appendChild(rm);r.appendChild(l);r.appendChild(rt);L.appendChild(r)});
@@ -2238,7 +2272,7 @@ function xtSup(){
       else acts.appendChild(h("div","meta",to?"Waiting for Our Mummy to confirm.":"Waiting for Our Mummy to join and confirm."));
       if(isAdminAcct())acts.appendChild(xtBtn("Undo paid",function(){xtDoc(id,{paidAt:null,paidBy:null,receipt:null,selfie_paid:null})},"quiet"));
     }
-    if(r.paidAt)acts.appendChild(reimbBox(r,function(pt){xtDoc(id,pt)}));
+    if(r.paidAt)acts.appendChild(reimbBox(r,r.paidBy,function(pt){return xtDoc(id,pt)},"support"));
     row.appendChild(acts);L.appendChild(row)});
   box.appendChild(L);
 }
@@ -3333,9 +3367,9 @@ function spdItems(){
   var A=(ownerM()||{}).user_id||"",B=(mumM()||{}).user_id||"",out=[];
   function who(id){return id===B?"b":id===A?"a":"o"}
   function dt(s){var p=String(s||"").split("-");return p.length>2?new Date(+p[0],+p[1]-1,+p[2]).getTime():0}
-  (S.exp||[]).forEach(function(x){if(x.review&&x.review.state==="rejected")return;out.push({w:x.by==="b"?"b":"a",t:dt(x.date)||x.ts||0,amt:+x.amount||0,c:"Expenses",r:x.reimbAt||0})});
+  (S.exp||[]).forEach(function(x){if(x.review&&x.review.state==="rejected")return;var w0=x.by==="b"?"b":"a";out.push({w:w0,t:dt(x.date)||x.ts||0,amt:+x.amount||0,c:"Expenses",r:x.reimbAt||0});if(x.reimbAt)out.push({w:w0==="a"?"b":"a",t:x.reimbAt,amt:+x.amount||0,c:"Expenses",r:0})});
   (S.xo||[]).forEach(function(x){
-    if(x.kind==="sup"&&x.paidAt)out.push({w:who(x.paidBy),t:x.paidAt,amt:+x.amount||0,c:"Support",r:x.reimbAt||0});
+    if(x.kind==="sup"&&x.paidAt){var ws=who(x.paidBy);out.push({w:ws,t:x.paidAt,amt:+x.amount||0,c:"Support",r:x.reimbAt||0});if(x.reimbAt)out.push({w:ws==="a"?"b":"a",t:x.reimbAt,amt:+x.amount||0,c:"Support",r:0})}
     else if(x.kind==="feex"&&x.paid)out.push({w:who(x.paidBy||x.by),t:x.paidOn||x.ts||0,amt:+x.amount||0,c:"School fees"});
     else if(x.kind==="fee")(x.payments||[]).forEach(function(p){out.push({w:who(p.by),t:p.ts||0,amt:+p.amount||0,c:"School fees"})});
   });
