@@ -2214,13 +2214,15 @@ function xtSup(){
     var acts=h("div");
     if(!r.paidAt&&canSet&&!future){
       var fl=h("input");fl.type="file";fl.multiple=true;fl.accept="image/*,application/pdf";fl.style.marginTop="6px";
+      window.XRF=window.XRF||{};try{if(XRF[id]&&XRF[id].length)fl.files=XRF[id]}catch(e){}fl.addEventListener("change",function(){XRF[id]=fl.files});
       var lb=h("div","meta","Attach the transaction receipt or receipts (required)");lb.style.marginTop="6px";acts.appendChild(lb);acts.appendChild(fl);
+      var st=h("div","meta");st.style.cssText="margin-top:6px;font-weight:600";var say=function(t){st.textContent=t;note(t)};
       var pb=xtBtn("Mark as paid",async function(){
-        if(!fl.files||!fl.files[0])return note("Attach the transaction receipt first.");note("");pb.disabled=true;
+        if(!fl.files||!fl.files[0])return say("Attach the transaction receipt first.");say("Uploading the receipt…");pb.disabled=true;
         try{var rcs=[];for(var qi=0;qi<fl.files.length;qi++)rcs.push(await xtUp(fl.files[qi]));var sck=await aiVerifyMany(fl.files,{kind:"support",title:"Support "+lbl,amount:cfg.amount,date:key(new Date())});rcs.forEach(function(q){q.aicheck=sck});var rflag=sck.status==="review";var rc=rcs[0];
           var pt={kind:"sup",date:mm.y+"-"+pad(mm.m)+"-"+(wk?pad(mm.d):"01"),amount:cfg.amount,paidAt:rcDateMs(sck.read&&sck.read.date)||Date.now(),paidBy:myId,receipt:rc,_selfie:"paid"};if(rcs.length>1)pt.receipts=rcs;if(rflag)pt.review={state:"pending"};
-          await xtDoc(id,pt);{var who2=myRole();setTimeout(function(){babyPost(who2||"daddy",wk?"sent this week’s support for Janet":"sent this month’s support for Janet",true)},2500)}}catch(e){fail(e)}
-        pb.disabled=false});acts.appendChild(pb);
+          await xtDoc(id,pt);XRF[id]=null;say("Marked as paid ✓");{var who2=myRole();setTimeout(function(){babyPost(who2||"daddy",wk?"sent this week’s support for Janet":"sent this month’s support for Janet",true)},2500)}}catch(e){fail(e);if(!(e&&(e.code==="observer"||e.code==="selfie")))say("Couldn’t mark it as paid: "+String((e&&(e.message||e.code))||"unknown error").slice(0,140))}
+        pb.disabled=false});acts.appendChild(pb);acts.appendChild(st);
     }
     if(r.paidAt&&!r.receivedAt){
       if(to&&to===myId&&canWrite)acts.appendChild(xtBtn("✅ Confirm I received it",function(){xtDoc(id,{receivedAt:Date.now(),receivedBy:myId,_selfie:"received"})}));
