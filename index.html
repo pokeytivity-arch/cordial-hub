@@ -1807,6 +1807,7 @@ function xtChk(){
           if(canWrite&&myRole()&&left<=0)sp.appendChild(xtBtn("Restock",function(){CHKASK={k:i.k,t:i.t,re:1,r:myRole()==="daddy"?"dad":"mum",sec:c[1]};xtChk()},"quiet"));
         }else if(d&&canWrite&&myRole())sp.appendChild(xtBtn("Bought again",function(){if(!confirm("Record that "+i.t+" was bought again?"))return;var nd=Object.assign({},done);chkBuy(nd,i,c[1],myRole()==="daddy"?"dad":"mum",0);save({done:nd})},"quiet"));
         else if(!d&&i.n)sp.appendChild(h("div","meta",i.n));
+        try{var pf1=priceFor({title:i.t,brand:""});if(pf1){var pl1=h("div","meta","💰 Last price: "+money(pf1.price)+(pf1.shop?" at "+pf1.shop:"")+" ("+new Date(pf1.ts).toLocaleDateString(undefined,{day:"numeric",month:"short"})+")");sp.appendChild(pl1)}}catch(e){}
         var onl=(S.xo||[]).filter(function(y){return y.kind==="shop"&&y.chk&&y.chk.k===i.k&&(y.status==="requested"||y.status==="fulfilled")})[0];
         if(onl){var ch=h("div","meta","🛒 On the shopping list"+(onl.status==="fulfilled"?" (bought, waiting for confirmation)":""));ch.style.fontWeight="600";sp.appendChild(ch)}
         if(canWrite&&CHKSHOP&&CHKSHOP.k===i.k){
@@ -1825,6 +1826,7 @@ function xtChk(){
               if(cons&&!parseInt(sl.value,10))return note("Choose how long it will last, so the meter can start when it is bought.");note("");
               var rec={kind:"shop",date:key(new Date()),title:i.t,note:"",by:myId,status:"requested",prio:3,ts:Date.now(),chk:{k:i.k,item:i.t,section:c[1]}};
               if(bi.value.trim())rec.brand=bi.value.trim();if(qi.value.trim())rec.qty=qi.value.trim();if(parseInt(sl.value,10))rec.days=parseInt(sl.value,10);if(spc.get())rec.store=spc.get();
+              try{var pf2=priceFor({title:i.t,brand:rec.brand||""});if(pf2){rec.est=pf2.price;if(pf2.shop)rec.estShop=pf2.shop;rec.estTs=pf2.ts}}catch(e){}
               try{await db.collection("expenses").add(rec);CHKSHOP=null;note("Added to the shopping list.");setTimeout(function(){note("")},2200);xtChk()}catch(e){fail(e)}}));
             sf.appendChild(xtBtn("Cancel",function(){CHKSHOP=null;xtChk()},"quiet"))}
           sp.appendChild(sf)}
@@ -2168,7 +2170,7 @@ function xtShop(){
       top.appendChild(h("b",null,x.title));r.appendChild(top);
       var meta="Requested by "+xtName(x.by)+" · "+when(x.ts);
       if(x.note)meta+=" · "+x.note;r.appendChild(h("div","meta",meta));
-      var det=[];if(x.brand)det.push("Brand: "+x.brand);if(x.qty)det.push("Qty: "+x.qty);if(x.days)det.push("Lasts about "+chkDur(x.days));if(x.store)det.push("Buy at: "+x.store);try{var pf=priceFor(x);if(pf){det.push("Last price: "+money(pf.price)+(pf.shop?" at "+pf.shop:"")+" ("+new Date(pf.ts).toLocaleDateString(undefined,{day:"numeric",month:"short"})+")");if(x.days>0)det.push("≈ "+money(pf.price*30/x.days)+" a month")}}catch(e){}if(x.chk){det.push("From the checklist");var lq=chkLastMap()[x.chk.k];if(lq)det.push("Last bought "+new Date(lq.ts).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}))}if(det.length){var dd=h("div","meta",det.join(" · "));dd.style.fontWeight="600";r.appendChild(dd)}
+      var det=[];if(x.brand)det.push("Brand: "+x.brand);if(x.qty)det.push("Qty: "+x.qty);if(x.days)det.push("Lasts about "+chkDur(x.days));if(x.store)det.push("Buy at: "+x.store);try{var pf=priceFor(x)||(x.est>0?{price:x.est,shop:x.estShop||"",ts:x.estTs||x.ts}:null);if(pf){det.push("Last price: "+money(pf.price)+(pf.shop?" at "+pf.shop:"")+" ("+new Date(pf.ts).toLocaleDateString(undefined,{day:"numeric",month:"short"})+")");if(x.days>0)det.push("≈ "+money(pf.price*30/x.days)+" a month")}else det.push("No price yet")}catch(e){}if(x.chk){det.push("From the checklist");var lq=chkLastMap()[x.chk.k];if(lq)det.push("Last bought "+new Date(lq.ts).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}))}if(det.length){var dd=h("div","meta",det.join(" · "));dd.style.fontWeight="600";r.appendChild(dd)}
       if(x.link){var la=h("a","meta","🔗 Open link");la.href=x.link;la.target="_blank";la.rel="noopener noreferrer";la.style.textDecoration="underline";r.appendChild(la)}
       if(x.photo&&x.photo.path){var pim=h("img");pim.alt="Reference photo";pim.style.cssText="width:84px;height:84px;object-fit:cover;border-radius:10px;margin-top:4px;cursor:pointer;background:rgba(127,127,127,.2)";signed(x.photo.path).then(function(u){pim.src=u}).catch(function(){});pim.onclick=function(){signed(x.photo.path).then(function(u){preview(Object.assign({},x.photo,{url:u}))})};r.appendChild(pim)}
       draw(x,r,top);var sl2=selfieLinks(x,[["selfie","Requested"],["selfie_fulfilled","Fulfilled"],["selfie_confirmed","Confirmed"]]);if(sl2)r.appendChild(sl2);var ssh=shareLine(x,"expenses");if(ssh)r.appendChild(ssh);c.appendChild(r)});
@@ -2193,6 +2195,8 @@ function xtShop(){
       a.appendChild(xtBtn("Reveal to everyone",function(){if(confirm("Show this to everyone? It will stop being a surprise."))db.doc("expenses/"+x.id).update({share:null}).catch(fail)},"quiet"))}
     if(x.by===myId||isOwner)a.appendChild(xtBtn("Cancel request",function(){if(confirm("Remove this request?"))db.doc("expenses/"+x.id).delete().catch(fail)},"quiet"));
     r.appendChild(a)},function(c){
+      try{var pn=0,tot=0;waitList.forEach(function(x){var q=priceFor(x)||(x.est>0?{price:x.est}:null);if(q){pn++;var qn=parseFloat(String(x.qty||"1").replace(/[^\d.]/g,""))||1;tot+=q.price*qn}});
+        if(waitList.length){var et=h("div","meta","💰 Estimated cost: "+money(tot)+" ("+pn+" of "+waitList.length+" items have a known price)");et.style.fontWeight="700";c.appendChild(et)}}catch(e){}
       c.appendChild(h("p","meta","Going shopping? Pick where you are going to see just that list, and download it to take with you. Tick an item when you have bought it. It moves to “Bought, waiting for confirmation”; when the other parent confirms, it moves to Completed and shows on the Checklist."));
       var chips=h("div");chips.style.cssText="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0";
       function chip(label,val,n){var b=h("button",SHF===val?"go":"quiet",label+" ("+n+")");b.type="button";b.style.cssText="padding:6px 12px;font-size:.85rem;border-radius:999px";b.onclick=function(){SHF=val;xtShop()};chips.appendChild(b)}
