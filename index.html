@@ -1489,7 +1489,7 @@ function reimbBox(rec,payerId,save,what){
   if(!isPar||OBS||!canWrite||!payerId)return w;
   var otherId=payerId===A?B:A;
   if(payerId===myId){
-    if(rec.reimbReqAt){var rq=h("div","meta","↩️ You asked for reimbursement on "+new Date(rec.reimbReqAt).toLocaleDateString(undefined,{day:"numeric",month:"short"})+". Waiting for the other parent.");w.appendChild(rq)}
+    if(rec.reimbReqAt){var rq=h("div","meta","↩️ You asked for reimbursement on "+new Date(rec.reimbReqAt).toLocaleDateString(undefined,{day:"numeric",month:"short"})+". Waiting for the other parent.");w.appendChild(rq);w.appendChild(xtBtn("Cancel request",function(){if(confirm("Cancel the reimbursement request?"))save({reimbReqAt:null,reimbReqBy:null}).then(function(){note("Request cancelled")})},"quiet"))}
     else w.appendChild(xtBtn("↩️ Request reimbursement",async function(){
       try{await save({reimbReqAt:Date.now(),reimbReqBy:myId});note("Reimbursement requested ✓");
         try{var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(tk&&otherId)fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:"task",to:[otherId],title:(S.me||"Your co-parent")+" asked you to reimburse",body:(rec.desc||what||"An expense")+" · "+money(rec.amount),tag:"reimb-"+(rec.id||""),goto:"exp"})})}catch(e){}
