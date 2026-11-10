@@ -4244,7 +4244,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
 (function(){
   var base=null,lastTouch=Date.now(),pending=false;
   ["pointerdown","keydown","touchstart","scroll"].forEach(function(ev){document.addEventListener(ev,function(){lastTouch=Date.now()},{passive:true,capture:true})});
-  function tag(r){return (r.headers.get("etag")||"")+"|"+(r.headers.get("last-modified")||"")+"|"+(r.headers.get("content-length")||"")}
+  function tag(r){var e=(r.headers.get("etag")||"").replace(/^W\//,"");return e?"e"+e:(r.headers.get("content-length")?"l"+r.headers.get("content-length"):"||")}
   function busy(){
     var a=document.activeElement;if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return true;
     var f=document.querySelectorAll("textarea,input[type=text],input:not([type])");
@@ -4271,7 +4271,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
       tryReload();
     }).catch(function(){});
   }
-  setInterval(check,15000);
+  setInterval(check,60000);
   setInterval(tryReload,5000);
   /* coming back to the app (from the background, a lock screen or another app): renew the login and fetch everything again, no sign out needed */
   var lastResume=0;
