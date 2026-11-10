@@ -3769,6 +3769,7 @@ async function babyPost(target,what,quiet,extra){
 S.react=[];S.reply=null;
 function nameOf(id,ps){
   if(id&&id===myId)return "You";
+  if(id==="cordial_ai")return "Cordial Co-Parenting";
   var n=ps&&ps[id]&&ps[id].name;if(n)PROF[id]=n;
   return n||PROF[id]||"Someone";
 }
@@ -4251,7 +4252,16 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
     if(document.querySelector("video[src^='blob:']"))return true;
     return Date.now()-lastTouch<20000;
   }
-  function tryReload(){if(!pending)return;if(busy())return;try{location.reload()}catch(e){}}
+  /* a new version no longer restarts the app by itself: a small bar offers the update, and it only reloads when you tap it */
+  function tryReload(){
+    if(!pending||document.getElementById("hubUpd"))return;
+    var d=document.createElement("div");d.id="hubUpd";d.setAttribute("role","status");
+    d.style.cssText="position:fixed;left:12px;right:12px;bottom:84px;z-index:99999;background:#1c1e21;color:#fff;border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 20px rgba(0,0,0,.35);font:14px -apple-system,Helvetica,Arial,sans-serif";
+    var t=document.createElement("span");t.style.flex="1";t.textContent="A new version of the hub is ready.";
+    var u=document.createElement("button");u.type="button";u.textContent="Update";u.style.cssText="border:0;border-radius:10px;padding:8px 14px;background:#2f7de1;color:#fff;font:inherit;font-weight:600";u.onclick=function(){try{location.reload()}catch(e){}};
+    var x=document.createElement("button");x.type="button";x.textContent="Later";x.style.cssText="border:0;background:transparent;color:#bbb;font:inherit;padding:8px 4px";x.onclick=function(){d.remove();pending=false;setTimeout(function(){pending=true},30*60*1000)};
+    d.appendChild(t);d.appendChild(u);d.appendChild(x);document.body.appendChild(d);
+  }
   function check(){
     if(document.hidden)return;
     fetch("/index.html",{method:"HEAD",cache:"no-store"}).then(function(r){
