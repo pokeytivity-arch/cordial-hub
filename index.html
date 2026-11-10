@@ -418,7 +418,7 @@ html[data-look=fb] #fbnav button{border-radius:999px;padding:11px 0}
 html[data-look=fb] #fbnav .lb{display:none}
 html[data-look=fb] #fbnav button.on{background:var(--a-bg)}
 html[data-look=fb] main{padding-bottom:96px}
-html[data-look] #fbnav{bottom:calc(10px + env(safe-area-inset-bottom,0px) + var(--vvoff,0px))!important;transition:opacity .15s}
+html[data-look] #fbnav{bottom:calc(10px + env(safe-area-inset-bottom,0px) + var(--vvoff,0px))!important;-webkit-transform:translateZ(0);transform:translateZ(0);will-change:transform}
 html[data-look][data-typing] #fbnav{opacity:0;pointer-events:none}
 html[data-look=fb] main,html[data-look=wa] main{padding-bottom:120px}
 
@@ -4256,7 +4256,7 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
   function tryReload(){
     if(!pending||document.getElementById("hubUpd"))return;
     var d=document.createElement("div");d.id="hubUpd";d.setAttribute("role","status");
-    d.style.cssText="position:fixed;left:12px;right:12px;bottom:84px;z-index:99999;background:#1c1e21;color:#fff;border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 20px rgba(0,0,0,.35);font:14px -apple-system,Helvetica,Arial,sans-serif";
+    d.style.cssText="position:fixed;left:12px;right:12px;bottom:calc(112px + env(safe-area-inset-bottom));z-index:99999;background:#1c1e21;color:#fff;border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 20px rgba(0,0,0,.35);font:14px -apple-system,Helvetica,Arial,sans-serif";
     var t=document.createElement("span");t.style.flex="1";t.textContent="A new version of the hub is ready.";
     var u=document.createElement("button");u.type="button";u.textContent="Update";u.style.cssText="border:0;border-radius:10px;padding:8px 14px;background:#2f7de1;color:#fff;font:inherit;font-weight:600";u.onclick=function(){try{location.reload()}catch(e){}};
     var x=document.createElement("button");x.type="button";x.textContent="Later";x.style.cssText="border:0;background:transparent;color:#bbb;font:inherit;padding:8px 4px";x.onclick=function(){d.remove();pending=false;setTimeout(function(){pending=true},30*60*1000)};
@@ -9512,9 +9512,10 @@ setInterval(function(){if(WA.open&&!document.hidden)render();try{if(!document.hi
   var r=document.documentElement,vv=window.visualViewport;
   function kb(){return vv?(window.innerHeight-vv.height)>120&&!(vv.scale>1.02):false}
   function pin(){
+    /* only move the bar while the keyboard is open; while you scroll it stays exactly where it is, so it cannot flicker */
     var off=0;
-    if(vv&&!(vv.scale>1.02)){off=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);if(off>window.innerHeight*.6)off=0}
-    r.style.setProperty("--vvoff",off+"px");
+    if(vv&&kb()&&!(vv.scale>1.02)){off=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);if(off>window.innerHeight*.6)off=0}
+    if(r.__vo!==off){r.__vo=off;r.style.setProperty("--vvoff",off+"px")}
   }
   function typing(){
     var a=document.activeElement,t=a&&a.tagName,ty=a&&a.type;
@@ -9522,10 +9523,10 @@ setInterval(function(){if(WA.open&&!document.hidden)render();try{if(!document.hi
     if(textish&&kb())r.setAttribute("data-typing","1");else r.removeAttribute("data-typing");
   }
   function fix(){pin();typing()}
-  if(vv){vv.addEventListener("resize",fix);vv.addEventListener("scroll",pin)}
+  if(vv){vv.addEventListener("resize",fix);vv.addEventListener("scroll",function(){if(kb())pin()})}
   document.addEventListener("focusin",function(){setTimeout(fix,150)});
   document.addEventListener("focusout",function(){setTimeout(fix,150)});
-  window.addEventListener("scroll",pin,{passive:true});
+  window.addEventListener("scroll",function(){if(kb())pin()},{passive:true});
   ["visibilitychange","pageshow","orientationchange","resize","touchend"].forEach(function(ev){window.addEventListener(ev,function(){setTimeout(fix,100)},{passive:true})});
   setInterval(fix,1000);
   fix();
