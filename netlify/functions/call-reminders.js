@@ -14,6 +14,12 @@ function quiet(due, at) { const hr = new Date(due + 3600e3).getUTCHours(); if (h
 const LATE = 14 * 60e3; // still send if the timer fires up to 14 minutes late
 const WAT = 3600e3;     // Nigeria is UTC+1, no daylight saving
 
+async function saveSent(sent) {
+  await fetch(`${URL_}/rest/v1/docs?on_conflict=key`, {
+    method: "POST", headers: { ...H, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify({ key: "profiles/callremind", collection: "profiles", id: "callremind", data: { sent } }),
+  });
+}
 async function readDoc(key) {
   const r = await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent(key)}&select=data`, { headers: H });
   return ((r.ok ? await r.json() : [])[0] || {}).data || null;
@@ -71,13 +77,24 @@ exports.handler = async () => {
       }
     }
   } catch (e) {}
+  // Several calendar rows for the same Zoom call (or the same call counted twice) must give ONE alert
+  const seenAt = new Set();
+  for (let i = todo.length - 1; i >= 0; i--) {
+    const t = todo[i], sig = (t.ev ? "e:" + t.ev + ":" : "z:") + t.callAt + ":" + t.label;
+    if (seenAt.has(sig)) { sent[t.k] = now; todo.splice(i, 1); } else seenAt.add(sig);
+  }
   if (!todo.length) return { statusCode: 200, body: "nothing due" };
+  // Claim these alerts BEFORE sending, so a second run that starts while this one is busy cannot send them again
+  for (const t of todo) sent[t.k] = now;
+  await saveSent(sent);
+
 
   // Everyone who has phone alerts turned on
   const mr = await fetch(`${URL_}/rest/v1/members?select=user_id`, { headers: H });
   const members = mr.ok ? await mr.json() : [];
   let count = 0;
   for (const t of todo) {
+    const doneEp = new Set(); // one phone, one alert, even if two accounts were signed in on it
     const when = new Date(t.callAt + WAT).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
     const payload = t.ev
       ? { kind: "reminder", title: "Reminder: " + t.ev, body: `${t.ev} ${t.hasT ? "starts" : "is"} in ${t.label} (${new Date(t.callAt + WAT).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}${t.hasT ? ", " + when : ""}).`, tag: "evrem-" + t.k, url: "/?goto=sched" }
@@ -90,6 +107,8 @@ exports.handler = async () => {
       for (const s of subs) {
         if (!s || !s.endpoint || !s.keys) continue;
         let st = 0;
+        if (doneEp.has(s.endpoint)) { keep.push(s); continue; }
+        doneEp.add(s.endpoint);
         try { st = await push._sendOne(s, payload); } catch { st = 0; }
         if (st >= 200 && st < 300) count++;
         if (st !== 404 && st !== 410) keep.push(s);
@@ -102,12 +121,8 @@ exports.handler = async () => {
         });
       }
     }
-    sent[t.k] = now;
   }
   for (const k of Object.keys(sent)) if (now - sent[k] > 3 * 86400e3) delete sent[k];
-  await fetch(`${URL_}/rest/v1/docs?on_conflict=key`, {
-    method: "POST", headers: { ...H, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
-    body: JSON.stringify({ key: "profiles/callremind", collection: "profiles", id: "callremind", data: { sent } }),
-  });
+  await saveSent(sent);
   return { statusCode: 200, body: JSON.stringify({ sent: count, reminders: todo.length }) };
 };

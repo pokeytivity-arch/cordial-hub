@@ -31,6 +31,8 @@ exports.handler = async () => {
       if (!m) continue;
       try { await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent("media/" + m)}`, { method: "DELETE", headers: H }); } catch (e) {}
     }
+    // story view records (plikes/sv_<story id>_<viewer>)
+    try { await fetch(`${URL_}/rest/v1/docs?key=like.${encodeURIComponent("plikes/sv_" + row.key.replace(/^posts\//, "") + "_") + "*"}`, { method: "DELETE", headers: H }); } catch (e) {}
     try {
       const xr = await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent(row.key)}`, { method: "DELETE", headers: H });
       if (xr.ok) docs++;

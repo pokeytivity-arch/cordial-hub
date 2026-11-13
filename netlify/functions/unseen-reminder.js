@@ -21,7 +21,7 @@ exports.handler = async () => {
   const hr = new Date(now + WAT).getUTCHours();
   if (hr >= 23 || hr < 6) return { statusCode: 200, body: "quiet hours" };
 
-  const members = await getJson("members?select=user_id,name");
+  const members = await getJson("members?select=user_id,name,is_owner,grp");
   const rows = await getJson("docs?collection=eq.messages&select=data&order=created_at.desc&limit=600");
   const msgs = rows.map((r) => r.data || {}).filter((m) => m.ts && now - m.ts < 14 * 86400e3 && m.by && m.by !== BOT_ID && m.kind !== "sys");
   const profs = await getJson("docs?collection=eq.profiles&select=key,data&limit=500");
@@ -32,6 +32,7 @@ exports.handler = async () => {
 
   for (const mem of members) {
     const uid = mem.user_id;
+    if (mem.is_owner && mem.grp !== "parent") { if (state[uid]) { delete state[uid]; changed = true; } continue; } // the Cordial owner account only observes: it cannot open the family chats, so it is never reminded
     const lp = prof[`profiles/cp_${uid}`];
     if (!lp) continue;
     const read = lp.read || {}, since = lp.since || 0, arch = lp.arch || [], mute = lp.mute || [];
@@ -45,7 +46,7 @@ exports.handler = async () => {
         if (!g || !(g.members || []).includes(uid)) return false;
       }
       if (arch.includes(chat) || mute.includes(chat)) return false;
-      return m.ts > Math.max(read[chat] || 0, since);
+      return m.ts > Math.max(read[chat] || 0, since, lp.ack || 0);
     });
     if (!unseen.length) { if (state[uid]) { delete state[uid]; changed = true; } continue; }
     const oldest = Math.min(...unseen.map((m) => m.ts));
