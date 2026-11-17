@@ -13,10 +13,10 @@ This branch (`cloudflare`) adds three files and changes nothing else:
    JAAS_APP_ID, JAAS_KID, JAAS_PRIVATE_KEY, ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, ZOOM_MEETING_NUMBER,
    ZOOM_MEETING_PASSCODE, ZOOM_SDK_KEY, ZOOM_SDK_SECRET, ZOOM_WEBHOOK_SECRET, YT_CHANNEL_ID, YT_NOTIFY (and any of
    ANTHROPIC_MODEL, CORDIAL_DAILY_LIMIT, CORDIAL_PRICE_IN, CORDIAL_PRICE_OUT, YT_EXTRA_SEEDS, YT_SEED_VIDEO you use).
-   Add them as "Secret" type. Change `URL` in wrangler.jsonc to the hub's real address.
+   Add them as "Secret" type. The address (`URL`) is already set to https://app.pokeytivity.com in wrangler.jsonc.
 3. Test on the free *.workers.dev address first: sign in, send a message, Ask Cordial, start a call.
 4. Custom domain: Settings → Domains & Routes → Add. Use the SAME address people already use, so logins and
    notification permissions carry over.
 5. Update the places that know the address: Zoom Marketplace app (event notification URL
-   https://YOUR-ADDRESS/api/zoom-webhook), Supabase → Authentication → URL configuration.
+   https://app.pokeytivity.com/api/zoom-webhook), Supabase → Authentication → URL configuration.
 6. When all works: merge `cloudflare` into `main`, set Cloudflare's production branch to `main`, then pause and delete the Netlify site.
