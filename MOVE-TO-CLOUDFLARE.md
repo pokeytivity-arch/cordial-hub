@@ -18,5 +18,5 @@ This branch (`cloudflare`) adds three files and changes nothing else:
 4. Custom domain: Settings → Domains & Routes → Add. Use the SAME address people already use, so logins and
    notification permissions carry over.
 5. Update the places that know the address: Zoom Marketplace app (event notification URL
-   https://app.pokeytivity.com/api/zoom-webhook), Supabase → Authentication → URL configuration.
+   https://YOUR-ADDRESS/api/zoom-webhook), Supabase → Authentication → URL configuration.
 6. When all works: merge `cloudflare` into `main`, set Cloudflare's production branch to `main`, then pause and delete the Netlify site.
