@@ -4783,9 +4783,22 @@ function jcFlip(){
   }).catch(function(){toast("Couldn’t switch camera.")});
 }
 function jcMenu(){var m=JC.querySelector("#jcmenu");m.hidden=!m.hidden}
+/* Ask for the microphone (and camera for video calls) the moment a call is started or answered, so the phone's permission prompt appears straight away. */
+var PRIMED=0;
+function primeMedia(audioOnly){
+  try{
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return;
+    var now=Date.now();if(now-PRIMED<4000)return;PRIMED=now;
+    var done=function(st){try{st.getTracks().forEach(function(t){t.stop()})}catch(e){}};
+    var micOnly=function(){navigator.mediaDevices.getUserMedia({audio:true}).then(done).catch(function(){toast("Allow the microphone so others can hear you in calls.")})};
+    if(audioOnly){micOnly();return}
+    navigator.mediaDevices.getUserMedia({audio:true,video:{facingMode:"user"}}).then(done).catch(micOnly);
+  }catch(e){}
+}
 function openCall(c){
   if(OBS){note("The Cordial Coparent account can’t chat, call or join meetings.");setTimeout(function(){note("")},2500);return}
   if(!c||!c.room)return;
+  primeMedia(!!c.audio);
   if(JC&&!JC.hidden&&JCUR&&JCUR.room===c.room){jcRestore();return}
   if(!JC){
     JC=h("div");JC.id="jc";JC.hidden=true;JC.setAttribute("role","dialog");JC.setAttribute("aria-label","Call");
@@ -4871,6 +4884,7 @@ function callLive(){var c=S.call;return !!(c&&c.room&&Date.now()-c.ts<6*3600*100
 function syncCbar(){var inCall=JC&&!JC.hidden,mn=inCall&&JC.classList.contains("min");CB.classList.toggle("incall",!!mn);if(mn){CB.hidden=false;CB.textContent="📞 In call · Tap to return";return}CB.hidden=!callLive()||inCall;if(callLive())CB.textContent="📞 Call in progress · Join"}
 function startCall(audio){
   if(OBS){note("The Cordial Coparent account can’t chat, call or join meetings.");setTimeout(function(){note("")},2500);return}
+  primeMedia(!!audio);
   var c={room:newRoom(),audio:audio,by:myId||"",ts:Date.now()};
   if(db)db.doc("calls/current").set(c).catch(fail);
   try{if(window.hubFamilyCallLog)hubFamilyCallLog(c)}catch(e){}
@@ -9363,6 +9377,7 @@ function callees(c){return c.members.filter(function(id){return id!==myId&&MEMBE
 function callChat(c,audio){
   if(c.type==="family")return startCall(audio);
   if(!db)return;if(RING.cur)return;
+  primeMedia(!!audio);
   var to=callees(c);if(!to.length){toast("They don’t have call access in the hub.");return}
   var id=db.collection("calls").doc().id;
   var call={room:newRoom(),audio:!!audio,by:myId,name:S.me||"Someone",ts:Date.now(),chat:c.id,to:to,state:"ringing"};
