@@ -7117,7 +7117,13 @@ async function start(session){
   try{me=await loadAccess()}catch(e){console.error(e);lerr=e}
   if(!me){
     showSignin();
-    gmsg(lerr?"Signed in, but the hub couldn’t read its member list: "+(lerr.message||lerr.code||"unknown error")+".":"This account isn’t set up in the hub yet.",true);
+    if(lerr){
+      /* a slow or dropped connection must never end the saved login: keep it and try again */
+      window.__startTry=(window.__startTry||0)+1;
+      if(window.__startTry<=20){gmsg("Reconnecting to the hub…");setTimeout(function(){start(session)},3000);return}
+      gmsg("Couldn’t reach the hub: "+(lerr.message||lerr.code||"unknown error")+". Check your connection and reopen the app. You are still signed in.",true);return;
+    }
+    gmsg("This account isn’t set up in the hub yet.",true);
     sb.auth.signOut();return;
   }
   STARTED=true;
