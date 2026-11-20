@@ -2266,7 +2266,7 @@ function xtMonths(startKey){
   return out;
 }
 function xtWeeks(startKey){
-  /* support is paid in advance: the first week after the start date is the first to pay, and the week in progress is skipped.
+  /* support is paid in advance: the first week after the start date is the first to pay, and the week in progress is skipped (Monday weeks).
      Weeks began on Mondays until 9 Nov 2026; since then each support week begins on a Friday (13 Nov, 20 Nov, 27 Nov...). Earlier weeks keep their Monday dates. */
   var out=[],WK=604800000,CUT=new Date(2026,10,13);
   var wd=function(d){return new Date(d.getFullYear(),d.getMonth(),d.getDate())};
@@ -2274,7 +2274,7 @@ function xtWeeks(startKey){
   var fri=function(d,strict){var x=wd(d);x.setDate(x.getDate()+(((5-x.getDay()+7)%7)||(strict?7:0)));return x};
   var sp=(startKey||key(new Date())).split("-"),sd=new Date(+sp[0],+sp[1]-1,+sp[2]||1),first=mon(sd);first.setDate(first.getDate()+7);
   var today=wd(new Date()),next;
-  if(today<CUT){next=mon(today);next.setDate(next.getDate()+7)}else next=fri(today,true);
+  if(today<CUT){next=mon(today);next.setDate(next.getDate()+7)}else next=fri(today,false); /* on a Friday the week that starts today is due; the next Friday is "up next" */
   var last=new Date(next);last.setDate(last.getDate()+14);
   var list=[];
   for(var d=new Date(first);d<CUT&&d<=last;d.setDate(d.getDate()+7))list.push(new Date(d));
