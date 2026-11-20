@@ -4820,7 +4820,7 @@ function openCall(c){
     JC=h("div");JC.id="jc";JC.hidden=true;JC.setAttribute("role","dialog");JC.setAttribute("aria-label","Call");
     var mt=h("div");mt.id="jcm";JC.appendChild(mt);
     var tp=h("div");tp.id="jct";
-    tp.appendChild(jbtn("",JI.min,"Back to chat",function(){jcToChat()}));
+    tp.appendChild(jbtn("",JI.min,"Minimize: keep the call going and use the rest of the hub",function(){jcMin()}));
     var tt=h("div");tt.className="jtt";tt.appendChild(h("b",null,"Call"));var sp=h("span");sp.id="jcs";tt.appendChild(sp);tp.appendChild(tt);
     var rt=h("div");rt.className="jr";
     rt.appendChild(jbtn("",JI.add,"Add people",function(){if(window.hubAddToCall)hubAddToCall();else toast("Add people isn’t ready yet.")}));
@@ -4834,7 +4834,7 @@ function openCall(c){
     var mb=jbtn("",JI.mic,"Microphone",function(){if(JAPI){JAPI.executeCommand("toggleAudio");jcDev("mic")}});mb.id="jcmic";bt.appendChild(mb);
     bt.appendChild(jbtn("jend",JI.end,"End call",closeCall));
     var mn=h("div");mn.id="jcmenu";mn.hidden=true;
-    var m1=h("button",null,"Share screen");m1.onclick=function(){mn.hidden=true;if(JAPI)JAPI.executeCommand("toggleShareScreen")};
+    var m1=h("button",null,"Share screen");m1.onclick=function(){mn.hidden=true;if(!navigator.mediaDevices||!navigator.mediaDevices.getDisplayMedia){toast("Sharing the screen isn’t possible on this phone’s browser. Use the hub on a computer, or on an Android phone.");return}if(JAPI)JAPI.executeCommand("toggleShareScreen")};
     var m2=h("button",null,"Grid / speaker view");m2.onclick=function(){mn.hidden=true;if(JAPI)JAPI.executeCommand("toggleTileView")};
     var m3=h("a",null,"Open in new tab");m3.id="jcn";m3.target="_blank";m3.rel="noopener";
     mn.appendChild(m1);mn.appendChild(m2);mn.appendChild(m3);
