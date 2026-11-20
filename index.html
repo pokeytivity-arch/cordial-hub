@@ -6452,6 +6452,7 @@ var SELFIE_PAUSED=true;
 function selfieOn(){if(SELFIE_PAUSED)return Promise.resolve(false);return db.doc("settings/selfie").get().then(function(r){var d=r.exists?r.data():{};return d.on!==false}).catch(function(){return true})}
 window.hubSelfie=function(label){return selfieOn().then(function(on){return on?selfieCapture(label):null})};
 function selfieCapture(label){
+  if(SELFIE_PAUSED)return Promise.resolve(null);
   return new Promise(function(resolve,reject){
     var ov=h("div");ov.dataset.noptr="1";ov.style.cssText="position:fixed;inset:0;z-index:900;background:#101410;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;text-align:center;overflow:auto";
     ov.appendChild(h("div",null,"📸")).style.fontSize="2rem";
