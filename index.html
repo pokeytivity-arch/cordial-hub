@@ -2938,6 +2938,13 @@ function renderTodos(){
     if(canWrite&&myRole()){var sel=h("select");sel.setAttribute("aria-label","Who is responsible");sel.style.cssText="width:auto;padding:4px 8px;font-size:.85rem;margin:6px 8px 0 0";
       [["","Not assigned"],["daddy","Our Daddy"],["mummy","Our Mummy"],["both","Both parents"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];sel.appendChild(op)});sel.value=x.who||"";
       sel.onchange=function(){db.doc("expenses/"+x.id).update({who:sel.value}).catch(fail)};a.appendChild(sel);
+      a.appendChild(xtBtn("✏️ Edit title",function(){
+        var t=r.firstChild;if(!t||t.dataset.editing)return;t.dataset.editing="1";t.textContent="";
+        var ta=h("textarea");ta.value=x.title||"";ta.rows=3;ta.style.cssText="width:100%;box-sizing:border-box;font:inherit;padding:8px;border-radius:10px";t.appendChild(ta);
+        var bar=h("div");bar.style.cssText="margin-top:6px;display:flex;gap:8px";
+        var sv=xtBtn("Save",function(){var v=ta.value.trim();if(!v){return}db.doc("expenses/"+x.id).update({title:v}).catch(fail)});
+        var cn=xtBtn("Cancel",function(){t.dataset.editing="";t.textContent="";t.appendChild(h("b",null,x.title))},"quiet");
+        bar.appendChild(sv);bar.appendChild(cn);t.appendChild(bar);ta.focus()},"quiet"));
       a.appendChild(xtBtn("Remove",function(){if(confirm("Remove this task?"))db.doc("expenses/"+x.id).delete().catch(fail)},"quiet"))}
     r.appendChild(a)});
   sect("Done, waiting for confirmation",done,function(x,r){
