@@ -1,4 +1,4 @@
-// Cordial Co-Parenting service worker: phone alerts (incl. incoming calls when the app is closed) and the red number on the icon.
+// Cordial Coparent service worker: phone alerts (incl. incoming calls when the app is closed) and the red number on the icon.
 self.addEventListener("install", function () { self.skipWaiting(); });
 self.addEventListener("activate", function (e) { e.waitUntil(self.clients.claim()); });
 self.addEventListener("push", function (e) {
@@ -6,7 +6,7 @@ self.addEventListener("push", function (e) {
   try { d = e.data ? e.data.json() : {}; } catch (x) {}
   var call = d.kind === "call";
   e.waitUntil((async function () {
-    await self.registration.showNotification(d.title || "Cordial Co-Parenting", {
+    await self.registration.showNotification(d.title || "Cordial Coparent", {
       body: d.body || "", icon: "/icons/icon-192.png", badge: "/icons/icon-192.png",
       tag: d.tag || undefined, renotify: !!d.tag, requireInteraction: call,
       silent: false,
