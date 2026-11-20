@@ -7077,7 +7077,7 @@ window.hubSwRole=swRole;window.hubSwLabel=swLabel;window.hubSwGo=swGo;
 setTimeout(function(){swSave();swUi()},2500);
 setInterval(function(){swSave();swUi()},600000);
 var swSeen=null;setInterval(function(){var r=swRole();swUi();if(r&&r!==swSeen){swSeen=r;swSave()}},2000);
-$("#signout").onclick=function(){window.__userOut=true;try{localStorage.removeItem("hubAuthBak");localStorage.removeItem("hubGreetWho")}catch(e){}try{localStorage.removeItem("hubFid");localStorage.removeItem(SW_K+"admin");localStorage.removeItem(SW_K+"father")}catch(e){}sb.auth.signOut().then(function(){location.reload()})};
+$("#signout").onclick=function(){window.__userOut=true;try{localStorage.removeItem("hubAuthBak");localStorage.removeItem("hubGreetWho")}catch(e){}try{localStorage.removeItem("hubFid");localStorage.removeItem(SW_K+"admin");localStorage.removeItem(SW_K+"father")}catch(e){}sb.auth.signOut({scope:"local"}).then(function(){location.reload()})};
 $("#signout2").onclick=$("#signout").onclick;
 
 function subscribeAll(){
@@ -7124,7 +7124,7 @@ async function start(session){
       gmsg("Couldn’t reach the hub: "+(lerr.message||lerr.code||"unknown error")+". Check your connection and reopen the app. You are still signed in.",true);return;
     }
     gmsg("This account isn’t set up in the hub yet.",true);
-    sb.auth.signOut();return;
+    sb.auth.signOut({scope:"local"});return;
   }
   STARTED=true;
   db=mkDb(sb);userCap=userShim;
