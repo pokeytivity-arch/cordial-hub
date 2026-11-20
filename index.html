@@ -8292,21 +8292,21 @@ var listEls=null;
 function buildListShell(){
   main.textContent="";rowSig="";
   var top=E("div","wtop"),g1=E("div","g"),g2=E("div","g");
-  g1.appendChild(pill(ic("dots",22),function(){
-    popMenu([{label:"New group",icon:"grp",fn:function(){newGroup()}},{label:ST.arch?"Back to chats":"Archived",icon:"archive",fn:function(){ST.arch=!ST.arch;renderList()}},{label:"Back to hub",icon:"back",fn:close}]);
-  }));
   g1.appendChild(backPill());
   g2.appendChild(pill(ic("plus",24,2.2),newChat,"wgreen"));
   top.appendChild(g1);top.appendChild(g2);main.appendChild(top);
   var ttl=T("div","wbig","Chats");main.appendChild(ttl);
   var sr=E("div","wsearch",ic("search",20)),inp=E("input");inp.type="search";inp.placeholder="Search";inp.value=ST.q;inp.setAttribute("aria-label","Search chats");
   inp.oninput=function(){ST.q=inp.value;renderRows()};sr.appendChild(inp);main.appendChild(sr);
+  var arc=E("button","wlist","");arc.type="button";arc.id="warchrow";var ai=E("div","ic",ic("archive",24));arc.appendChild(ai);var at=E("div","t");at.appendChild(T("b",null,"Archived"));arc.appendChild(at);
+  arc.onclick=function(){ST.arch=true;renderList()};main.appendChild(arc);
   var rows=E("div");rows.id="wrows";main.appendChild(rows);
-  listEls={ttl:ttl,rows:rows};
+  listEls={ttl:ttl,rows:rows,arc:arc};
 }
 function renderList(){
   if(!listEls||!main.contains(listEls.rows))buildListShell();
   listEls.ttl.textContent=ST.arch?"Archived":"Chats";
+  if(listEls.arc)listEls.arc.hidden=!!ST.arch;
   renderRows();
 }
 var rowSig="";
