@@ -6447,7 +6447,9 @@ async function upload(folder,blob,name){
 
 
 /* ---------- Selfie check: a photo is saved with each request, document, expense and check-in ---------- */
-function selfieOn(){return db.doc("settings/selfie").get().then(function(r){var d=r.exists?r.data():{};return d.on!==false}).catch(function(){return true})}
+/* The selfie photo check is paused for now. To bring it back, set SELFIE_PAUSED to false. */
+var SELFIE_PAUSED=true;
+function selfieOn(){if(SELFIE_PAUSED)return Promise.resolve(false);return db.doc("settings/selfie").get().then(function(r){var d=r.exists?r.data():{};return d.on!==false}).catch(function(){return true})}
 window.hubSelfie=function(label){return selfieOn().then(function(on){return on?selfieCapture(label):null})};
 function selfieCapture(label){
   return new Promise(function(resolve,reject){
