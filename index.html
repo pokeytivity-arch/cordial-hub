@@ -2746,6 +2746,7 @@ function renderEvents(){
   var ae=document.activeElement;if(ae&&ae.matches&&ae.matches("input,textarea")&&box.contains(ae))return;
   var draft=null;try{var oi=box.querySelectorAll("#evform input,#evform textarea");if(oi.length===5)draft=[].map.call(oi,function(x){return x.value})}catch(e){}
   box.textContent="";
+  var zr=h("button","go sm","↻ Refresh from Zoom");zr.type="button";zr.style.cssText="display:block;margin:0 auto 10px";zr.onclick=function(){zoomRefresh(true)};box.appendChild(zr);
   if(canWrite){
     var f=h("div","card");f.id="evform";f.appendChild(h("h2",null,"Add an event"));
     var aq=h("button","quiet sm","✨ Add events or tasks from a screenshot or text (Cordial)");aq.type="button";aq.style.cssText="display:block;margin:0 0 8px";aq.onclick=function(){evAskDlg(key(new Date()))};f.appendChild(aq);
@@ -2798,7 +2799,6 @@ function renderEvents(){
   }
   group(EVALL?"Upcoming events":"Today and tomorrow",up,EVALL?"No upcoming events. Add one above.":"Nothing today or tomorrow.");
   group(EVALL?"Past events":"Yesterday and the day before",past,"Nothing yet.");
-  var zr=h("button","quiet","↻ Refresh from Zoom");zr.type="button";zr.style.cssText="display:block;margin:0 auto 6px";zr.onclick=function(){zoomRefresh(true)};box.appendChild(zr);
   var more=h("button","quiet",EVALL?"Show fewer":"Show all events");more.type="button";more.style.cssText="display:block;margin:0 auto 12px";
   more.onclick=function(){EVALL=!EVALL;renderEvents()};box.appendChild(more);
 }
