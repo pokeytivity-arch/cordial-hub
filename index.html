@@ -1210,7 +1210,7 @@ function hubSound(kind,force){
     if(navigator.vibrate)navigator.vibrate(kind==="msg"?[40,40,40]:30);
   }catch(e){}
 }
-var RINGS={phone:["Old telephone",null,"phone"],classic:["Classic",[[880,0,.3],[1175,.13,.3],[880,.6,.3],[1175,.73,.3]],"sine"],marimba:["Marimba",[[523,0,.25],[659,.18,.25],[784,.36,.25],[1046,.54,.45]],"triangle"],chime:["Soft chime",[[1046,0,.5],[1318,.35,.5],[1568,.7,.7]],"sine"],digital:["Digital",[[1000,0,.12],[1000,.18,.12],[1000,.36,.12],[1000,.9,.12],[1000,1.08,.12],[1000,1.26,.12]],"square"],lullaby:["Lullaby",[[392,0,.4],[330,.45,.4],[392,.9,.4],[330,1.35,.4],[392,1.8,.6]],"sine"],phone:["Old phone",[[440,0,.4],[480,0,.4],[440,.5,.4],[480,.5,.4]],"sine"]};
+var RINGS={classic:["Classic",[[880,0,.3],[1175,.13,.3],[880,.6,.3],[1175,.73,.3]],"sine"],marimba:["Marimba",[[523,0,.25],[659,.18,.25],[784,.36,.25],[1046,.54,.45]],"triangle"],chime:["Soft chime",[[1046,0,.5],[1318,.35,.5],[1568,.7,.7]],"sine"],digital:["Digital",[[1000,0,.12],[1000,.18,.12],[1000,.36,.12],[1000,.9,.12],[1000,1.08,.12],[1000,1.26,.12]],"square"],lullaby:["Lullaby",[[392,0,.4],[330,.45,.4],[392,.9,.4],[330,1.35,.4],[392,1.8,.6]],"sine"],phone:["Old telephone",null,"phone"]};
 function ringKey(){try{return localStorage.getItem("hubRing")||"phone"}catch(e){return "phone"}}
 var RINGBUF=null;
 function ringCustom(){try{return localStorage.getItem("hubRingData")||""}catch(e){return ""}}
