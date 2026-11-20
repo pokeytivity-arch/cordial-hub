@@ -2266,12 +2266,22 @@ function xtMonths(startKey){
   return out;
 }
 function xtWeeks(startKey){
-  /* support is paid in advance: the first week after the start date is the first to pay, and the week in progress is skipped */
-  var out=[],mon=function(d){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
+  /* support is paid in advance: the first week after the start date is the first to pay, and the week in progress is skipped.
+     Weeks began on Mondays until 20 Nov 2026; since then each support week begins on a Friday (earlier weeks keep their Monday dates). */
+  var out=[],WK=604800000,CUT=new Date(2026,10,20);
+  var wd=function(d){return new Date(d.getFullYear(),d.getMonth(),d.getDate())};
+  var mon=function(d){var x=wd(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
+  var fri=function(d,strict){var x=wd(d);x.setDate(x.getDate()+(((5-x.getDay()+7)%7)||(strict?7:0)));return x};
   var sp=(startKey||key(new Date())).split("-"),sd=new Date(+sp[0],+sp[1]-1,+sp[2]||1),first=mon(sd);first.setDate(first.getDate()+7);
-  var nextMon=mon(new Date());nextMon.setDate(nextMon.getDate()+7);
-  var d=new Date(nextMon);d.setDate(d.getDate()+14);
-  while(d>=first&&out.length<260){var t=d.getTime(),n=nextMon.getTime();out.push({y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate(),t:t,status:t<=n?"due":t===n+604800000||Math.round((t-n)/604800000)===1?"next":"later"});d=new Date(d);d.setDate(d.getDate()-7)}
+  var today=wd(new Date()),next;
+  if(today<CUT){next=mon(today);next.setDate(next.getDate()+7)}else next=fri(today,true);
+  var last=new Date(next);last.setDate(last.getDate()+14);
+  var list=[];
+  for(var d=new Date(first);d<CUT&&d<=last;d.setDate(d.getDate()+7))list.push(new Date(d));
+  var f=sd<CUT?new Date(CUT.getFullYear(),CUT.getMonth(),CUT.getDate()+7):fri(sd,true);
+  for(;f<=last&&list.length<260;f.setDate(f.getDate()+7))list.push(new Date(f));
+  var n=next.getTime();
+  list.reverse().forEach(function(x){var t=x.getTime();out.push({y:x.getFullYear(),m:x.getMonth()+1,d:x.getDate(),t:t,status:t<=n?"due":Math.round((t-n)/WK)===1?"next":"later"})});
   return out;
 }
 function xtSup(){
