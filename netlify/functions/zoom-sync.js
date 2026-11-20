@@ -86,7 +86,7 @@ async function syncSchedule() {
 module.exports = { syncSchedule };
 
 // Called by the hub itself ("Refresh from Zoom"): any signed-in member can ask for a fresh copy of the Zoom schedule.
-exports.handler = async (event) => {
+module.exports.handler = async (event) => {
   const out = (code, body) => ({ statusCode: code, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }, body: JSON.stringify(body) });
   if (event.httpMethod !== "POST") return out(405, { error: "post_only" });
   if (!URL_ || !KEY) return out(500, { error: "not_configured" });
