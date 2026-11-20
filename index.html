@@ -9641,6 +9641,19 @@ setInterval(function(){if(WA.open&&!document.hidden)render();try{if(!document.hi
   setInterval(check,3000);document.addEventListener("visibilitychange",function(){setTimeout(check,400)});
 })();
 </script>
+<script>
+/* Old address only: for 5 seconds each time the app opens, tell people the hub has moved. */
+(function(){
+  try{
+    if(!/netlify\.app$/i.test(location.hostname))return;
+    var b=document.createElement("div");b.setAttribute("role","alert");
+    b.style.cssText="position:fixed;left:10px;right:10px;top:calc(env(safe-area-inset-top,0px) + 10px);z-index:2147483000;background:#b3261e;color:#fff;border-radius:14px;padding:12px 14px;font:600 15px/1.35 system-ui,-apple-system,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35);text-align:center";
+    b.innerHTML="Cordial Coparent has moved to a new address.<br>This app stops working at 12 midnight on Monday, 23 November 2026.<br><a href='https://cordialcoparent.com' style='color:#fff;text-decoration:underline'>Open cordialcoparent.com</a> and add it to your Home Screen.";
+    (document.body||document.documentElement).appendChild(b);
+    setTimeout(function(){try{b.remove()}catch(e){}},5000);
+  }catch(e){}
+})();
+</script>
 </body>
 </html>
 </html>

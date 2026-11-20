@@ -12,6 +12,7 @@ import feed_extra from "./netlify/functions/feed-extra.js";
 import feed from "./netlify/functions/feed.js";
 import invite from "./netlify/functions/invite.js";
 import jaas_token from "./netlify/functions/jaas-token.js";
+import move_notice from "./netlify/functions/move-notice.js";
 import live_check from "./netlify/functions/live-check.js";
 import push from "./netlify/functions/push.js";
 import recap from "./netlify/functions/recap.js";
@@ -29,7 +30,7 @@ import zoom_webhook from "./netlify/functions/zoom-webhook.js";
 const FN = {
   "call-reminders": call_reminders, cordial, "daily-feed": daily_feed, "evening-recap": evening_recap,
   "extra-check": extra_check, "feed-extra": feed_extra, feed, invite, "jaas-token": jaas_token,
-  "live-check": live_check, push, recap, reschedule, shoplatest, "story-cleanup": story_cleanup, summary,
+  "live-check": live_check, "move-notice": move_notice, push, recap, reschedule, shoplatest, "story-cleanup": story_cleanup, summary,
   "task-reminders": task_reminders, "unseen-reminder": unseen_reminder, "zoom-backfill": zoom_backfill,
   "zoom-signature": zoom_signature, "zoom-sync": zoom_sync, "zoom-webhook": zoom_webhook,
 };
@@ -44,6 +45,7 @@ const DUE = [
   ["daily-feed", (h, m) => h === 6 && m === 5],
   ["summary", (h, m) => h === 19 && m === 30],
   ["story-cleanup", (h, m) => h === 3 && m === 30],
+  ["move-notice", (h, m) => m % 15 === 0],
 ];
 
 function setEnv(env) {
