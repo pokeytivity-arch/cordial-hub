@@ -9,6 +9,7 @@ const ACC = process.env.ZOOM_ACCOUNT_ID;
 const CID = process.env.ZOOM_CLIENT_ID;
 const CSEC = process.env.ZOOM_CLIENT_SECRET;
 const MID = String(process.env.ZOOM_MEETING_NUMBER || "81051139171").replace(/\D/g, "");
+const FIXED = { days: [0, 2, 5], t: "18:30" }; // set to null to follow Zoom's own schedule again
 const WAT = 3600e3; // Nigeria is UTC+1, no daylight saving
 const H = { apikey: KEY, Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" };
 
@@ -30,6 +31,36 @@ async function upsert(key, data) {
 
 async function syncSchedule() {
   if (!URL_ || !KEY) return { ok: false, reason: "not_configured" };
+  // The family's real routine, set here so the hub calendar is right whatever Zoom's series says:
+  // Sunday, Tuesday and Friday at 18:30 Nigeria time, 30 minutes.
+  if (FIXED) {
+    const now0 = Date.now(), today0 = wat(now0).slice(0, 10), mk = [];
+    for (let i = 0; i < 90 && mk.length < 12; i++) {
+      const dayMs = Date.parse(today0 + "T00:00:00Z") + i * 86400e3;
+      if (!FIXED.days.includes(new Date(dayMs).getUTCDay())) continue;
+      const d = new Date(dayMs).toISOString().slice(0, 10);
+      if (d === today0 && now0 > Date.parse(d + "T" + FIXED.t + ":00Z") - WAT + 3600e3) continue;
+      mk.push(d);
+    }
+    await upsert("settings/callplan", { days: FIXED.days, t: FIXED.t, from: mk[0] || today0, synced: now0, meetingId: MID, fixed: true });
+    const lr0 = await fetch(`${URL_}/rest/v1/docs?collection=eq.schedule&id=like.ev_zoom_*&select=key,data`, { headers: H });
+    const have0 = lr0.ok ? await lr0.json() : [];
+    const old0 = {}; have0.forEach((d) => { old0[d.key] = d.data || {}; });
+    const keep0 = new Set();
+    for (const d of mk) {
+      const id = "ev_zoom_fix" + d.replace(/-/g, "");
+      keep0.add("schedule/" + id);
+      const prev = old0["schedule/" + id] || {};
+      const rec = { title: "Family Zoom call", date: d, time: FIXED.t, place: "Zoom, in the hub", notes: "", zoom: true, occ: "fix" + d, by: "cordial_ai", ts: now0 };
+      if (prev.moved) { rec.moved = prev.moved; if (prev.date) rec.date = prev.date; if (prev.time) rec.time = prev.time; }
+      await upsert("schedule/" + id, rec);
+    }
+    for (const d of have0) {
+      if (keep0.has(d.key) || !d.data || String(d.data.date || "") < today0) continue;
+      await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent(d.key)}`, { method: "DELETE", headers: H });
+    }
+    return { ok: true, days: FIXED.days, t: FIXED.t, events: keep0.size, info: { tz: "hub schedule (Sun, Tue, Fri 18:30)", first: mk } };
+  }
   const tk = await token();
   if (!tk) return { ok: false, reason: "no_zoom_api" };
   const r = await fetch(`https://api.zoom.us/v2/meetings/${MID}`, { headers: { Authorization: `Bearer ${tk}` } });
