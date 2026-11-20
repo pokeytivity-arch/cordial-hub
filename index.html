@@ -2267,8 +2267,8 @@ function xtMonths(startKey){
 }
 function xtWeeks(startKey){
   /* support is paid in advance: the first week after the start date is the first to pay, and the week in progress is skipped.
-     Weeks began on Mondays until 20 Nov 2026; since then each support week begins on a Friday (earlier weeks keep their Monday dates). */
-  var out=[],WK=604800000,CUT=new Date(2026,10,20);
+     Weeks began on Mondays until 9 Nov 2026; since then each support week begins on a Friday (13 Nov, 20 Nov, 27 Nov...). Earlier weeks keep their Monday dates. */
+  var out=[],WK=604800000,CUT=new Date(2026,10,13);
   var wd=function(d){return new Date(d.getFullYear(),d.getMonth(),d.getDate())};
   var mon=function(d){var x=wd(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
   var fri=function(d,strict){var x=wd(d);x.setDate(x.getDate()+(((5-x.getDay()+7)%7)||(strict?7:0)));return x};
@@ -2278,12 +2278,15 @@ function xtWeeks(startKey){
   var last=new Date(next);last.setDate(last.getDate()+14);
   var list=[];
   for(var d=new Date(first);d<CUT&&d<=last;d.setDate(d.getDate()+7))list.push(new Date(d));
-  var f=sd<CUT?new Date(CUT.getFullYear(),CUT.getMonth(),CUT.getDate()+7):fri(sd,true);
+  var f=sd<CUT?new Date(CUT.getFullYear(),CUT.getMonth(),CUT.getDate()):fri(sd,true);
   for(;f<=last&&list.length<260;f.setDate(f.getDate()+7))list.push(new Date(f));
   var n=next.getTime();
   list.reverse().forEach(function(x){var t=x.getTime();out.push({y:x.getFullYear(),m:x.getMonth()+1,d:x.getDate(),t:t,status:t<=n?"due":Math.round((t-n)/WK)===1?"next":"later"})});
   return out;
 }
+/* the week that was saved as "16 Nov" is now "13 Nov": keep its paid/received record */
+var SUPLEG={"2026-11-13":"2026-11-16"};
+function supWid(y,m,d,recs){var k=y+"-"+pad(m)+"-"+pad(d),id="sup_w_"+k;if(!recs[id]&&SUPLEG[k]&&recs["sup_w_"+SUPLEG[k]])id="sup_w_"+SUPLEG[k];return id}
 function xtSup(){
   var box=$("#xs-sup");if(!box)return;box.textContent="";
   var cfg=(S.xo||[]).filter(function(x){return x.id==="support_cfg"})[0]||{};
@@ -2312,7 +2315,7 @@ function xtSup(){
   var months=wk?xtWeeks(cfg.wstart||cfg.start):xtMonths(cfg.start),now=new Date(),curKey=now.getFullYear()*100+now.getMonth()+1;
   var sn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   months.forEach(function(mm){
-    var id=wk?"sup_w_"+mm.y+"-"+pad(mm.m)+"-"+pad(mm.d):"sup_"+mm.y+"_"+pad(mm.m),r=recs[id]||{};
+    var id=wk?supWid(mm.y,mm.m,mm.d,recs):"sup_"+mm.y+"_"+pad(mm.m),r=recs[id]||{};
     var lbl=wk?"Week of "+mm.d+" "+sn[mm.m-1]+" "+mm.y:mn[mm.m-1]+" "+mm.y;
     var row=h("div","item");row.style.flexDirection="column";
     var top=h("div");top.style.cssText="display:flex;justify-content:space-between;gap:8px;align-items:center";
@@ -3408,7 +3411,7 @@ function famSupport(){
     if(!cfg.amount)return "Not set up yet";
     var wk=cfg.freq==="weekly",recs={};(S.xo||[]).forEach(function(x){if(x.kind==="sup")recs[x.id]=x});
     var id,lbl,sn=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],now=new Date();
-    if(wk){var ws=xtWeeks(cfg.wstart||cfg.start).filter(function(w){return w.status==="due"})[0];if(!ws)return "Weekly support · nothing due yet";id="sup_w_"+ws.y+"-"+pad(ws.m)+"-"+pad(ws.d);lbl="Week of "+ws.d+" "+sn[ws.m-1]}
+    if(wk){var ws=xtWeeks(cfg.wstart||cfg.start).filter(function(w){return w.status==="due"})[0];if(!ws)return "Weekly support · nothing due yet";id=supWid(ws.y,ws.m,ws.d,(function(){var q={};(S.xo||[]).forEach(function(x){if(x.kind==="sup")q[x.id]=x});return q})());lbl="Week of "+ws.d+" "+sn[ws.m-1]}
     else{id="sup_"+now.getFullYear()+"_"+pad(now.getMonth()+1);lbl=sn[now.getMonth()]+" "+now.getFullYear()}
     var r=recs[id]||{};
     var st=r.receivedAt?"✅ Received":r.paidAt?"🕓 Paid, waiting for confirmation":"⏳ Not paid yet";
