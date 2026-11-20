@@ -2,6 +2,7 @@
 // - Static files (index.html, sw.js, icons...) are served by Cloudflare's asset hosting.
 // - /api/<name> runs the same function code that used to run on Netlify (netlify/functions/<name>.js).
 // - One cron trigger (every 5 minutes) decides which scheduled jobs are due.
+import { cleanEnv } from "./env-clean.js";
 import call_reminders from "./netlify/functions/call-reminders.js";
 import cordial from "./netlify/functions/cordial.js";
 import daily_feed from "./netlify/functions/daily-feed.js";
@@ -46,10 +47,9 @@ const DUE = [
 ];
 
 function setEnv(env) {
-  // Secrets and variables from Cloudflare show up in process.env (nodejs_compat); this is a safety net.
-  try { for (const k of Object.keys(env || {})) if (typeof env[k] === "string" && process.env[k] === undefined) process.env[k] = env[k]; } catch {}
+  // Secrets and variables from Cloudflare show up in process.env (nodejs_compat); copy and tidy them here.
+  try { cleanEnv(env); for (const k of Object.keys(env || {})) if (typeof env[k] === "string") process.env[k] = env[k]; } catch {}
 }
-
 async function api(request, env, name) {
   const h = FN[name] && FN[name].handler;
   if (!h) return new Response(JSON.stringify({ error: "not found" }), { status: 404, headers: { "content-type": "application/json" } });
