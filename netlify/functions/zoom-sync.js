@@ -80,7 +80,7 @@ async function syncSchedule() {
     if (keep.has(d.key) || !d.data || String(d.data.date || "") < today) continue;
     await fetch(`${URL_}/rest/v1/docs?key=eq.${encodeURIComponent(d.key)}`, { method: "DELETE", headers: H });
   }
-  return { ok: true, days, t, events: keep.size };
+  return { ok: true, days, t, events: keep.size, info: { tz: m.timezone, start: m.start_time, rec: m.recurrence && { type: m.recurrence.type, wd: m.recurrence.weekly_days }, first: occ.slice(0, 4).map((o) => new Date(o.start).toISOString()) } };
 }
 
 module.exports = { syncSchedule };
