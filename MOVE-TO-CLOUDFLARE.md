@@ -20,3 +20,5 @@ This branch (`cloudflare`) adds three files and changes nothing else:
 5. Update the places that know the address: Zoom Marketplace app (event notification URL
    https://YOUR-ADDRESS/api/zoom-webhook), Supabase → Authentication → URL configuration.
 6. When all works: merge `cloudflare` into `main`, set Cloudflare's production branch to `main`, then pause and delete the Netlify site.
+
+Last checked: automatic builds test, 20 Nov 2026.
