@@ -897,7 +897,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 07:55</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 08:05</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -4049,13 +4049,17 @@ function renderPeople(){
 
 /* attachments and pins */
 var MEDIA={};
+var MIDB=null;function midb(){if(MIDB)return MIDB;MIDB=new Promise(function(ok){try{var r=indexedDB.open("hubMedia",1);r.onupgradeneeded=function(){r.result.createObjectStore("m")};r.onsuccess=function(){ok(r.result)};r.onerror=function(){ok(null)}}catch(e){ok(null)}});return MIDB}
+function midbGet(id){return midb().then(function(d){if(!d)return null;return new Promise(function(ok){try{var q=d.transaction("m").objectStore("m").get(id);q.onsuccess=function(){ok(q.result||null)};q.onerror=function(){ok(null)}}catch(e){ok(null)}})})}
+function midbPut(id,v){midb().then(function(d){if(d)try{d.transaction("m","readwrite").objectStore("m").put(v,id)}catch(e){}})}
 function getMedia(id){
   if(!id||!db)return Promise.resolve(null);
   if(MEDIA[id])return MEDIA[id];
-  MEDIA[id]=db.doc("media/"+id).get().then(function(sn){return sn.exists?sn.data():null}).catch(function(){delete MEDIA[id];return null});
+  MEDIA[id]=midbGet(id).then(function(c){if(c&&c.data)return c;
+    return db.doc("media/"+id).get().then(function(sn){var d=sn.exists?sn.data():null;if(d&&d.data)midbPut(id,d);return d})}).catch(function(){delete MEDIA[id];return null});
   return MEDIA[id];
 }
-var io=("IntersectionObserver" in window)?new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){io.unobserve(e.target);if(e.target._load)e.target._load()}})},{rootMargin:"300px"}):null;
+var io=("IntersectionObserver" in window)?new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){io.unobserve(e.target);if(e.target._load)e.target._load()}})},{rootMargin:"1600px 0px"}):null;
 function fmtSize(n){n=n||0;return n>=1048576?(n/1048576).toFixed(1)+" MB":Math.max(1,Math.round(n/1024))+" KB"}
 function vs(t){return String(t||"").replace(/[\r\n;,\\]/g," ").trim()}
 
@@ -6672,12 +6676,26 @@ var userShim={
 
 /* files (private storage, opened with short-lived links) */
 var SIGN={};
+/* Signed links to photos and files are kept for a day on this phone, so the same link is reused and the phone's own cache serves the photo instantly next time. */
+var SIGNLS={};try{SIGNLS=JSON.parse(localStorage.getItem("hubSign")||"{}")||{}}catch(e){SIGNLS={}}
+var SIGNSAVE=0;function signSave(){clearTimeout(SIGNSAVE);SIGNSAVE=setTimeout(function(){try{var n=Date.now(),o={},k=Object.keys(SIGNLS).filter(function(x){return SIGNLS[x].e>n}).slice(-600);k.forEach(function(x){o[x]=SIGNLS[x]});SIGNLS=o;localStorage.setItem("hubSign",JSON.stringify(o))}catch(e){}},800)}
 function signed(path){
   var c=SIGN[path];if(c&&c.exp>Date.now())return c.p;
-  var p=sb.storage.from("files").createSignedUrl(path,3600).then(function(r){if(r.error||!r.data)throw (r.error||new Error("x"));return r.data.signedUrl});
-  SIGN[path]={p:p,exp:Date.now()+50*60000};p.catch(function(){delete SIGN[path]});
+  var l=SIGNLS[path];if(l&&l.e-Date.now()>3600000){var pp=Promise.resolve(l.u);SIGN[path]={p:pp,exp:l.e-3600000};return pp}
+  var p=sb.storage.from("files").createSignedUrl(path,86400).then(function(r){if(r.error||!r.data)throw (r.error||new Error("x"));SIGNLS[path]={u:r.data.signedUrl,e:Date.now()+86400000-60000};signSave();return r.data.signedUrl});
+  SIGN[path]={p:p,exp:Date.now()+23*3600000};p.catch(function(){delete SIGN[path]});
   return p;
 }
+/* sign many at once (one request) so a chat full of photos starts loading straight away */
+function preSign(paths){
+  try{
+    var n=Date.now(),need=(paths||[]).filter(function(x,i,a){return x&&a.indexOf(x)===i&&!(SIGN[x]&&SIGN[x].exp>n)&&!(SIGNLS[x]&&SIGNLS[x].e-n>3600000)}).slice(0,100);
+    if(!need.length)return;
+    var all=sb.storage.from("files").createSignedUrls(need,86400);
+    need.forEach(function(x){var pr=all.then(function(r){var it=(r.data||[]).filter(function(d){return d.path===x})[0];if(!it||!it.signedUrl)throw new Error("x");SIGNLS[x]={u:it.signedUrl,e:Date.now()+86400000-60000};signSave();return it.signedUrl});SIGN[x]={p:pr,exp:n+23*3600000};pr.catch(function(){delete SIGN[x]})});
+  }catch(e){}
+}
+window.preSign=preSign;
 function safeName(n){return String(n||"file").replace(/[^\w.\-]+/g,"_").slice(-80)}
 async function upload(folder,blob,name){
   var max=(CFG.MAX_UPLOAD_MB||50)*1048576;
@@ -9078,6 +9096,7 @@ var lastSig="";
 function renderChat(force){
   if(!ST.chat||!CH.list)return;
   var id=ST.chat,c=chatById(id),ms=msgsOf(id),L=CH.list;
+  try{window.preSign(ms.filter(function(m){return m.path&&(m.kind==="image"||m.kind==="voice"||m.kind==="video")}).slice(-80).map(function(m){return m.path}))}catch(e){}
   var rx=S.react||[];
   var sg=JSON.stringify([id,(S.wstat||[]).length,ms.map(function(m){return m.id+(m.done?1:0)+(m.edited||"")+(m.by===myId&&isRead(m,c)?"r":"")}),rx.length,(S.pins||[]).length,Object.keys(S.prof||{}).length]);
   if(!force&&sg===lastSig)return;lastSig=sg;
