@@ -903,7 +903,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 15:35</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 15:52</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1889,6 +1889,16 @@ function chkWatch(){
 /* ---------- Supplies: add items from a receipt or photos; each item gets a meter showing when it will run out ---------- */
 var STK={open:{},showDone:false};
 function stkList(){return (S.xo||[]).filter(function(x){return x.kind==="supply"&&!x.removed})}
+function stkNorm(t){return String(t||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim()}
+function stkDay(ts){return key(new Date(ts||0))}
+/* the same item from the same purchase (same day, shop and price) counts as a duplicate */
+function stkSig(name,ts,price,store){return stkNorm(name)+"|"+stkDay(ts)+"|"+(price==null?"":Math.round(+price))+"|"+stkNorm(store)}
+function stkDupOf(name,ts,price,store){var g=stkSig(name,ts,price,store);return stkList().filter(function(x){return stkSig(x.name,x.ts,x.price,x.store)===g})[0]||null}
+var STKCLEAN=0;
+function stkClean(){
+  if(!canWrite||!db||Date.now()-STKCLEAN<30000)return;STKCLEAN=Date.now();
+  var seen={};stkList().slice().sort(function(a,b){return (a.added||a.ts||0)-(b.added||b.ts||0)}).forEach(function(x){var g=stkSig(x.name,x.ts,x.price,x.store);if(seen[g])xtDoc(x.id,{removed:Date.now(),removedBy:myId,dupOf:seen[g]});else seen[g]=x.id});
+}
 function stkLeft(x){if(!x.days)return null;var tot=x.days*86400000,left=Math.max(0,tot-(Date.now()-(x.ts||0)));if(x.usedAt)left=0;return {tot:tot,left:left,pc:left/tot,dl:Math.ceil(left/86400000),end:(x.ts||0)+tot}}
 function stkCol(pc){return pc>0.5?"#1fa855":pc>0.3?"#e0a100":"#d93025"}
 function stkMoney(n){return n==null||n===""?"":"₦"+Number(n).toLocaleString("en-NG",{maximumFractionDigits:0})}
@@ -1896,6 +1906,7 @@ function stkDate(ts){return new Date(ts).toLocaleDateString("en-GB",{weekday:"sh
 function stkThumb(el,path){if(!path)return;signed(path).then(function(u){el.style.backgroundImage="url('"+u+"')";el.onclick=function(e){e.stopPropagation();openViewer(u)}}).catch(function(){})}
 function xtStock(){
   var box=$("#xs-stock");if(!box)return;box.textContent="";
+  try{stkClean()}catch(e){}
   var L=stkList(),act=[],done=[],keep=[];
   L.forEach(function(x){var m=stkLeft(x);if(x.usedAt||(m&&m.left<=0))done.push(x);else if(m)act.push(x);else keep.push(x)});
   act.sort(function(a,b){return stkLeft(a).end-stkLeft(b).end});
@@ -1988,7 +1999,7 @@ function stkAddDlg(opt){
       var r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({stock:{text:txt,images:imgs}})});
       var j={};try{j=await r.json()}catch(x){}
       if(!r.ok){er.textContent="Cordial couldn’t read that ("+r.status+(j.detail?": "+j.detail:"")+"). Try again, or use a clearer photo.";er.hidden=false;go.disabled=false;go.textContent="Read it";return}
-      var items=j.items||[];
+      var items=[],mg={};(j.items||[]).forEach(function(it){var g=stkNorm(it.name)+"|"+stkNorm(it.brand)+"|"+(it.price==null?"":it.price);if(mg[g]){mg[g].qty=(mg[g].qty||1)+(it.qty||1);mg[g].merged=1}else{mg[g]=Object.assign({},it);items.push(mg[g])}});
       if(!items.length){er.textContent="Cordial didn’t find any items. Try a clearer photo of the receipt, or type what you bought in the box.";er.hidden=false;go.disabled=false;go.textContent="Read it";return}
       res.appendChild(h("b",null,"Found "+items.length+(items.length===1?" item":" items")+(j.store?" from "+j.store:"")+(j.total!=null?" · total "+stkMoney(j.total):"")+". Check the days each lasts, untick anything you don’t want."));
       var when=h("label",null,"Bought on");var wd=h("input");wd.type="date";wd.value=j.date||key(new Date());when.appendChild(wd);res.appendChild(when);
@@ -1996,12 +2007,31 @@ function stkAddDlg(opt){
       items.forEach(function(it){
         var rw=h("div");rw.style.cssText="border:1px solid rgba(128,128,128,.25);border-radius:12px;padding:8px 10px;margin:8px 0";
         var hd=h("label");hd.style.cssText="display:flex;gap:8px;align-items:center;font-weight:600";var cb=h("input");cb.type="checkbox";cb.checked=true;cb.style.width="auto";hd.appendChild(cb);
+        var dts=j.date?new Date(j.date+"T12:00:00").getTime():Date.now(),dup=stkDupOf(it.name,dts,it.price,j.store||"");
+        if(dup){cb.checked=false;var dn=h("div","meta","Already in Supplies from this purchase, so it’s left out. Tick it if you really bought it twice.");dn.style.cssText="color:#c07a00;font-weight:600"}
         var nm=h("input");nm.value=it.name;nm.style.cssText="flex:1;font-weight:600";hd.appendChild(nm);rw.appendChild(hd);
         rw.appendChild(h("div","meta",[it.brand,(it.qty>1?it.qty+" × ":"")+(it.size||it.unit||""),it.price!=null?stkMoney(it.price):""].filter(function(v){return v&&String(v).trim()}).join(" · ")));
         var dl=h("label");dl.style.cssText="display:flex;gap:8px;align-items:center;margin-top:4px";dl.appendChild(document.createTextNode("Lasts about"));
         var di=h("input");di.type="number";di.min="0";di.value=it.lasts_days||0;di.style.cssText="width:80px";dl.appendChild(di);dl.appendChild(document.createTextNode("days (0 = doesn’t get used up)"));rw.appendChild(dl);
-        res.appendChild(rw);rows.push({it:it,cb:cb,nm:nm,di:di});
+        if(dup)rw.appendChild(dn);if(it.merged)rw.appendChild(h("div","meta","Listed more than once on the receipt, so the quantities were added together."));
+        res.appendChild(rw);rows.push({it:it,cb:cb,nm:nm,di:di,dup:!!dup});
       });
+      var nDup=rows.filter(function(r){return r.dup}).length;
+      if(nDup&&nDup===rows.length){var aw=h("div","meta","This receipt looks like it was already added. Nothing new to add.");aw.style.cssText="color:#c07a00;font-weight:700";res.insertBefore(aw,res.firstChild)}
+      var me=(ownerM()||{}).user_id===myId?"a":(mumM()||{}).user_id===myId?"b":"",oth=me==="a"?"b":"a",othN=String(nm(oth)||"").split(" ")[0];
+      var exBox=h("div","card");exBox.style.cssText="margin:10px 0;padding:10px;background:rgba(31,168,85,.08)";
+      exBox.appendChild(h("b",null,"Record the money too?"));
+      var exSel=h("select");[["","No, just track the items"],["mine","Yes, I paid (my contribution)"],["reimb","Yes, "+othN+" paid and I’m reimbursing "+(oth==="b"?"her":"him")]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];exSel.appendChild(op)});
+      if(!me){exSel.disabled=true}
+      exBox.appendChild(exSel);
+      var exHelp=h("div","meta","");exBox.appendChild(exHelp);
+      var aw2=h("label",null,"Amount (₦)"),ai=h("input");ai.type="number";ai.min="0";ai.step="any";aw2.appendChild(ai);aw2.hidden=true;exBox.appendChild(aw2);
+      var rw2=h("label",null,"Transfer receipt for the reimbursement (optional)"),rfi=h("input");rfi.type="file";rfi.accept="image/*,application/pdf";rfi.multiple=true;rw2.appendChild(rfi);rw2.hidden=true;exBox.appendChild(rw2);
+      function selTotal(){var t=0,any=false;rows.forEach(function(r){if(r.cb.checked&&r.it.price!=null){t+=r.it.price;any=true}});return any?t:(j.total||"")}
+      rows.forEach(function(r){r.cb.addEventListener("change",function(){if(!exSel.value)return;ai.value=selTotal()})});
+      exSel.onchange=function(){var v=exSel.value;aw2.hidden=!v;rw2.hidden=v!=="reimb";if(v&&!ai.value)ai.value=selTotal();
+        exHelp.textContent=v==="mine"?"Saved in Expenses as paid by you. It counts only towards your spending and doesn’t show on "+othN+"’s side.":v==="reimb"?"Saved in Expenses as bought by "+othN+" and reimbursed by you. It shows as a reimbursement and counts towards your spending, not "+othN+"’s.":""};
+      res.appendChild(exBox);
       go.textContent="Add to Supplies";go.disabled=false;
       go.onclick=async function(){
         var pick=rows.filter(function(r){return r.cb.checked&&r.nm.value.trim()});if(!pick.length){er.textContent="Tick at least one item.";er.hidden=false;return}
@@ -2011,7 +2041,25 @@ function stkAddDlg(opt){
           var d0=wd.value?new Date(wd.value+"T12:00:00").getTime():Date.now(),base=Math.min(Date.now(),d0);
           for(var n=0;n<pick.length;n++){var p=pick[n],it=p.it,id="sup_"+Date.now().toString(36)+n+Math.random().toString(36).slice(2,5);
             await xtDoc(id,{kind:"supply",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",qty:it.qty||1,unit:it.unit||"",size:it.size||"",price:it.price,store:j.store||"",section:it.section||"",days:parseInt(p.di.value,10)||0,ts:base,by:myId,rcpt:paths,photo:0,added:Date.now()})}
-          ov.remove();note("Added "+pick.length+(pick.length===1?" item":" items")+" to Supplies.");setTimeout(function(){note("")},2500);
+          var exMsg="";
+          if(exSel.value&&me){
+            var amt=parseFloat(ai.value);
+            if(!(amt>0))exMsg=" The expense wasn’t saved: add an amount above zero in Expenses.";
+            else{
+              var payer=exSel.value==="reimb"?oth:me,desc="Supplies: "+pick.map(function(p){return p.nm.value.trim()}).slice(0,6).join(", ")+(pick.length>6?" and more":"")+(j.store?" ("+j.store+")":"");
+              var dupX=(S.exp||[]).filter(function(x){return x.date===key(new Date(base))&&Math.round(+x.amount)===Math.round(amt)&&x.by===payer})[0];
+              if(dupX)exMsg=" An expense for "+money(amt)+" on that day was already in Expenses, so it wasn’t added again.";
+              else{
+                var pr={path:paths[0],name:"receipt.jpg",type:"image/jpeg"},xrec=withShare({ts:Date.now(),desc:desc,amount:amt,by:payer,date:key(new Date(base)),proof:pr,fromSupplies:1,addedBy:myId},"exp");
+                if(paths.length>1)xrec.proofs=paths.map(function(pp){return {path:pp,name:"receipt.jpg",type:"image/jpeg"}});
+                if(exSel.value==="reimb"){var rcs=[];var rf=Array.prototype.slice.call(rfi.files||[]);for(var q=0;q<rf.length;q++)rcs.push(await xtUp(rf[q]));
+                  xrec.reimbAt=Date.now();xrec.reimbBy=myId;xrec.reimbReceipts=rcs;xrec.reimbNote=rcs.length?"":"Recorded from Supplies without a transfer receipt"}
+                await db.collection("expenses").add(xrec);
+                exMsg=exSel.value==="reimb"?" Saved in Expenses as a reimbursement to "+othN+".":" Saved in Expenses as your contribution.";
+              }
+            }
+          }
+          ov.remove();note("Added "+pick.length+(pick.length===1?" item":" items")+" to Supplies."+exMsg);setTimeout(function(){note("")},exMsg?6000:2500);
         }catch(e){go.disabled=false;go.textContent="Add to Supplies";er.textContent="Couldn’t save. "+(e&&e.message==="toolarge"?"A photo is too large.":"Try again.");er.hidden=false}
       };
     }catch(e){er.textContent="Something went wrong. Try again.";er.hidden=false;go.disabled=false;go.textContent="Read it"}
