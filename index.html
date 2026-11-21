@@ -702,11 +702,14 @@ html[data-kb] #wa{top:var(--wavt,0px)!important;bottom:auto!important;height:var
 html[data-kb] #wacomp{padding-bottom:8px}
 #wacomp .box textarea{min-height:0!important;height:40px;padding:10px 0;line-height:20px;border:0;background:transparent;box-shadow:none;border-radius:0;resize:none;margin:0;flex:1;min-width:0;outline:0;color:var(--wink)}
 html[data-kb] body:has(#wa:not([hidden])){overflow:hidden}
+body:has(#wa:not([hidden])) main,body:has(#wa:not([hidden])) #fbnav,body:has(#wa:not([hidden])) .appbar{visibility:hidden}
+body:has(#wa:not([hidden])){background:#efeae2}
+#wa{visibility:visible}
 #wacomp{display:flex;align-items:flex-end;gap:8px;padding:6px 10px calc(8px + env(safe-area-inset-bottom,0px));z-index:2}
 #wacomp .round{width:42px;height:42px;border-radius:50%;background:var(--wfloat);box-shadow:0 1px 6px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;flex:none}
 #wacomp .round.g{background:var(--wg);color:#fff}
-#wacomp .box{flex:1;min-width:0;background:var(--wfloat);border-radius:21px;box-shadow:0 1px 6px rgba(0,0,0,.12);display:flex;align-items:flex-end;padding:0 4px 0 14px;min-height:42px}
-#wat{flex:1;min-width:0;border:0;outline:0;background:transparent;font:inherit;font-size:1.08rem;color:var(--wink);resize:none;padding:10px 0;max-height:120px;line-height:20px;margin:0;width:auto;border-radius:0;box-shadow:none;height:40px;min-height:0!important;box-sizing:border-box}
+#wacomp .box{flex:1;min-width:0;background:var(--wfloat);border-radius:21px;box-shadow:0 1px 6px rgba(0,0,0,.12);display:flex;align-items:center;padding:0 4px 0 14px;min-height:42px}
+#wat{-webkit-appearance:none;appearance:none;flex:1;min-width:0;border:0;outline:0;background:transparent;font:inherit;font-size:1.08rem;color:var(--wink);resize:none;padding:10px 0;max-height:120px;line-height:20px;margin:0;width:auto;border-radius:0;box-shadow:none;height:40px;min-height:0!important;box-sizing:border-box}
 #wacomp .box button{width:36px;height:40px;display:flex;align-items:center;justify-content:center}
 #warec{flex:1;display:flex;align-items:center;gap:12px;background:var(--wfloat);border-radius:23px;box-shadow:0 1px 6px rgba(0,0,0,.12);height:46px;padding:0 14px;color:var(--wink)}
 #warec .dot{width:10px;height:10px;border-radius:50%;background:#ea0038;animation:wblink 1s infinite}
@@ -8849,7 +8852,7 @@ function buildChat(c){
   chatEl.appendChild(cp);
   CH.tray=E("div");CH.tray.id="watray";CH.tray.hidden=true;chatEl.appendChild(CH.tray);
   if(c.type==="bot"){CH.fit=function(){};return}
-  function fit(){ta.style.height="40px";ta.style.height=Math.min(ta.scrollHeight,120)+"px";var has=!!ta.value.trim();cam.hidden=has;mic.innerHTML=has?ic("send",22):ic("mic",24,1.8);mic.setAttribute("aria-label",has?"Send":"Record voice message")}
+  function fit(){ta.style.height="40px";if(ta.value&&ta.scrollHeight>44)ta.style.height=Math.min(ta.scrollHeight,120)+"px";var has=!!ta.value.trim();cam.hidden=has;mic.innerHTML=has?ic("send",22):ic("mic",24,1.8);mic.setAttribute("aria-label",has?"Send":"Record voice message")}
   ta.addEventListener("input",fit);fit();
   ta.addEventListener("keydown",function(e){if(hubEnterKey(e)){e.preventDefault();if(ta.value.trim())sendOrEdit()}});
   mic.onclick=function(){if(ta.value.trim())sendOrEdit();else recStart()};
@@ -9753,7 +9756,11 @@ setInterval(function(){if(WA.open&&!document.hidden)render();try{if(!document.hi
     if(r.__vo!==off){r.__vo=off;r.style.setProperty("--vvoff",off+"px")}
     /* WhatsApp look: keep the whole chat screen exactly the size of the visible area above the keyboard, so nothing behind it shows through */
     if(vv){
-      var open=kb(),h=open?Math.round(vv.height):0,t=open?Math.round(vv.offsetTop):0;
+      /* iPhone: window.innerHeight shrinks with the keyboard too, so compare with the full layout height instead */
+      var ae=document.activeElement,wa=document.getElementById("wa");
+      var inWa=!!(wa&&!wa.hidden&&ae&&wa.contains(ae)&&/^(TEXTAREA|INPUT)$/.test(ae.tagName));
+      var full=Math.max(document.documentElement.clientHeight||0,r.__fullH||0);if(!inWa)r.__fullH=Math.max(window.innerHeight,document.documentElement.clientHeight||0);
+      var open=inWa&&(full-vv.height>100||vv.offsetTop>0),h=open?Math.round(vv.height):0,t=open?Math.round(vv.offsetTop):0;
       if(r.__wh!==h||r.__wt!==t){r.__wh=h;r.__wt=t;
         if(open){r.style.setProperty("--wavh",h+"px");r.style.setProperty("--wavt",t+"px");r.setAttribute("data-kb","1")}
         else{r.style.removeProperty("--wavh");r.style.removeProperty("--wavt");r.removeAttribute("data-kb")}
