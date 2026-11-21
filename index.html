@@ -903,7 +903,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 15:52</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 16:00</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -2026,15 +2026,31 @@ function stkAddDlg(opt){
       exBox.appendChild(exSel);
       var exHelp=h("div","meta","");exBox.appendChild(exHelp);
       var aw2=h("label",null,"Amount (₦)"),ai=h("input");ai.type="number";ai.min="0";ai.step="any";aw2.appendChild(ai);aw2.hidden=true;exBox.appendChild(aw2);
-      var rw2=h("label",null,"Transfer receipt for the reimbursement (optional)"),rfi=h("input");rfi.type="file";rfi.accept="image/*,application/pdf";rfi.multiple=true;rw2.appendChild(rfi);rw2.hidden=true;exBox.appendChild(rw2);
+      var rw2=h("label",null,"Transfer receipt for the reimbursement (required)"),rfi=h("input");rfi.type="file";rfi.accept="image/*,application/pdf";rfi.multiple=true;rw2.appendChild(rfi);rw2.hidden=true;exBox.appendChild(rw2);
       function selTotal(){var t=0,any=false;rows.forEach(function(r){if(r.cb.checked&&r.it.price!=null){t+=r.it.price;any=true}});return any?t:(j.total||"")}
       rows.forEach(function(r){r.cb.addEventListener("change",function(){if(!exSel.value)return;ai.value=selTotal()})});
       exSel.onchange=function(){var v=exSel.value;aw2.hidden=!v;rw2.hidden=v!=="reimb";if(v&&!ai.value)ai.value=selTotal();
-        exHelp.textContent=v==="mine"?"Saved in Expenses as paid by you. It counts only towards your spending and doesn’t show on "+othN+"’s side.":v==="reimb"?"Saved in Expenses as bought by "+othN+" and reimbursed by you. It shows as a reimbursement and counts towards your spending, not "+othN+"’s.":""};
+        exHelp.textContent=v==="mine"?"Saved in Expenses as paid by you. It counts only towards your spending and doesn’t show on "+othN+"’s side.":v==="reimb"?"Saved in Expenses as bought by "+othN+" and reimbursed by you. It shows as a reimbursement and counts towards your spending, not "+othN+"’s. Attach the transfer receipt: Cordial checks it shows exactly this amount.":""};
       res.appendChild(exBox);
       go.textContent="Add to Supplies";go.disabled=false;
       go.onclick=async function(){
         var pick=rows.filter(function(r){return r.cb.checked&&r.nm.value.trim()});if(!pick.length){er.textContent="Tick at least one item.";er.hidden=false;return}
+        /* recording money needs proof: the purchase receipt, and for a reimbursement the transfer receipt for exactly the amount */
+        var exAmt=parseFloat(ai.value),rcs=[],rchk=null;
+        if(exSel.value&&me){
+          if(!thumbs.length){er.textContent="Add a photo of the purchase receipt to record the money.";er.hidden=false;return}
+          if(!(exAmt>0)){er.textContent="Add the amount (above zero) to record the money.";er.hidden=false;return}
+          if(exSel.value==="reimb"){
+            var rf=Array.prototype.slice.call(rfi.files||[]);
+            if(!rf.length){er.textContent="Attach the transfer receipt for the reimbursement ("+money(exAmt)+").";er.hidden=false;return}
+            go.disabled=true;go.textContent="Cordial is checking the transfer receipt…";
+            try{rchk=await aiVerifyMany(rfi.files,{kind:"reimbursement",title:"Reimbursement of supplies"+(j.store?" from "+j.store:""),amount:exAmt,date:key(new Date())})}catch(e){rchk=null}
+            var got=rchk&&rchk.read&&typeof rchk.read.amount==="number"?rchk.read.amount:null;
+            if(!rchk||rchk.status==="unchecked"||got===null){go.disabled=false;go.textContent="Add to Supplies";er.textContent="Cordial couldn’t read an amount on the transfer receipt. Try a clearer photo or screenshot.";er.hidden=false;return}
+            if(Math.round(got*100)!==Math.round(exAmt*100)){go.disabled=false;go.textContent="Add to Supplies";er.textContent="The transfer receipt shows "+money(got)+" but the reimbursement is "+money(exAmt)+". Change the amount or attach the right receipt.";er.hidden=false;return}
+            for(var q=0;q<rf.length;q++){var u0=await xtUp(rf[q]);u0.aicheck=rchk;rcs.push(u0)}
+          }
+        }
         go.disabled=true;go.textContent="Saving…";
         try{
           var paths=[];for(var k=0;k<thumbs.length;k++){var bl=await (await fetch(thumbs[k])).blob();paths.push(await upload("supplies",bl,"receipt.jpg"))}
@@ -2043,17 +2059,15 @@ function stkAddDlg(opt){
             await xtDoc(id,{kind:"supply",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",qty:it.qty||1,unit:it.unit||"",size:it.size||"",price:it.price,store:j.store||"",section:it.section||"",days:parseInt(p.di.value,10)||0,ts:base,by:myId,rcpt:paths,photo:0,added:Date.now()})}
           var exMsg="";
           if(exSel.value&&me){
-            var amt=parseFloat(ai.value);
-            if(!(amt>0))exMsg=" The expense wasn’t saved: add an amount above zero in Expenses.";
-            else{
+            var amt=exAmt;
+            {
               var payer=exSel.value==="reimb"?oth:me,desc="Supplies: "+pick.map(function(p){return p.nm.value.trim()}).slice(0,6).join(", ")+(pick.length>6?" and more":"")+(j.store?" ("+j.store+")":"");
               var dupX=(S.exp||[]).filter(function(x){return x.date===key(new Date(base))&&Math.round(+x.amount)===Math.round(amt)&&x.by===payer})[0];
               if(dupX)exMsg=" An expense for "+money(amt)+" on that day was already in Expenses, so it wasn’t added again.";
               else{
                 var pr={path:paths[0],name:"receipt.jpg",type:"image/jpeg"},xrec=withShare({ts:Date.now(),desc:desc,amount:amt,by:payer,date:key(new Date(base)),proof:pr,fromSupplies:1,addedBy:myId},"exp");
                 if(paths.length>1)xrec.proofs=paths.map(function(pp){return {path:pp,name:"receipt.jpg",type:"image/jpeg"}});
-                if(exSel.value==="reimb"){var rcs=[];var rf=Array.prototype.slice.call(rfi.files||[]);for(var q=0;q<rf.length;q++)rcs.push(await xtUp(rf[q]));
-                  xrec.reimbAt=Date.now();xrec.reimbBy=myId;xrec.reimbReceipts=rcs;xrec.reimbNote=rcs.length?"":"Recorded from Supplies without a transfer receipt"}
+                if(exSel.value==="reimb"){xrec.reimbAt=Date.now();xrec.reimbBy=myId;xrec.reimbReceipts=rcs;xrec.reimbCheck=rchk}
                 await db.collection("expenses").add(xrec);
                 exMsg=exSel.value==="reimb"?" Saved in Expenses as a reimbursement to "+othN+".":" Saved in Expenses as your contribution.";
               }
