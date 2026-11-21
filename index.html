@@ -903,7 +903,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 16:00</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 16:32</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1968,7 +1968,7 @@ function stkAddDlg(opt){
   var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px";
   var c=h("div","card");c.style.cssText="width:min(94vw,460px);max-height:90vh;overflow:auto;box-sizing:border-box";
   c.appendChild(h("h2",null,opt.again?"Bought more "+opt.again.name:"Add supplies ✨"));
-  c.appendChild(h("p","meta",opt.again?"Add the new receipt if you have one. The meter starts again from today.":"Add a photo of the receipt, the items, or both (up to 4 photos). Cordial reads them and lists what was bought."));
+  c.appendChild(h("p","meta",opt.again?"Add the new receipt if you have one. The meter starts again from today.":"Add a photo of the receipt (up to 4 photos). Cordial adds only the items printed on the receipt; photos of the items just help it get brands and sizes right."));
   var lf=h("label",null,"Receipt and item photos");var fi=h("input");fi.type="file";fi.accept="image/*";fi.multiple=true;fi.style.maxWidth="100%";lf.appendChild(fi);c.appendChild(lf);
   var th=h("div");th.style.cssText="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0";c.appendChild(th);
   fi.onchange=function(){th.textContent="";Array.prototype.slice.call(fi.files,0,4).forEach(function(f){var im=h("img");im.src=URL.createObjectURL(f);im.style.cssText="width:64px;height:64px;object-fit:cover;border-radius:8px";th.appendChild(im)})};
