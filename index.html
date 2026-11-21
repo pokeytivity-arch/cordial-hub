@@ -903,7 +903,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 16:32</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 16:40</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1978,7 +1978,7 @@ function stkAddDlg(opt){
   var bar=h("div");bar.style.cssText="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap";
   var go=h("button","go",opt.again?"Save":"Read it");go.type="button";var cx=h("button","quiet","Close");cx.type="button";cx.onclick=function(){ov.remove()};
   bar.appendChild(go);bar.appendChild(cx);c.appendChild(bar);ov.appendChild(c);document.body.appendChild(ov);
-  async function upAll(files){var out=[];for(var i=0;i<files.length;i++){var d=await evThumb(files[i]);var b=await (await fetch(d)).blob();out.push(await upload("supplies",b,"receipt.jpg"))}return out}
+  async function upAll(files){var out=[];for(var i=0;i<files.length;i++){var d=await evThumb(files[i]);var b=await (await fetch(d)).blob();out.push(await upload("docs",b,"receipt.jpg"))}return out}
   if(opt.again){
     var x=opt.again,dw=h("label",null,"Lasts how many days?"),di=h("input");di.type="number";di.value=x.days||7;dw.appendChild(di);c.insertBefore(dw,er);
     var pw=h("label",null,"Price (₦, optional)"),pi=h("input");pi.type="number";pw.appendChild(pi);c.insertBefore(pw,er);
@@ -2053,7 +2053,7 @@ function stkAddDlg(opt){
         }
         go.disabled=true;go.textContent="Saving…";
         try{
-          var paths=[];for(var k=0;k<thumbs.length;k++){var bl=await (await fetch(thumbs[k])).blob();paths.push(await upload("supplies",bl,"receipt.jpg"))}
+          var paths=[];for(var k=0;k<thumbs.length;k++){var bl=await (await fetch(thumbs[k])).blob();paths.push(await upload("docs",bl,"receipt.jpg"))}
           var d0=wd.value?new Date(wd.value+"T12:00:00").getTime():Date.now(),base=Math.min(Date.now(),d0);
           for(var n=0;n<pick.length;n++){var p=pick[n],it=p.it,id="sup_"+Date.now().toString(36)+n+Math.random().toString(36).slice(2,5);
             await xtDoc(id,{kind:"supply",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",qty:it.qty||1,unit:it.unit||"",size:it.size||"",price:it.price,store:j.store||"",section:it.section||"",days:parseInt(p.di.value,10)||0,ts:base,by:myId,rcpt:paths,photo:0,added:Date.now()})}
@@ -2074,7 +2074,7 @@ function stkAddDlg(opt){
             }
           }
           ov.remove();note("Added "+pick.length+(pick.length===1?" item":" items")+" to Supplies."+exMsg);setTimeout(function(){note("")},exMsg?6000:2500);
-        }catch(e){go.disabled=false;go.textContent="Add to Supplies";er.textContent="Couldn’t save. "+(e&&e.message==="toolarge"?"A photo is too large.":"Try again.");er.hidden=false}
+        }catch(e){go.disabled=false;go.textContent="Add to Supplies";er.textContent="Couldn’t save. "+(e&&e.message==="toolarge"?"A photo is too large.":"Try again. ("+String((e&&(e.message||e.code||e.error))||e||"").slice(0,120)+")");er.hidden=false}
       };
     }catch(e){er.textContent="Something went wrong. Try again.";er.hidden=false;go.disabled=false;go.textContent="Read it"}
   };
