@@ -4835,18 +4835,32 @@ function jcShare(){
   if(!navigator.mediaDevices||!navigator.mediaDevices.getDisplayMedia){toast("Sharing the screen isn’t possible on this phone’s browser. Use the hub on a computer, or on an Android phone.");return}
   if(JAPI)JAPI.executeCommand("toggleShareScreen");
 }
+var SILENT="data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==";
 function jcSpeaker(btn){
+  function iosPicker(){
+    try{
+      var a=document.getElementById("jcroute");
+      if(!a){a=document.createElement("audio");a.id="jcroute";a.src=SILENT;a.loop=true;a.setAttribute("playsinline","");a.style.display="none";document.body.appendChild(a)}
+      if(typeof a.webkitShowPlaybackTargetPicker!=="function")return false;
+      var pr=a.play();if(pr&&pr.catch)pr.catch(function(){});
+      a.webkitShowPlaybackTargetPicker();return true;
+    }catch(e){return false}
+  }
   if(!JAPI){toast("The call isn’t connected yet.");return}
   JAPI.getAvailableDevices().then(function(d){
     var outs=(d&&d.audioOutput)||[];
-    if(outs.length<2){toast("On iPhone the sound plays through the phone’s own speaker or earpiece. Use the volume buttons, or AirPlay in Control Centre, to change it.");return}
-    JAPI.getCurrentDevices().then(function(cur){
-      var id=cur&&cur.audioOutput&&cur.audioOutput.deviceId,spk=outs.filter(function(x){return /speaker/i.test(x.label)})[0]||outs[0];
-      var other=outs.filter(function(x){return x.deviceId!==spk.deviceId})[0]||spk;
-      var pick=id===spk.deviceId?other:spk;
-      JAPI.setAudioOutputDevice(pick.label,pick.deviceId);btn.classList.toggle("off",pick.deviceId===spk.deviceId);
-    })
-  }).catch(function(){toast("Couldn’t change the speaker.")});
+    if(outs.length>=2){
+      JAPI.getCurrentDevices().then(function(cur){
+        var id=cur&&cur.audioOutput&&cur.audioOutput.deviceId,spk=outs.filter(function(x){return /speaker/i.test(x.label)})[0]||outs[0];
+        var other=outs.filter(function(x){return x.deviceId!==spk.deviceId})[0]||spk;
+        var pick=id===spk.deviceId?other:spk;
+        JAPI.setAudioOutputDevice(pick.label,pick.deviceId);btn.classList.toggle("off",pick.deviceId===spk.deviceId);
+        toast("Sound: "+(pick.label||"changed"));
+      });
+      return;
+    }
+    if(!iosPicker())toast("Use the volume buttons, or Control Centre, to choose iPhone, Speaker or Bluetooth.");
+  }).catch(function(){if(!iosPicker())toast("Couldn’t change where the sound plays.")});
 }
 var JJOINED=false;
 function jcAv(){
@@ -4868,14 +4882,17 @@ function jcAvInit(c){
 }
 /* Ask for the microphone (and camera for video calls) the moment a call is started or answered, so the phone's permission prompt appears straight away. */
 var PRIMED=0;
+var PRIMEST=null,PRIMET=0;
+/* Keep the permission "live" until the call room has joined, so the call page does not have to ask again (iPhone home-screen apps ask every time a stream starts). */
+function primeRelease(){clearTimeout(PRIMET);try{if(PRIMEST)PRIMEST.getTracks().forEach(function(t){t.stop()})}catch(e){}PRIMEST=null}
 function primeMedia(audioOnly){
   try{
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return;
     var now=Date.now();if(now-PRIMED<4000)return;PRIMED=now;
-    var done=function(st){try{st.getTracks().forEach(function(t){t.stop()})}catch(e){}};
-    var micOnly=function(){navigator.mediaDevices.getUserMedia({audio:true}).then(done).catch(function(){toast("Allow the microphone so others can hear you in calls.")})};
+    var keep=function(st){primeRelease();PRIMEST=st;PRIMET=setTimeout(primeRelease,25000)};
+    var micOnly=function(){navigator.mediaDevices.getUserMedia({audio:true}).then(keep).catch(function(){toast("Allow the microphone so others can hear you in calls.")})};
     if(audioOnly){micOnly();return}
-    navigator.mediaDevices.getUserMedia({audio:true,video:{facingMode:"user"}}).then(done).catch(micOnly);
+    navigator.mediaDevices.getUserMedia({audio:true,video:{facingMode:"user"}}).then(keep).catch(micOnly);
   }catch(e){}
 }
 function openCall(c){
@@ -4896,7 +4913,7 @@ function openCall(c){
     tp.appendChild(rt);
     var bt=h("div");bt.id="jcb";
     function jcc(btn,label){var w=h("div","jcc");w.appendChild(btn);w.appendChild(h("span",null,label));bt.appendChild(w)}
-    var spb=jbtn("",JI.spk,"Speaker",function(){jcSpeaker(spb)});spb.id="jcspk";jcc(spb,"Speaker");
+    var spb=jbtn("",JI.spk,"Audio output: iPhone, Speaker or Bluetooth",function(){jcSpeaker(spb)});spb.id="jcspk";jcc(spb,"Audio");
     var cb=jbtn("",JI.cam,"Camera",function(){if(JAPI){JAPI.executeCommand("toggleVideo");jcDev("camera")}});cb.id="jccam";jcc(cb,"Video");
     var mb=jbtn("",JI.mic,"Microphone",function(){if(JAPI){JAPI.executeCommand("toggleAudio");jcDev("mic")}});mb.id="jcmic";jcc(mb,"Mute");
     jcc(jbtn("",JI.more,"More",jcMenu),"More");
@@ -4941,7 +4958,7 @@ function openCall(c){
         userInfo:{displayName:S.me||"Guest"}};
       if(jwt)opts.jwt=jwt;
       var api=new JitsiMeetExternalAPI(host,opts);JAPI=api;
-      api.addListener("videoConferenceJoined",function(e){JLOC=e&&e.id;JJOINED=true;jcParts()});
+      api.addListener("videoConferenceJoined",function(e){JLOC=e&&e.id;JJOINED=true;jcParts();setTimeout(primeRelease,2500)});
       api.addListener("participantJoined",function(e){if(e&&e.id&&JREM.indexOf(e.id)<0){JREM.push(e.id);if(JREM.length===1&&JPIN==="remote")setTimeout(function(){try{JAPI&&JAPI.executeCommand("pinParticipant",JREM[0])}catch(x){}},800)}jcParts()});
       api.addListener("participantLeft",function(e){if(e&&e.id)JREM=JREM.filter(function(x){return x!==e.id});jcParts();var mc=JCUR;setTimeout(function(){if(JCUR!==mc||!mc||!mc.callId||!JSTART)return;var n=1;try{n=JAPI.getNumberOfParticipants()}catch(e){}if(n<=1)closeCall()},1500)});
       api.addListener("audioMuteStatusChanged",function(e){micb.innerHTML=e.muted?JI.micoff:JI.mic;micb.classList.toggle("off",!!e.muted)});
@@ -4961,7 +4978,7 @@ function openCall(c){
 }
 function closeCall(){
   if(!JC)return;var cid=JCUR&&JCUR.callId;if(cid&&window.hubCallEnd)hubCallEnd(cid);
-  clearInterval(JT);try{if(JAPI)JAPI.dispose()}catch(e){}JAPI=null;
+  clearInterval(JT);primeRelease();try{if(JAPI)JAPI.dispose()}catch(e){}JAPI=null;
   JC.hidden=true;JC.classList.remove("min","plain");JC.querySelector("#jcm").textContent="";JCUR=null;JSTART=0;syncCbar();
 }
 window.hubCallInfo=function(){return JCUR};
