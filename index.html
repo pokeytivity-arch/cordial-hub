@@ -694,13 +694,14 @@ html[data-look] #wa,#wa{margin:0!important;max-width:none!important;padding:0}
 #wareply .tx{flex:1;min-width:0;font-size:.92rem}#wareply b{display:block;color:#a06d1d;font-size:.86rem}#wareply .tx div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--wmut)}
 html[data-kb] #wa{top:var(--wavt,0px)!important;bottom:auto!important;height:var(--wavh,100%)!important}
 html[data-kb] #wacomp{padding-bottom:8px}
+#wacomp .box textarea{min-height:0!important;height:40px;padding:10px 0;line-height:20px;border:0;background:transparent;box-shadow:none;border-radius:0;resize:none;margin:0;flex:1;min-width:0;outline:0;color:var(--wink)}
 html[data-kb] body:has(#wa:not([hidden])){overflow:hidden}
 #wacomp{display:flex;align-items:flex-end;gap:8px;padding:6px 10px calc(8px + env(safe-area-inset-bottom,0px));z-index:2}
-#wacomp .round{width:46px;height:46px;border-radius:50%;background:var(--wfloat);box-shadow:0 1px 6px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;flex:none}
+#wacomp .round{width:42px;height:42px;border-radius:50%;background:var(--wfloat);box-shadow:0 1px 6px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;flex:none}
 #wacomp .round.g{background:var(--wg);color:#fff}
-#wacomp .box{flex:1;min-width:0;background:var(--wfloat);border-radius:23px;box-shadow:0 1px 6px rgba(0,0,0,.12);display:flex;align-items:flex-end;padding:0 6px 0 16px;min-height:46px}
-#wat{flex:1;min-width:0;border:0;outline:0;background:transparent;font:inherit;font-size:1.08rem;color:var(--wink);resize:none;padding:11px 0;max-height:120px;line-height:1.25;margin:0;width:auto;border-radius:0;box-shadow:none;height:46px;box-sizing:border-box}
-#wacomp .box button{width:38px;height:46px;display:flex;align-items:center;justify-content:center}
+#wacomp .box{flex:1;min-width:0;background:var(--wfloat);border-radius:21px;box-shadow:0 1px 6px rgba(0,0,0,.12);display:flex;align-items:flex-end;padding:0 4px 0 14px;min-height:42px}
+#wat{flex:1;min-width:0;border:0;outline:0;background:transparent;font:inherit;font-size:1.08rem;color:var(--wink);resize:none;padding:10px 0;max-height:120px;line-height:20px;margin:0;width:auto;border-radius:0;box-shadow:none;height:40px;min-height:0!important;box-sizing:border-box}
+#wacomp .box button{width:36px;height:40px;display:flex;align-items:center;justify-content:center}
 #warec{flex:1;display:flex;align-items:center;gap:12px;background:var(--wfloat);border-radius:23px;box-shadow:0 1px 6px rgba(0,0,0,.12);height:46px;padding:0 14px;color:var(--wink)}
 #warec .dot{width:10px;height:10px;border-radius:50%;background:#ea0038;animation:wblink 1s infinite}
 @keyframes wblink{50%{opacity:.2}}
@@ -8787,7 +8788,7 @@ function buildChat(c){
     afi.onchange=function(){var f=afi.files&&afi.files[0];afi.value="";aiPick(f,function(a){PA=a;paintPA()})};
     var abtn=E("button","round",ic("plus",24,1.8));abtn.type="button";abtn.setAttribute("aria-label","Attach a photo or file");abtn.onclick=function(){afi.click()};
     chatEl.appendChild(apv);
-    ota.addEventListener("input",function(){ota.style.height="46px";ota.style.height=Math.min(ota.scrollHeight,120)+"px"});
+    ota.addEventListener("input",function(){ota.style.height="40px";ota.style.height=Math.min(ota.scrollHeight,120)+"px"});
     if(isOwner){
       var seg=E("div");seg.style.cssText="display:flex;gap:8px;padding:6px 12px 0;background:var(--wbar,transparent)";
       var sr=T("button",null,"🌙 Recap now");sr.type="button";sr.style.cssText="border:0;border-radius:999px;padding:6px 14px;font:inherit;font-size:.85rem;font-weight:600;background:rgba(0,0,0,.08);color:inherit";
@@ -8806,15 +8807,15 @@ function buildChat(c){
     }
     osend.onclick=function(){
       var t=ota.value.trim();if(!t&&!(mode==="ask"&&PA))return;
-      if(mode==="ann"){if(!confirm("Post this announcement to everyone in the hub?"))return;ota.value="";ota.style.height="46px";post({kind:"announce",text:t}).catch(fail)}
-      else{ota.value="";ota.style.height="46px";var pa=PA;PA=null;paintPA();aiAsk(t,pa)}
+      if(mode==="ann"){if(!confirm("Post this announcement to everyone in the hub?"))return;ota.value="";ota.style.height="40px";post({kind:"announce",text:t}).catch(fail)}
+      else{ota.value="";ota.style.height="40px";var pa=PA;PA=null;paintPA();aiAsk(t,pa)}
     };
     cp.appendChild(abtn);cp.appendChild(afi);cp.appendChild(obox);cp.appendChild(osend);
   }
   chatEl.appendChild(cp);
   CH.tray=E("div");CH.tray.id="watray";CH.tray.hidden=true;chatEl.appendChild(CH.tray);
   if(c.type==="bot"){CH.fit=function(){};return}
-  function fit(){ta.style.height="46px";ta.style.height=Math.min(ta.scrollHeight,120)+"px";var has=!!ta.value.trim();cam.hidden=has;mic.innerHTML=has?ic("send",22):ic("mic",24,1.8);mic.setAttribute("aria-label",has?"Send":"Record voice message")}
+  function fit(){ta.style.height="40px";ta.style.height=Math.min(ta.scrollHeight,120)+"px";var has=!!ta.value.trim();cam.hidden=has;mic.innerHTML=has?ic("send",22):ic("mic",24,1.8);mic.setAttribute("aria-label",has?"Send":"Record voice message")}
   ta.addEventListener("input",fit);fit();
   ta.addEventListener("keydown",function(e){if(hubEnterKey(e)){e.preventDefault();if(ta.value.trim())sendOrEdit()}});
   mic.onclick=function(){if(ta.value.trim())sendOrEdit();else recStart()};
