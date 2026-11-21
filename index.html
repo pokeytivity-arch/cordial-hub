@@ -698,6 +698,14 @@ html[data-look] #wa,#wa{margin:0!important;max-width:none!important;padding:0}
 .wb.media{padding:3px}.wb.media .wmeta{position:absolute;right:9px;bottom:7px;margin:0;background:rgba(0,0,0,.35);color:#fff;border-radius:8px;padding:2px 5px;float:none;height:auto}
 .wb .mimg{border-radius:11px}
 .wb.stk{background:none;box-shadow:none;padding:0}.wb.stk .st{font-size:5.2rem;line-height:1.1}.wb.stk .wmeta{float:none;justify-content:flex-end;margin:0;background:var(--wfloat);border-radius:8px;padding:2px 6px;position:absolute;right:0;bottom:0}
+.wb.wcall{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 10px;min-width:220px;cursor:pointer;white-space:normal}
+.wb.wcall .wci{width:46px;height:46px;border-radius:50%;background:rgba(120,130,140,.12);display:flex;align-items:center;justify-content:center;flex:none;color:var(--wink)}
+.wm.me .wb.wcall .wci{background:rgba(255,255,255,.55)}
+.wb.wcall.miss .wci{color:#e5484d}
+.wb.wcall .wct{flex:1;min-width:0;display:flex;flex-direction:column}
+.wb.wcall .wct b{font-weight:600;font-size:1.02rem}
+.wb.wcall .wct span{color:var(--wmut);font-size:.95rem}
+.wb.wcall .wctm{align-self:flex-end;font-size:.72rem;color:var(--wmut);margin-left:6px;white-space:nowrap}
 .wq{background:var(--wquote);border-left:4px solid #b5883c;border-radius:9px;padding:6px 9px;margin:0 0 5px;font-size:.92rem;cursor:pointer}
 .wq b{display:block;color:#a06d1d;font-size:.86rem}.wq div{color:var(--wmut);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal}
 .wrx{position:absolute;bottom:-12px;background:var(--win);border-radius:999px;box-shadow:0 1px 3px rgba(0,0,0,.25);padding:1px 6px;font-size:.85rem;display:flex;gap:2px;z-index:1}
@@ -854,7 +862,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 07:26</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 07:31</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -8944,6 +8952,29 @@ function sendOrEdit(){
     post(tg.length?{text:v,tags:tg}:{text:v}).catch(fail);
   });
 }
+/* call history in a chat, drawn like WhatsApp: a bubble on the caller's side with an arrow icon, what happened, and the time */
+function callBubble(m,c){
+  var t=String(m.text||""),mine=m.by===myId,vid=/video/i.test(t),kind=vid?"video":"voice";
+  var out=/Missed/.test(t)?"missed":/Cancelled/.test(t)?"cancelled":/Declined/.test(t)?"declined":"done";
+  var dur=(t.split("·")[1]||"").trim();
+  var title,sub,red=false;
+  if(out==="done"){title=(vid?"Video":"Voice")+" call";sub=dur||"Answered"}
+  else if(mine){title=(vid?"Video":"Voice")+" call";sub=out==="missed"?"No answer":out==="cancelled"?"Cancelled":"Declined"}
+  else if(out==="declined"){title=(vid?"Video":"Voice")+" call";sub="Declined"}
+  else{title="Missed "+kind+" call";sub="Tap to call back";red=true}
+  var row=E("div","wm"+(mine?" me":"")+" tail gap");
+  var b=E("div","wb wcall"+(red?" miss":""));
+  var ico=E("span","wci");
+  var arrow=mine?"<path d='M15 3h6v6M21 3l-7 7' stroke='currentColor' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/>":"<path d='M20 4l-7 7M13 5.5V11h5.5' stroke='currentColor' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/>";
+  var handset=vid?"<rect x='2' y='8' width='12' height='10' rx='2.5' fill='currentColor'/><path d='M14 11.5l4-2.5v8l-4-2.5z' fill='currentColor'/>":"<path fill='currentColor' d='M6.6 3.5c.5-.4 1.3-.3 1.7.2l2.1 2.8c.4.5.3 1.2-.1 1.6L9 9.4c.9 2.1 2.6 3.8 4.7 4.7l1.3-1.3c.4-.4 1.1-.5 1.6-.1l2.8 2.1c.5.4.6 1.2.2 1.7l-1.2 1.6c-.6.8-1.6 1.1-2.5.8C9.9 17.4 6.6 14.1 5 10.1c-.3-.9 0-1.9.8-2.5z' transform='translate(-1 2)'/>";
+  ico.innerHTML="<svg viewBox='0 0 24 24' width='26' height='26'>"+handset+arrow+"</svg>";
+  b.appendChild(ico);
+  var tx=E("div","wct");tx.appendChild(T("b",null,title));tx.appendChild(T("span",null,sub));b.appendChild(tx);
+  var tm=new Date(m.ts).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+  b.appendChild(T("span","wctm",tm));
+  b.onclick=function(){try{if(c)callChat(c,!vid)}catch(e){}};
+  row.appendChild(b);return row;
+}
 /* messages */
 var lastSig="";
 function renderChat(force){
@@ -8960,6 +8991,7 @@ function renderChat(force){
     var d=new Date(m.ts).toDateString();
     if(d!==lastDay){lastDay=d;var n=new Date(),y=new Date();y.setDate(n.getDate()-1);
       L.appendChild(T("div","wday",d===n.toDateString()?"Today":d===y.toDateString()?"Yesterday":new Date(m.ts).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})));pm=null}
+    if(m.kind==="sys"&&/^📞/.test(m.text||"")){L.appendChild(callBubble(m,c));pm=null;return}
     if(m.kind==="sys"){L.appendChild(T("div","wsys",m.text||""));pm=null;return}
     var me=m.by===myId&&(c.type!=="bot"||m.kind!=="announce"),first=!pm||pm.by!==m.by||m.ts-pm.ts>120000;pm=m;
     var rs=rx.filter(function(r){return r.msg===m.id});
