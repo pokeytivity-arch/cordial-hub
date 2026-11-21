@@ -903,7 +903,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 08:27</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 15:35</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1014,10 +1014,11 @@ main{max-width:100%}
 </section>
 
 <section id="p-todo" hidden>
-  <div class="card" style="padding:10px"><div class="seg" id="tdseg"><button type="button" class="on" data-p="tasks">To-do <span id="tdn1"></span></button><button type="button" data-p="shop">Shopping list <span id="tdn2"></span></button><button type="button" data-p="chk">Checklist</button></div></div>
+  <div class="card" style="padding:10px"><div class="seg" id="tdseg"><button type="button" class="on" data-p="tasks">To-do <span id="tdn1"></span></button><button type="button" data-p="shop">Shopping list <span id="tdn2"></span></button><button type="button" data-p="chk">Checklist</button><button type="button" data-p="stock">Supplies</button></div></div>
   <div id="todocard"></div>
   <div id="xs-shop" hidden></div>
   <div id="xs-chk" hidden></div>
+  <div id="xs-stock" hidden></div>
 </section>
 <section id="p-meet" hidden>
   <div class="card" id="zoomcard"><button type="button" id="zoomhd" aria-expanded="false" style="display:flex;width:100%;align-items:center;justify-content:space-between;background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer"><span style="font-size:1.15rem;font-weight:700">Zoom connection</span><span><span id="zoomtick" style="font-size:1.2rem">…</span> <span id="zoomch" style="opacity:.6">›</span></span></button><div id="zoomdet" hidden style="margin-top:8px"><div id="zoomsts" class="meta">Checking…</div><button class="quiet" id="zoomchk" type="button" style="padding:4px 0;text-decoration:underline">Check again</button></div></div>
@@ -1703,7 +1704,7 @@ var TDT="tasks";
 function tdTabs(){
   var sg=$("#tdseg");if(!sg)return;
   Array.prototype.forEach.call(sg.children,function(b){b.className=b.dataset.p===TDT?"on":""});
-  var tc=$("#todocard"),sh=$("#xs-shop");if(tc)tc.hidden=TDT!=="tasks";if(sh)sh.hidden=TDT!=="shop";var ck=$("#xs-chk");if(ck){ck.hidden=TDT!=="chk";if(TDT==="chk")safe(xtChk)()}
+  var tc=$("#todocard"),sh=$("#xs-shop");if(tc)tc.hidden=TDT!=="tasks";if(sh)sh.hidden=TDT!=="shop";var ck=$("#xs-chk");if(ck){ck.hidden=TDT!=="chk";if(TDT==="chk")safe(xtChk)()}var sk=$("#xs-stock");if(sk){sk.hidden=TDT!=="stock";if(TDT==="stock")safe(xtStock)()}
 }
 (function(){var sg=document.getElementById("tdseg");if(!sg)return;
   Array.prototype.forEach.call(sg.children,function(b){b.onclick=function(){TDT=b.dataset.p;tdTabs()}})})();
@@ -1885,6 +1886,153 @@ function chkWatch(){
     }
   }catch(e){CHKWBUSY=false}
 }
+/* ---------- Supplies: add items from a receipt or photos; each item gets a meter showing when it will run out ---------- */
+var STK={open:{},showDone:false};
+function stkList(){return (S.xo||[]).filter(function(x){return x.kind==="supply"&&!x.removed})}
+function stkLeft(x){if(!x.days)return null;var tot=x.days*86400000,left=Math.max(0,tot-(Date.now()-(x.ts||0)));if(x.usedAt)left=0;return {tot:tot,left:left,pc:left/tot,dl:Math.ceil(left/86400000),end:(x.ts||0)+tot}}
+function stkCol(pc){return pc>0.5?"#1fa855":pc>0.3?"#e0a100":"#d93025"}
+function stkMoney(n){return n==null||n===""?"":"₦"+Number(n).toLocaleString("en-NG",{maximumFractionDigits:0})}
+function stkDate(ts){return new Date(ts).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}
+function stkThumb(el,path){if(!path)return;signed(path).then(function(u){el.style.backgroundImage="url('"+u+"')";el.onclick=function(e){e.stopPropagation();openViewer(u)}}).catch(function(){})}
+function xtStock(){
+  var box=$("#xs-stock");if(!box)return;box.textContent="";
+  var L=stkList(),act=[],done=[],keep=[];
+  L.forEach(function(x){var m=stkLeft(x);if(x.usedAt||(m&&m.left<=0))done.push(x);else if(m)act.push(x);else keep.push(x)});
+  act.sort(function(a,b){return stkLeft(a).end-stkLeft(b).end});
+  var top=h("div","card");top.appendChild(h("h2",null,"Supplies"));
+  top.appendChild(h("p","meta","Snap a receipt or the items you bought. Cordial lists them, guesses how long each will last, and a meter counts down to when it runs out. Janet tells everyone when something is running low."));
+  if(canWrite){var add=h("button","go","📸 Add from a receipt or photos");add.type="button";add.onclick=stkAddDlg;top.appendChild(add)}
+  var low=act.filter(function(x){return stkLeft(x).pc<=0.3}).length;
+  top.appendChild(h("div","meta",act.length+" in use"+(low?" · "+low+" running low":"")+(done.length?" · "+done.length+" used up":"")));
+  box.appendChild(top);
+  if(!L.length){var e=h("div","card");e.appendChild(h("p","meta","Nothing here yet. Tap “Add from a receipt or photos” to add your first receipt."));box.appendChild(e);return}
+  function card(x){
+    var m=stkLeft(x),c=h("div","card stk");
+    var row=h("div");row.style.cssText="display:flex;gap:12px;align-items:flex-start";
+    var th=h("div");th.style.cssText="width:56px;height:56px;border-radius:12px;flex:none;background:#e9e9ee center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:1.6rem;cursor:pointer";th.textContent=x.rcpt&&x.rcpt.length?"":"🧾";
+    if(x.rcpt&&x.rcpt.length)stkThumb(th,x.rcpt[x.photo||0]);row.appendChild(th);
+    var tx=h("div");tx.style.cssText="flex:1;min-width:0";
+    var nm=h("b",null,x.name);nm.style.fontSize="1.05rem";tx.appendChild(nm);
+    var sub=[x.brand,(x.qty>1?x.qty+" × ":"")+(x.size||x.unit||""),x.store].filter(function(v){return v&&String(v).trim()}).join(" · ");if(sub)tx.appendChild(h("div","meta",sub));
+    tx.appendChild(h("div","meta","Bought "+stkDate(x.ts)+(x.by?" by "+(x.by===myId?"you":(memberName(x.by)||"")):"")+(x.price!=null?" · "+stkMoney(x.price):"")));
+    row.appendChild(tx);c.appendChild(row);
+    if(m){
+      var bar=h("div");bar.style.cssText="height:12px;border-radius:6px;background:rgba(128,128,128,.22);overflow:hidden;margin-top:10px";
+      var fi=h("i");fi.style.cssText="display:block;height:100%;border-radius:6px;background:"+stkCol(m.pc)+";width:"+Math.round(m.pc*100)+"%";bar.appendChild(fi);c.appendChild(bar);
+      var st=m.left<=0?"Used up":Math.round(m.pc*100)+"% left · about "+m.dl+(m.dl===1?" day":" days")+" · runs out around "+stkDate(m.end);
+      var sm=h("div","meta",st+" · lasts "+chkDur(x.days));sm.style.cssText="font-weight:600;color:"+(m.left<=0?"#d93025":stkCol(m.pc));c.appendChild(sm);
+    }else c.appendChild(h("div","meta","Doesn’t get used up"));
+    if(canWrite){
+      var bb=h("div");
+      if(m&&m.left>0)bb.appendChild(xtBtn("Used up",function(){xtDoc(x.id,{usedAt:Date.now(),usedBy:myId})},"quiet"));
+      if(m)bb.appendChild(xtBtn(m.left>0?"Bought more":"Bought again",function(){stkAgain(x)},"quiet"));
+      if(m&&m.pc<=0.3)bb.appendChild(cartBtn("Add to shopping list",async function(){
+        var rec={kind:"shop",date:key(new Date()),title:x.name,note:"",by:myId,status:"requested",prio:3,ts:Date.now(),days:x.days};if(x.brand)rec.brand=x.brand;if(x.store)rec.store=x.store;if(x.qty)rec.qty=String(x.qty);
+        try{await db.collection("expenses").add(rec);note("Added to the shopping list.");setTimeout(function(){note("")},2200)}catch(e){fail(e)}}));
+      bb.appendChild(xtBtn(STK.open[x.id]?"Close":"Edit",function(){STK.open[x.id]=!STK.open[x.id];xtStock()},"quiet"));
+      c.appendChild(bb);
+      if(STK.open[x.id]){
+        var f=h("div");f.style.cssText="margin-top:8px;display:grid;gap:6px";
+        function fld(lbl,val,type){var w=h("label",null,lbl),i=h("input");i.type=type||"text";i.value=val==null?"":val;w.appendChild(i);f.appendChild(w);return i}
+        var i1=fld("Item",x.name),i2=fld("Brand",x.brand),i3=fld("Quantity",x.qty,"number"),i4=fld("Shop",x.store),i5=fld("Price (₦)",x.price,"number"),i6=fld("Lasts how many days? (0 = doesn’t get used up)",x.days||0,"number");
+        var sv=h("div");sv.appendChild(xtBtn("Save",function(){var d=parseInt(i6.value,10)||0;xtDoc(x.id,{name:i1.value.trim()||x.name,brand:i2.value.trim(),qty:parseFloat(i3.value)||1,store:i4.value.trim(),price:i5.value===""?null:parseFloat(i5.value),days:d});STK.open[x.id]=false}));
+        sv.appendChild(xtBtn("Remove",function(){if(confirm("Remove "+x.name+" from Supplies?"))xtDoc(x.id,{removed:Date.now(),removedBy:myId})},"quiet"));
+        f.appendChild(sv);c.appendChild(f);
+      }
+    }
+    return c;
+  }
+  if(act.length){box.appendChild(h("h3",null,"In use"));act.forEach(function(x){box.appendChild(card(x))})}
+  if(keep.length){box.appendChild(h("h3",null,"Kept items"));keep.forEach(function(x){box.appendChild(card(x))})}
+  if(done.length){var dh=h("button","quiet","Used up ("+done.length+") "+(STK.showDone?"▲":"▼"));dh.type="button";dh.style.margin="10px 0";dh.onclick=function(){STK.showDone=!STK.showDone;xtStock()};box.appendChild(dh);
+    if(STK.showDone)done.sort(function(a,b){return (b.usedAt||stkLeft(b).end)-(a.usedAt||stkLeft(a).end)}).forEach(function(x){box.appendChild(card(x))})}
+}
+/* the meter restarts; the earlier purchase is kept in the item's history */
+function stkAgain(x){
+  var hist=(x.hist||[]).concat([{ts:x.ts,by:x.by,price:x.price,store:x.store,qty:x.qty,days:x.days,rcpt:x.rcpt||[],usedAt:x.usedAt||Date.now()}]).slice(-30);
+  stkAddDlg({again:x,hist:hist});
+}
+function stkAddDlg(opt){
+  opt=opt||{};
+  var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px";
+  var c=h("div","card");c.style.cssText="width:min(94vw,460px);max-height:90vh;overflow:auto;box-sizing:border-box";
+  c.appendChild(h("h2",null,opt.again?"Bought more "+opt.again.name:"Add supplies ✨"));
+  c.appendChild(h("p","meta",opt.again?"Add the new receipt if you have one. The meter starts again from today.":"Add a photo of the receipt, the items, or both (up to 4 photos). Cordial reads them and lists what was bought."));
+  var lf=h("label",null,"Receipt and item photos");var fi=h("input");fi.type="file";fi.accept="image/*";fi.multiple=true;fi.style.maxWidth="100%";lf.appendChild(fi);c.appendChild(lf);
+  var th=h("div");th.style.cssText="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0";c.appendChild(th);
+  fi.onchange=function(){th.textContent="";Array.prototype.slice.call(fi.files,0,4).forEach(function(f){var im=h("img");im.src=URL.createObjectURL(f);im.style.cssText="width:64px;height:64px;object-fit:cover;border-radius:8px";th.appendChild(im)})};
+  var ta=null;if(!opt.again){ta=h("textarea");ta.rows=2;ta.maxLength=1000;ta.placeholder="Anything to add? e.g. “2 packs of Pampers size 4, 40 each” (optional)";ta.style.cssText="width:100%;box-sizing:border-box;margin-top:6px";c.appendChild(ta)}
+  var er=h("div","meta");er.style.color="#b3261e";er.hidden=true;c.appendChild(er);
+  var res=h("div");c.appendChild(res);
+  var bar=h("div");bar.style.cssText="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap";
+  var go=h("button","go",opt.again?"Save":"Read it");go.type="button";var cx=h("button","quiet","Close");cx.type="button";cx.onclick=function(){ov.remove()};
+  bar.appendChild(go);bar.appendChild(cx);c.appendChild(bar);ov.appendChild(c);document.body.appendChild(ov);
+  async function upAll(files){var out=[];for(var i=0;i<files.length;i++){var d=await evThumb(files[i]);var b=await (await fetch(d)).blob();out.push(await upload("supplies",b,"receipt.jpg"))}return out}
+  if(opt.again){
+    var x=opt.again,dw=h("label",null,"Lasts how many days?"),di=h("input");di.type="number";di.value=x.days||7;dw.appendChild(di);c.insertBefore(dw,er);
+    var pw=h("label",null,"Price (₦, optional)"),pi=h("input");pi.type="number";pw.appendChild(pi);c.insertBefore(pw,er);
+    go.onclick=async function(){go.disabled=true;go.textContent="Saving…";
+      try{var files=Array.prototype.slice.call(fi.files,0,4),paths=files.length?await upAll(files):[];
+        await xtDoc(x.id,{date:key(new Date()),ts:Date.now(),by:myId,days:parseInt(di.value,10)||x.days,price:pi.value===""?null:parseFloat(pi.value),rcpt:paths,photo:0,usedAt:null,usedBy:null,lowPost:0,outPost:0,hist:opt.hist});
+        ov.remove();note("Meter restarted for "+x.name+".");setTimeout(function(){note("")},2200)}catch(e){go.disabled=false;go.textContent="Save";er.textContent="Couldn’t save. "+(e&&e.message==="toolarge"?"A photo is too large.":"Try again.");er.hidden=false}};
+    return;
+  }
+  go.onclick=async function(){
+    er.hidden=true;res.textContent="";
+    var files=Array.prototype.slice.call(fi.files,0,4),txt=ta.value.trim();
+    if(!files.length&&!txt){er.textContent="Add a photo of the receipt or items first.";er.hidden=false;return}
+    go.disabled=true;go.textContent="Cordial is reading…";
+    try{
+      var imgs=[],thumbs=[];for(var i=0;i<files.length;i++){var d=await evThumb(files[i]);thumbs.push(d);imgs.push({media:"image/jpeg",data:d.slice(d.indexOf(",")+1)})}
+      var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)throw 0;
+      var r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({stock:{text:txt,images:imgs}})});
+      var j={};try{j=await r.json()}catch(x){}
+      if(!r.ok){er.textContent="Cordial couldn’t read that ("+r.status+(j.detail?": "+j.detail:"")+"). Try again, or use a clearer photo.";er.hidden=false;go.disabled=false;go.textContent="Read it";return}
+      var items=j.items||[];
+      if(!items.length){er.textContent="Cordial didn’t find any items. Try a clearer photo of the receipt, or type what you bought in the box.";er.hidden=false;go.disabled=false;go.textContent="Read it";return}
+      res.appendChild(h("b",null,"Found "+items.length+(items.length===1?" item":" items")+(j.store?" from "+j.store:"")+(j.total!=null?" · total "+stkMoney(j.total):"")+". Check the days each lasts, untick anything you don’t want."));
+      var when=h("label",null,"Bought on");var wd=h("input");wd.type="date";wd.value=j.date||key(new Date());when.appendChild(wd);res.appendChild(when);
+      var rows=[];
+      items.forEach(function(it){
+        var rw=h("div");rw.style.cssText="border:1px solid rgba(128,128,128,.25);border-radius:12px;padding:8px 10px;margin:8px 0";
+        var hd=h("label");hd.style.cssText="display:flex;gap:8px;align-items:center;font-weight:600";var cb=h("input");cb.type="checkbox";cb.checked=true;cb.style.width="auto";hd.appendChild(cb);
+        var nm=h("input");nm.value=it.name;nm.style.cssText="flex:1;font-weight:600";hd.appendChild(nm);rw.appendChild(hd);
+        rw.appendChild(h("div","meta",[it.brand,(it.qty>1?it.qty+" × ":"")+(it.size||it.unit||""),it.price!=null?stkMoney(it.price):""].filter(function(v){return v&&String(v).trim()}).join(" · ")));
+        var dl=h("label");dl.style.cssText="display:flex;gap:8px;align-items:center;margin-top:4px";dl.appendChild(document.createTextNode("Lasts about"));
+        var di=h("input");di.type="number";di.min="0";di.value=it.lasts_days||0;di.style.cssText="width:80px";dl.appendChild(di);dl.appendChild(document.createTextNode("days (0 = doesn’t get used up)"));rw.appendChild(dl);
+        res.appendChild(rw);rows.push({it:it,cb:cb,nm:nm,di:di});
+      });
+      go.textContent="Add to Supplies";go.disabled=false;
+      go.onclick=async function(){
+        var pick=rows.filter(function(r){return r.cb.checked&&r.nm.value.trim()});if(!pick.length){er.textContent="Tick at least one item.";er.hidden=false;return}
+        go.disabled=true;go.textContent="Saving…";
+        try{
+          var paths=[];for(var k=0;k<thumbs.length;k++){var bl=await (await fetch(thumbs[k])).blob();paths.push(await upload("supplies",bl,"receipt.jpg"))}
+          var d0=wd.value?new Date(wd.value+"T12:00:00").getTime():Date.now(),base=Math.min(Date.now(),d0);
+          for(var n=0;n<pick.length;n++){var p=pick[n],it=p.it,id="sup_"+Date.now().toString(36)+n+Math.random().toString(36).slice(2,5);
+            await xtDoc(id,{kind:"supply",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",qty:it.qty||1,unit:it.unit||"",size:it.size||"",price:it.price,store:j.store||"",section:it.section||"",days:parseInt(p.di.value,10)||0,ts:base,by:myId,rcpt:paths,photo:0,added:Date.now()})}
+          ov.remove();note("Added "+pick.length+(pick.length===1?" item":" items")+" to Supplies.");setTimeout(function(){note("")},2500);
+        }catch(e){go.disabled=false;go.textContent="Add to Supplies";er.textContent="Couldn’t save. "+(e&&e.message==="toolarge"?"A photo is too large.":"Try again.");er.hidden=false}
+      };
+    }catch(e){er.textContent="Something went wrong. Try again.";er.hidden=false;go.disabled=false;go.textContent="Read it"}
+  };
+}
+/* running-low list for Janet's posts and the feed */
+function stkLow(){var out=[];stkList().forEach(function(x){var m=stkLeft(x);if(!m||x.usedAt)return;if(m.pc<=0.3)out.push({id:x.id,t:x.name,left:m.left,dl:m.dl,ts:x.ts+m.tot*0.7,x:x})});return out}
+var STKWBUSY=false;
+function stkWatch(){
+  try{
+    if(STKWBUSY||!canWrite||OBS||!db||!myRole()||!tabEdit("feed"))return;
+    if(!babyCap().ok)return;
+    var L=stkLow();
+    for(var n=0;n<L.length;n++){var l=L[n],x=l.x,kind=l.left<=0?(x.outPost?null:"out"):(x.lowPost?null:"low");if(!kind)continue;
+      STKWBUSY=true;var what=kind==="out"?l.t+" has completely run out at home!":l.t+" is running low: about "+l.dl+(l.dl===1?" day":" days")+" left. Almost time to restock!";
+      xtDoc(x.id,kind==="out"?{lowPost:1,outPost:1}:{lowPost:1}).then(function(){return babyPost("both",what,true,{tone:"funny"})}).then(function(){STKWBUSY=false},function(){STKWBUSY=false});
+      return}
+  }catch(e){STKWBUSY=false}
+}
+setInterval(function(){try{stkWatch()}catch(e){}},60000);
+
 function xtChk(){
   var box=$("#xs-chk");if(!box)return;box.textContent="";
   var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},extra=st.extra||{};
@@ -7871,6 +8019,7 @@ async function start(session){
     });
     (S.events||[]).forEach(function(ev){var mv=ev.moved;if(mv&&mv.by&&mv.by!==myId&&myRole()&&Date.now()-mv.ts<14*864e5)E.push({ts:mv.ts,k:"reminder",go:"sched",lead:"Rescheduled",text:": "+(ev.title||"Meeting")+" moved by "+(mv.byName||"a parent")+" to "+ev.date+(ev.time?" "+ev.time:"")+"."})});
     try{chkPending().forEach(function(l){E.push({ts:l.ts,k:"reminder",go:"chk",lead:"Checklist",text:": "+l.t+" was checked by "+l.who+". Please confirm it."})})}catch(e){}
+    try{stkLow().forEach(function(l){E.push({ts:Math.min(Date.now(),l.ts),k:"reminder",go:"stock",lead:l.left<=0?"Finished":"Running low",text:": "+l.t+(l.left>0?", about "+l.dl+(l.dl===1?" day":" days")+" left":"")})})}catch(e){}
     try{chkLow().forEach(function(l){E.push({ts:Math.min(Date.now(),l.ts),k:"reminder",go:"chk",lead:l.left<=0?"Finished":"Running low",text:": "+l.t+(l.left<=0?" has run out. Time to restock (Checklist).":" – about "+l.dl+(l.dl===1?" day":" days")+" left (Checklist).")})})}catch(e){}
     (S.mnotes||[]).forEach(function(m){E.push({ts:m.ts||m.start||0,k:"meeting",lead:"Meeting summary",text:": "+(m.topic||"Meeting")+" is ready"})});
     S.hl.forEach(function(x){if(x.by&&x.by!==myId)E.push({ts:x.ts,k:"highlight",by:x.by,text:" added a highlight: "+(x.title||"")})});
@@ -7899,7 +8048,7 @@ async function start(session){
         r.onclick=function(){
           r.classList.remove("un");
           if(e.go==="sched"){showTab("sched");window.scrollTo(0,0);return}
-          if(e.go==="chk"){showTab("todo");TDT="chk";tdTabs();window.scrollTo(0,0);return}
+          if(e.go==="chk"||e.go==="stock"){showTab("todo");TDT=e.go;tdTabs();window.scrollTo(0,0);return}
           if(e.go==="todo"){window.__todoFocus=e.task||null;showTab("todo");TDT="tasks";tdTabs();try{renderTodos()}catch(x){}if(!e.task)window.scrollTo(0,0);return}
           if((e.k==="tag"||e.k==="post")&&e.post){showTab("feed");var pq=S.posts.filter(function(x){return x.id===e.post})[0];if(pq&&typeof openComments==="function")setTimeout(function(){openComments(pq)},250);return}
           if(e.k==="msg"&&/^\s*📝?\s*Meeting summary/i.test(e.text||"")){openCalPane("vm");return}

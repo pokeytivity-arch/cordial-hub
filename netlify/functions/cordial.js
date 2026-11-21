@@ -114,6 +114,35 @@ const _handler = async (event) => {
     } catch (e) { return out(200, { status: "unchecked", reasons: ["Cordial couldn’t check this just now."], read: {} }); }
   }
 
+  // Supplies from a receipt or photos of items: list each item with a guess of how long it lasts in a home with a toddler
+  if (b0 && b0.stock && typeof b0.stock === "object") {
+    const sk = b0.stock, imgs = (Array.isArray(sk.images) ? sk.images : []).slice(0, 4).filter((im) => im && /^image\/(jpeg|png|webp)$/.test(im.media || "") && typeof im.data === "string" && im.data.length < 1500000);
+    const txt0 = clip(sk.text, 2000).trim();
+    if (!imgs.length && !txt0) return out(400, { error: "empty" });
+    const todayL = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(new Date());
+    const blocks = imgs.map((im) => ({ type: "image", source: { type: "base64", media_type: im.media, data: im.data } }));
+    blocks.push({ type: "text", text: `Today is ${todayL} (Lagos). ` + (txt0 ? `Note from the parent: """${txt0}"""` : "Read the attached receipt and/or photos of items.") });
+    const SYS = "You read shopping receipts and photos of bought items for a family hub in Nigeria that tracks supplies for a toddler (Janet, about 2 years old) and the home. List every distinct item bought. For each item estimate how many days that quantity will last in a normal home with one toddler (e.g. a pack of 40 diapers ~8 days, 1 tin of 400g formula ~7 days, a pack of 80 wipes ~10 days, 1 tube of rash cream ~45 days, 1 bottle of baby shampoo ~60 days). Items that do not get used up (toys, clothes, shoes, bedding, furniture, devices) get lasts_days 0 and consumable false. Ignore lines that are not items (totals, VAT, change, card numbers, payment references). Use the receipt's prices in naira when shown. Reply ONLY with JSON: {\"store\":\"shop name or empty\",\"date\":\"YYYY-MM-DD or empty\",\"total\":number or null,\"items\":[{\"name\":\"short plain item name, e.g. Diapers\",\"brand\":\"brand or empty\",\"qty\":number,\"unit\":\"pack|tin|bottle|tube|piece|kg|... or empty\",\"size\":\"e.g. 40 pcs, 400g or empty\",\"price\":number or null,\"consumable\":true,\"lasts_days\":number,\"section\":\"Feeding|Diapers and changing|Bathing and skin care|Clothing|Sleep|Health and safety|Play and learning|Travel and outings|School items|Home\"}]}. If nothing readable is an item, reply {\"items\":[]}.";
+    try {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": AKEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({ model: MODEL, max_tokens: 8000, system: SYS, messages: [{ role: "user", content: blocks }] }),
+      });
+      if (!r.ok) { let ej = {}; try { ej = await r.json(); } catch {} return out(502, { error: "ai_failed", status: r.status, detail: clip((ej.error && ej.error.message) || "", 160) }); }
+      const j = await r.json();
+      const t = (j.content || []).filter((c) => c.type === "text").map((c) => c.text).join("");
+      let pr = {}; try { pr = JSON.parse((t.match(/\{[\s\S]*\}/) || ["{}"])[0]); } catch {}
+      try { const tt = await getDoc("aiuse/total"); await putDoc("aiuse/total", { in: (tt.in || 0) + ((j.usage || {}).input_tokens || 0), out: (tt.out || 0) + ((j.usage || {}).output_tokens || 0), n: (tt.n || 0) + 1 }); } catch {}
+      const num = (v) => (typeof v === "number" && isFinite(v) ? v : null);
+      const items = (Array.isArray(pr.items) ? pr.items : []).filter((x) => x && x.name).slice(0, 40).map((x) => ({
+        name: clip(x.name, 80), brand: clip(x.brand, 60), qty: Math.max(1, Math.min(999, num(x.qty) || 1)), unit: clip(x.unit, 20), size: clip(x.size, 30),
+        price: num(x.price), consumable: x.consumable !== false && (num(x.lasts_days) || 0) > 0, lasts_days: Math.max(0, Math.min(730, Math.round(num(x.lasts_days) || 0))), section: clip(x.section, 40),
+      }));
+      return out(200, { store: clip(pr.store, 80), date: /^\d{4}-\d{2}-\d{2}$/.test(pr.date || "") ? pr.date : "", total: num(pr.total), items });
+    } catch (e) { return out(502, { error: "ai_failed", detail: clip(e && e.message || e, 120) }); }
+  }
+
   // Events from text or screenshots: Cordial reads a message, flyer or screenshot and lists calendar events (does not use a daily question)
   if (b0 && b0.events && typeof b0.events === "object") {
     const ev = b0.events, imgs = (Array.isArray(ev.images) ? ev.images : []).slice(0, 3).filter((im) => im && /^image\/(jpeg|png|webp)$/.test(im.media || "") && typeof im.data === "string" && im.data.length < 1500000);
