@@ -714,7 +714,7 @@ html[data-look] #wa,#wa{margin:0!important;max-width:none!important;padding:0}
 #wmv.bare{background:#000}
 #wmv.bare .mvtop,#wmv.bare .mvbar,#wmv.bare .mvacts,#wmv.bare .mvstrip,#wmv.bare .mvcap,#wmv.bare .mvemo{display:none}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #wmv{background:#0b141a;color:#e9edef}:root:not([data-theme="light"]) #wmv .mvr,:root:not([data-theme="light"]) #wmv .mvpill2,:root:not([data-theme="light"]) #wmv .mvmenu,:root:not([data-theme="light"]) #wmv .mvemo{background:#1f2c34;color:#e9edef}:root:not([data-theme="light"]) #wmv .mvpill2 button,:root:not([data-theme="light"]) #wmv .mvmenu button{color:#e9edef}:root:not([data-theme="light"]) #wmv .mvreply{background:#1f2c34;color:#e9edef}:root:not([data-theme="light"]) #wmv .mvttl small{color:#aebac1}}
-#wadown{position:absolute;right:14px;bottom:calc(84px + var(--trayh,0px) + env(safe-area-inset-bottom,0px));z-index:6;width:46px;height:46px;border-radius:50%;border:0;background:var(--wfloat,#fff);color:var(--wink,#111);box-shadow:0 2px 10px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+#wadown{position:absolute;right:14px;bottom:calc(76px + var(--trayh,0px) + env(safe-area-inset-bottom,0px));z-index:6;width:46px;height:46px;border-radius:50%;border:0;background:var(--wfloat,#fff);color:var(--wink,#111);box-shadow:0 2px 10px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
 #wadown[hidden]{display:none}
 html[data-kb] #wadown{bottom:76px}
 .wm.flash .wb{animation:wflash 1.6s ease}
@@ -908,7 +908,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 17:12</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 17:16</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -9449,7 +9449,7 @@ function jump(id){var r=CH.list&&CH.list.querySelector(".wm[data-id='"+id+"']");
 /* WhatsApp-style ⌄ button: appears when you scroll up, takes you back to the newest message */
 function waDownBtn(){
   var w=document.getElementById("wachat");if(!w)return null;var b=document.getElementById("wadown");
-  if(!b){b=E("button","","<svg viewBox='0 0 24 24' width='26' height='26' fill='none' stroke='currentColor' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");b.id="wadown";b.type="button";b.setAttribute("aria-label","Go to the newest message");b.hidden=true;
+  if(!b){b=E("button","","<svg viewBox='0 0 24 24' width='26' height='26' fill='none' stroke='currentColor' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M6 6l6 6 6-6M6 12l6 6 6-6'/></svg>");b.id="wadown";b.type="button";b.setAttribute("aria-label","Go to the newest message");b.hidden=true;
     b.onclick=function(){var L=CH.list;if(L)L.scrollTo({top:L.scrollHeight,behavior:"smooth"});b.hidden=true};w.appendChild(b)}
   return b}
 function waDownChk(){var L=CH.list,b=waDownBtn();if(!L||!b)return;var far=L.scrollHeight-L.scrollTop-L.clientHeight>260;b.hidden=!far}
