@@ -4882,6 +4882,19 @@ function jcSpeaker(btn){
     if(!iosPicker())toast("Use the volume buttons, or Control Centre, to choose iPhone, Speaker or Bluetooth.");
   }).catch(function(){if(!iosPicker())toast("Couldn’t change where the sound plays.")});
 }
+/* TEST (Nov 2026): switch the call sound between the earpiece and the loudspeaker with Safari's audio session.
+   Never uses "playback" (that would stop the microphone). If calls lose sound or the mic, remove this. */
+var JEAR=false;
+function jcEarToggle(btn){
+  var as=navigator.audioSession;
+  if(!as||!("type" in as)){toast("This phone’s browser can’t switch between earpiece and speaker.");return}
+  try{
+    JEAR=!JEAR;as.type=JEAR?"play-and-record":"auto";
+    btn.textContent=JEAR?"🧪 Earpiece on · tap for Speaker":"🧪 Earpiece / Speaker (test)";
+    toast(JEAR?"Trying the earpiece. Hold the phone to your ear.":"Back to the speaker.");
+  }catch(e){JEAR=false;toast("Couldn’t switch: "+(e&&e.message||"not supported"))}
+}
+function jcEarReset(){if(JEAR){JEAR=false;try{navigator.audioSession.type="auto"}catch(e){}var b=document.getElementById("jcear");if(b)b.textContent="🧪 Earpiece / Speaker (test)"}}
 var JJOINED=false;
 function jcAv(){
   var a=JC&&JC.querySelector("#jcav");if(!a)return;
@@ -4941,10 +4954,11 @@ function openCall(c){
     jcc(jbtn("",JI.shr,"Share screen",jcShare),"Share");
     var mn=h("div");mn.id="jcmenu";mn.hidden=true;
     var m0=h("button",null,"Switch camera");m0.onclick=function(){mn.hidden=true;jcFlip()};
+    var mx=h("button",null,"🧪 Earpiece / Speaker (test)");mx.id="jcear";mx.onclick=function(){mn.hidden=true;jcEarToggle(mx)};
     var m1=h("button",null,"Swap big and small video");m1.onclick=function(){mn.hidden=true;jcSwap()};
     var m2=h("button",null,"Grid / speaker view");m2.onclick=function(){mn.hidden=true;if(JAPI)JAPI.executeCommand("toggleTileView")};
     var m3=h("a",null,"Open in new tab");m3.id="jcn";m3.target="_blank";m3.rel="noopener";
-    mn.appendChild(m0);mn.appendChild(m1);mn.appendChild(m2);mn.appendChild(m3);
+    mn.appendChild(mx);mn.appendChild(m0);mn.appendChild(m1);mn.appendChild(m2);mn.appendChild(m3);
     var sw=h("button");sw.id="jcswap";sw.type="button";sw.setAttribute("aria-label","Swap big and small video");sw.onclick=jcSwap;JC.appendChild(sw);JC.appendChild(tp);JC.appendChild(bt);JC.appendChild(mn);document.body.appendChild(JC);
     document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!JC.hidden&&!JC.classList.contains("min"))jcMin()});
   }
@@ -4998,7 +5012,7 @@ function openCall(c){
 }
 function closeCall(){
   if(!JC)return;var cid=JCUR&&JCUR.callId;if(cid&&window.hubCallEnd)hubCallEnd(cid);
-  clearInterval(JT);primeRelease();try{if(JAPI)JAPI.dispose()}catch(e){}JAPI=null;
+  clearInterval(JT);primeRelease();jcEarReset();try{if(JAPI)JAPI.dispose()}catch(e){}JAPI=null;
   JC.hidden=true;JC.classList.remove("min","plain");JC.querySelector("#jcm").textContent="";JCUR=null;JSTART=0;syncCbar();
 }
 window.hubCallInfo=function(){return JCUR};
