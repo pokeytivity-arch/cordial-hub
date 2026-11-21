@@ -903,7 +903,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 16:58</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 17:05</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -2037,7 +2037,10 @@ function stkAddDlg(opt){
       var exHelp=h("div","meta","");exBox.appendChild(exHelp);
       var aw2=h("label",null,"Amount (₦)"),ai=h("input");ai.type="number";ai.min="0";ai.step="any";aw2.appendChild(ai);aw2.hidden=true;exBox.appendChild(aw2);
       var rw2=h("label",null,"Transfer receipt for the reimbursement (required)"),rfi=h("input");rfi.type="file";rfi.accept="image/*,application/pdf";rfi.multiple=true;rw2.appendChild(rfi);rw2.hidden=true;exBox.appendChild(rw2);
-      function selTotal(){var t=0,any=false;rows.forEach(function(r){if(r.cb.checked&&r.it.price!=null){t+=r.it.price;any=true}});return any?t:(j.total||"")}
+      /* the receipts' own totals include VAT: use them when everything is ticked, and scale the ticked items by the same VAT share otherwise */
+      function selTotal(){var t=0,all=0,any=false,allOn=true;rows.forEach(function(r){var p=r.it.price;if(p!=null)all+=p;if(r.cb.checked){if(p!=null){t+=p;any=true}}else if(!r.dup)allOn=false});
+        if(j.total>0){if(allOn)return Math.round(j.total*100)/100;if(any&&all>0)return Math.round(t*j.total/all*100)/100}
+        return any?t:(j.total||"")}
       rows.forEach(function(r){r.cb.addEventListener("change",function(){if(!exSel.value)return;ai.value=selTotal()})});
       exSel.onchange=function(){var v=exSel.value;aw2.hidden=!v;rw2.hidden=v!=="reimb";if(v&&!ai.value)ai.value=selTotal();
         exHelp.textContent=v==="mine"?"Saved in Expenses as paid by you. It counts only towards your spending and doesn’t show on "+othN+"’s side.":v==="reimb"?"Saved in Expenses as bought by "+othN+" and reimbursed by you. It shows as a reimbursement and counts towards your spending, not "+othN+"’s. Attach the transfer receipt: Cordial reads its amount, date and narration and shows you what it found. A transfer for a different amount (for example sent with other money) is fine.":""};
