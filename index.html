@@ -1228,6 +1228,19 @@ var RINGS={classic:["Classic",[[880,0,.3],[1175,.13,.3],[880,.6,.3],[1175,.73,.3
 function ringKey(){try{return localStorage.getItem("hubRing")||"bell"}catch(e){return "bell"}}
 var RINGBUF=null;
 function ringCustom(){try{return localStorage.getItem("hubRingData")||""}catch(e){return ""}}
+/* What the caller hears while the other phone rings: the familiar "ring-ring" (400 + 450 Hz, on .4s, off .2s, on .4s). */
+function ringBack(){
+  var a=acx();if(!a)return;
+  try{
+    var t=a.currentTime;
+    [[0,.4],[.6,.4]].forEach(function(b){
+      var g=a.createGain(),at=t+b[0];
+      g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(.22,at+.02);g.gain.setValueAtTime(.22,at+b[1]-.03);g.gain.exponentialRampToValueAtTime(.0001,at+b[1]);
+      g.connect(a.destination);
+      [400,450].forEach(function(f){var o=a.createOscillator();o.type="sine";o.frequency.value=f;o.connect(g);o.start(at);o.stop(at+b[1]+.05)});
+    });
+  }catch(e){}
+}
 function hubRing(force){
   if(!force&&!soundOn())return;
   var a=acx(),k=ringKey();if(!a)return;
@@ -9578,7 +9591,8 @@ function showRing(r){
     cell(yes,"Accept");
   }
   ringEl.appendChild(row);
-  hubRing();RING.iv=setInterval(function(){hubRing()},2400);
+  if(r.out){ringBack();RING.iv=setInterval(ringBack,3000)}
+  else{hubRing(true);RING.iv=setInterval(function(){hubRing(true)},2400)}
   if(!r.out&&document.hidden&&window.Notification&&Notification.permission==="granted"){try{new Notification(who+" is calling",{tag:"hubcall",body:"Incoming "+kind+" call"})}catch(e){}}
 }
 function stopRing(){clearTimeout(RING.timer);clearInterval(RING.iv);RING.cur=null;ringEl.hidden=true;ringEl.textContent=""}
