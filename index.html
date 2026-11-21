@@ -897,7 +897,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 07:48</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 07:55</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -2065,13 +2065,14 @@ function linkKind(u){
   return null;
 }
 function linkFill(el,text,plain){
-  text=String(text==null?"":text);var re=/(https?:\/\/[^\s<>]+|www\.[^\s<>]+)/gi,last=0,m;
+  text=String(text==null?"":text);var re=/(https?:\/\/[^\s<>]+|www\.[^\s<>]+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+|\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|ng|org|net|aero|io|co|gov|edu|app|uk|us|info|me|dev|ai|tv|ly|gl|link|page|site|online|store|africa)(?:\/[^\s<>]*)?(?![\w@])|\+\d[\d \-]{7,16}\d|\b0[789]\d{9}\b|\b0[789]\d{2}[ \-]\d{3}[ \-]\d{4}\b)/gi,last=0,m;
   while((m=re.exec(text))){
     var raw=m[0],trail="";var t=raw.match(/[.,;:!?)\]}'"”’]+$/);if(t){trail=t[0];raw=raw.slice(0,-trail.length)}
     if(!raw)continue;
     if(m.index>last)(plain||function(x){el.appendChild(document.createTextNode(x))})(text.slice(last,m.index));
-    var href=/^www\./i.test(raw)?"https://"+raw:raw,k=linkKind(href);
-    var a=document.createElement("a");a.href=href;a.target="_blank";a.rel="noopener noreferrer";
+    var isMail=/^[\w.+-]+@/.test(raw)&&!/^https?:/i.test(raw),isTel=/^[+0][\d \-]+$/.test(raw);
+    var href=isMail?"mailto:"+raw:isTel?"tel:"+raw.replace(/[^\d+]/g,""):/^https?:\/\//i.test(raw)?raw:"https://"+raw,k=(isMail||isTel)?null:linkKind(href);
+    var a=document.createElement("a");a.href=href;if(!isMail&&!isTel){a.target="_blank";a.rel="noopener noreferrer"}
     a.style.cssText="color:#1877f2;text-decoration:underline;word-break:break-all";
     a.textContent=(k?k.i+" ":"")+raw;
     a.onclick=function(ev,kk,hh){return function(ev){ev.stopPropagation();if(kk&&kk.yt&&window.ytOpen){ev.preventDefault();window.ytOpen(kk.yt)}}}(0,k,href);
