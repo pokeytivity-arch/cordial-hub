@@ -611,6 +611,9 @@ html[data-look] .drow .ci svg{width:22px;height:22px}
 #wa .wyou .yb{background:var(--wg);color:#fff;border-radius:999px;font-size:.8rem;padding:2px 8px;margin-right:8px}
 #wa .wyou .yrow>svg:last-child{color:#a6a6ab;flex:none}
 #wa .wyou .yrow.red{color:#ea0038}
+html[data-tray] #wachat{padding-bottom:var(--trayh,0px)}
+html[data-tray] #wacomp{padding-bottom:6px}
+#sheet.watray2{box-shadow:none}
 #sheet.watray2{background:#e4e4e7;border-radius:28px 28px 0 0;padding:26px 10px calc(30px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 20px rgba(0,0,0,.12);max-width:none}
 #sheet.watray2 .wag{display:grid;grid-template-columns:repeat(4,1fr);row-gap:22px;max-width:520px;margin:0 auto}
 #sheet.watray2 .wat2{display:flex;flex-direction:column;align-items:center;gap:9px;background:none;border:0;padding:0;font:inherit;color:#1c1c1e;font-size:.95rem;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -841,7 +844,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 07:12</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 07:16</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -4646,7 +4649,28 @@ $("#fdoc").onchange=async function(){
 
 /* share sheet */
 function openSheet(build){var sh=$("#sheet");sh.textContent="";sh.classList.remove("watray2");build(sh);sh.hidden=false;$("#sheetbg").hidden=false}
-function closeSheet(){$("#sheet").hidden=true;$("#sheetbg").hidden=true}
+function closeSheet(){$("#sheet").hidden=true;$("#sheetbg").hidden=true;waTrayClose()}
+/* WhatsApp tray: sits under the message box like WhatsApp; the box keeps its blinking cursor and + turns into a keyboard button */
+var KBD_SVG="<svg viewBox='0 0 24 24' width='26' height='26' fill='none' stroke='currentColor' stroke-width='1.7' stroke-linecap='round'><rect x='2.5' y='5.5' width='19' height='13' rx='3'/><path d='M6 9.5h.01M9 9.5h.01M12 9.5h.01M15 9.5h.01M18 9.5h.01M6 12.5h.01M9 12.5h.01M12 12.5h.01M15 12.5h.01M18 12.5h.01M8 15.5h8'/></svg>";
+function waTrayOpen(sh){
+  var r=document.documentElement,bg=$("#sheetbg");
+  setTimeout(function(){bg.hidden=true},0);
+  r.setAttribute("data-tray","1");
+  requestAnimationFrame(function(){r.style.setProperty("--trayh",sh.offsetHeight+"px")});
+  var ta=document.getElementById("wat"),pl=document.querySelector("#wacomp .round");
+  if(pl&&!pl.__orig){pl.__orig=pl.innerHTML;pl.innerHTML=KBD_SVG;pl.setAttribute("aria-label","Keyboard");
+    pl.__kb=function(e){if(!r.hasAttribute("data-tray"))return;e.stopImmediatePropagation();e.preventDefault();closeSheet();var t=document.getElementById("wat");if(t){t.removeAttribute("inputmode");t.blur();setTimeout(function(){t.focus()},30)}};
+    pl.addEventListener("click",pl.__kb,true)}
+  if(ta){ta.setAttribute("inputmode","none");try{ta.focus({preventScroll:true})}catch(e){ta.focus()}}
+  var ms=document.getElementById("wamsgs");if(ms&&!ms.__trayClose){ms.__trayClose=1;ms.addEventListener("pointerdown",function(){if(r.hasAttribute("data-tray"))closeSheet()},true)}
+}
+setInterval(function(){try{if(document.documentElement.hasAttribute("data-tray")&&($("#sheet").hidden||!document.getElementById("wat")))waTrayClose()}catch(e){}},800);
+function waTrayClose(){
+  var r=document.documentElement;if(!r.hasAttribute("data-tray"))return;
+  r.removeAttribute("data-tray");r.style.removeProperty("--trayh");
+  var pl=document.querySelector("#wacomp .round");if(pl&&pl.__orig){pl.innerHTML=pl.__orig;pl.__orig=null;pl.setAttribute("aria-label","Attach");if(pl.__kb){pl.removeEventListener("click",pl.__kb,true);pl.__kb=null}}
+  var ta=document.getElementById("wat");if(ta&&ta.getAttribute("inputmode")==="none"){ta.removeAttribute("inputmode");ta.blur()}
+}
 $("#sheetbg").onclick=closeSheet;
 function sheetHead(sh,title){
   var x=h("button","quiet sheetx","Close");x.onclick=closeSheet;sh.appendChild(x);
@@ -4681,6 +4705,7 @@ function attachMenu(sh){
       c.innerHTML="<svg viewBox='0 0 24 24' width='38' height='38' aria-hidden='true'>"+t[3]+"</svg>";
       b.appendChild(c);b.appendChild(h("span","wl",t[1]));b.onclick=function(){onAttach(t[0])};g2.appendChild(b)});
     sh.appendChild(g2);
+    waTrayOpen(sh);
     return;
   }
   sheetHead(sh,"Share in chat");
