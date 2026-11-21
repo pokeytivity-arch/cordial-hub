@@ -4519,7 +4519,16 @@ function fillBody(b,m){
     b.appendChild(c2);return;
   }
   if(k==="location"){
-    var c3=h("div","attc");c3.appendChild(h("strong",null,"📍 "+(m.place||"Shared location")));
+    var c3=h("div","attc");
+    if(Number.isFinite(m.lat)&&Number.isFinite(m.lng)){try{
+      var z=15,n=Math.pow(2,z),fx=(m.lng+180)/360*n,lr=m.lat*Math.PI/180,fy=(1-Math.log(Math.tan(lr)+1/Math.cos(lr))/Math.PI)/2*n;
+      var tx=Math.floor(fx-.5),ty=Math.floor(fy-.5),px=(fx-tx)*256,py=(fy-ty)*256;
+      var th=h("a","wmapth");th.href=mapsUrl(m);th.target="_blank";th.rel="noopener";
+      var tl=h("div","tiles");tl.style.left=(120-px)+"px";tl.style.top=(70-py)+"px";
+      [[0,0],[1,0],[0,1],[1,1]].forEach(function(d){var im=h("img");im.alt="";im.loading="lazy";im.src="https://"+"abcd"[(tx+ty+d[0]+d[1])%4]+".basemaps.cartocdn.com/rastertiles/voyager/"+z+"/"+(tx+d[0])+"/"+(ty+d[1])+".png";tl.appendChild(im)});
+      th.appendChild(tl);var pn=h("span","pin");pn.innerHTML="<svg viewBox='0 0 24 24' width='30' height='30'><path fill='#e5484d' stroke='#fff' stroke-width='1.2' d='M12 2a7.5 7.5 0 0 0-7.5 7.5c0 5.6 7.5 12.5 7.5 12.5s7.5-6.9 7.5-12.5A7.5 7.5 0 0 0 12 2z'/><circle cx='12' cy='9.5' r='2.8' fill='#fff'/></svg>";th.appendChild(pn);
+      c3.appendChild(th)}catch(e){}}
+    c3.appendChild(h("strong",null,"📍 "+(m.place||"Shared location")));
     if(Number.isFinite(m.lat)&&Number.isFinite(m.lng))c3.appendChild(h("div","meta2",m.lat.toFixed(5)+", "+m.lng.toFixed(5)));
     var ma=h("a",null,"Open in Maps");ma.href=mapsUrl(m);ma.target="_blank";ma.rel="noopener";c3.appendChild(ma);
     b.appendChild(c3);return;
@@ -4684,8 +4693,8 @@ function onAttach(k){
   if(k==="photo"){closeSheet();$("#fphoto").click()}
   else if(k==="cam"){closeSheet();$("#fcam").click()}
   else if(k==="doc"){closeSheet();$("#fdoc").click()}
-  else if(k==="contact")openSheet(contactForm);
-  else if(k==="loc")openSheet(locForm);
+  else if(k==="contact"){if(window.hubWaContacts)hubWaContacts();else openSheet(contactForm)}
+  else if(k==="loc"){if(window.hubWaLocation)hubWaLocation();else openSheet(locForm)}
   else if(k==="rem")openSheet(remForm);
 }
 $("#plus").onclick=function(){if(!db)return;openSheet(attachMenu)};
@@ -9851,6 +9860,192 @@ setInterval(function(){if(WA.open&&!document.hidden)render();try{if(!document.hi
       clearInterval(tm);setTimeout(show,2500);
     }catch(e){clearInterval(tm)}
   },5000);
+})();
+</script>
+<style>
+.wx [hidden]{display:none!important}
+.wx{position:fixed;inset:0;z-index:170;background:#f2f2f7;color:#111;display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}
+.wxh{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 8px}
+.wxr{width:46px;height:46px;border-radius:50%;border:0;background:#fff;color:#111;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.08);flex:none;padding:0;cursor:pointer}
+.wxsp{width:46px;flex:none}
+.wxt{flex:1;text-align:center;min-width:0}.wxt b{display:block;font-size:1.08rem}.wxt small{display:block;font-size:.78rem;color:#555}.wxt small:empty{display:none}
+.wxnext{border:0;border-radius:999px;padding:0 16px;height:42px;background:#1fa855;color:#fff;font:inherit;font-weight:700;flex:none;cursor:pointer}.wxnext:disabled{background:#d1d1d6;color:#fff}
+.wxs{display:flex;align-items:center;gap:10px;margin:4px 14px 10px;background:#fff;border-radius:999px;height:46px;padding:0 16px;color:#111;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.wxs input{flex:1;min-width:0;border:0!important;outline:0;background:transparent!important;font:inherit;font-size:16px!important;margin:0;padding:0;box-shadow:none!important;min-height:0;color:#111}
+.wxmap{position:relative;height:40vh;min-height:220px;background:#ebe7df;flex:none}
+.wxmap .leaflet-container{background:#ebe7df}
+.wxfab{position:absolute;right:12px;top:12px;z-index:500;width:52px;height:52px;border-radius:16px;border:0;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.wxsheet{flex:1;overflow-y:auto;background:#f2f2f7;border-radius:22px 22px 0 0;margin-top:-18px;position:relative;z-index:600;padding:8px 14px calc(20px + env(safe-area-inset-bottom,0px))}
+.wxgrab{width:40px;height:5px;border-radius:3px;background:#c7c7cc;margin:2px auto 8px}
+.wxsec{font-weight:700;color:#6e6e73;font-size:.95rem;padding:14px 14px 6px}
+.wxgrp{background:#fff;border-radius:18px;overflow:hidden}
+.wxrow{display:flex;align-items:center;gap:14px;width:100%;border:0;background:#fff;padding:10px 16px;text-align:left;font:inherit;color:#111;cursor:pointer;min-height:58px;position:relative}
+.wxrow+.wxrow:before{content:"";position:absolute;top:0;left:70px;right:0;border-top:1px solid #e5e5ea}
+.wxrow:active{background:#f2f2f7}
+.wxic{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none}
+.wxic.g{color:#1fa855;border:1.5px solid #1fa855}.wxic.r{color:#e5484d;background:#fdecec}
+.wxtx{flex:1;min-width:0}.wxtx b{display:block;font-weight:500;font-size:1.04rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wxtx small{display:block;color:#6e6e73;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wxnote{color:#8e8e93;font-size:.8rem;text-align:center;margin:14px 8px}
+.wxempty{padding:16px;color:#6e6e73;text-align:center}
+.wxlist{flex:1;overflow-y:auto;padding:0 26px calc(20px + env(safe-area-inset-bottom,0px)) 14px}
+.wxav{width:44px;height:44px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;background-size:cover;background-position:center}
+.wxck{width:26px;height:26px;border-radius:50%;border:2px solid #c7c7cc;flex:none}
+.wxc.on .wxck{border-color:#1fa855;background:#1fa855 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 12.5l4 4 8-9' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/18px no-repeat}
+.wxc+.wxc:before{left:74px}
+.wxaz{position:fixed;right:4px;top:50%;transform:translateY(-35%);display:flex;flex-direction:column;z-index:171;font-size:.7rem;font-weight:600;color:#1fa855}
+.wxaz span{padding:1px 4px;cursor:pointer}
+.wmapth{position:relative;width:240px;height:140px;overflow:hidden;border-radius:10px;margin:0 0 6px;background:#ebe7df;display:block}
+.wmapth .tiles{position:absolute;width:512px;height:512px;display:grid;grid-template-columns:256px 256px}
+.wmapth .tiles img{width:256px;height:256px;display:block}
+.wmapth .pin{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);width:30px;height:30px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .wx,:root:not([data-theme="light"]) .wxsheet{background:#0b141a;color:#e9edef}
+:root:not([data-theme="light"]) .wxr,:root:not([data-theme="light"]) .wxs,:root:not([data-theme="light"]) .wxgrp,:root:not([data-theme="light"]) .wxrow,:root:not([data-theme="light"]) .wxfab{background:#1f2c34;color:#e9edef}
+:root:not([data-theme="light"]) .wxs input{color:#e9edef}:root:not([data-theme="light"]) .wxrow+.wxrow:before{border-color:#2a3942}}
+</style>
+<script>
+/* WhatsApp-style "Send location" (map + search) and "Share contacts" (A–Z list of hub people) screens */
+(function(){
+  function flash(t){try{note(t);setTimeout(function(){note("")},2600)}catch(e){}}
+  function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
+  var X="<svg viewBox='0 0 24 24' width='26' height='26' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round'><path d='M6 6l12 12M18 6L6 18'/></svg>";
+  var MAG="<svg viewBox='0 0 24 24' width='22' height='22' fill='none' stroke='currentColor' stroke-width='2.4' stroke-linecap='round'><circle cx='10.5' cy='10.5' r='6.5'/><path d='M15.5 15.5 20 20'/></svg>";
+  function shell(title,right){
+    var o=el("div","wx");o.setAttribute("role","dialog");o.setAttribute("aria-label",title);
+    var hd=el("div","wxh");var x=el("button","wxr");x.type="button";x.innerHTML=X;x.setAttribute("aria-label","Close");x.onclick=function(){close()};
+    var tt=el("div","wxt");tt.appendChild(el("b",null,title));var sub=el("small");tt.appendChild(sub);
+    hd.appendChild(x);hd.appendChild(tt);hd.appendChild(right||el("span","wxsp"));o.appendChild(hd);
+    var sr=el("label","wxs");sr.innerHTML=MAG;var inp=el("input");inp.type="search";sr.appendChild(inp);o.appendChild(sr);
+    document.body.appendChild(o);try{closeSheet()}catch(e){}
+    function close(){o.remove();if(o.onclose)o.onclose()}
+    return {o:o,inp:inp,sub:sub,close:close};
+  }
+
+  /* ---------- Location ---------- */
+  var LEAF=null;
+  function loadLeaflet(){
+    if(window.L&&window.L.map)return Promise.resolve();
+    if(LEAF)return LEAF;
+    LEAF=new Promise(function(ok,no){
+      var c=document.createElement("link");c.rel="stylesheet";c.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";document.head.appendChild(c);
+      var s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";s.onload=function(){ok()};s.onerror=function(){LEAF=null;no()};document.head.appendChild(s);
+    });
+    return LEAF;
+  }
+  function geo(u){return fetch(u,{headers:{"Accept-Language":"en"}}).then(function(r){return r.ok?r.json():null}).catch(function(){return null})}
+  function sendLoc(lat,lng,place,done){
+    post({kind:"location",lat:lat,lng:lng,place:place||"Shared location"}).then(function(){done&&done();flash("Location sent.")},function(e){flash(typeof attachErr==="function"?attachErr(e):"Couldn’t send.")});
+  }
+  window.hubWaLocation=function(){
+    var refresh=el("button","wxr");refresh.type="button";refresh.setAttribute("aria-label","Find me again");
+    refresh.innerHTML="<svg viewBox='0 0 24 24' width='24' height='24' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round'><path d='M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5'/></svg>";
+    var U=shell("Send location",refresh);U.inp.placeholder="Search or enter an address";
+    var mapBox=el("div","wxmap");U.o.appendChild(mapBox);
+    var fab=el("button","wxfab");fab.type="button";fab.setAttribute("aria-label","Go to my location");fab.innerHTML="<svg viewBox='0 0 24 24' width='26' height='26'><path fill='#1fa855' d='M21 3 3 10.5l7.6 2.9L13.5 21z'/></svg>";mapBox.appendChild(fab);
+    var sheet=el("div","wxsheet");sheet.appendChild(el("div","wxgrab"));U.o.appendChild(sheet);
+    var grp=el("div","wxgrp");sheet.appendChild(el("div","wxsec","Send"));sheet.appendChild(grp);
+    var me=el("button","wxrow");me.type="button";me.innerHTML="<span class='wxic g'><svg viewBox='0 0 24 24' width='26' height='26'><circle cx='12' cy='12' r='10' fill='none' stroke='currentColor' stroke-width='1.8'/><circle cx='12' cy='12' r='5.5' fill='currentColor'/></svg></span><span class='wxtx'><b>Send your current location</b><small>Finding you…</small></span>";grp.appendChild(me);
+    var pinRow=el("button","wxrow");pinRow.type="button";pinRow.hidden=true;pinRow.innerHTML="<span class='wxic r'><svg viewBox='0 0 24 24' width='24' height='24'><path fill='currentColor' d='M12 2a7.5 7.5 0 0 0-7.5 7.5c0 5.6 7.5 12.5 7.5 12.5s7.5-6.9 7.5-12.5A7.5 7.5 0 0 0 12 2z'/><circle cx='12' cy='9.5' r='2.8' fill='#fff'/></svg></span><span class='wxtx'><b>Send this pinned place</b><small></small></span>";grp.appendChild(pinRow);
+    var resH=el("div","wxsec","Places");resH.hidden=true;sheet.appendChild(resH);var res=el("div","wxgrp");res.hidden=true;sheet.appendChild(res);
+    sheet.appendChild(el("p","wxnote","Tap the map to drop a pin on another place. Map © OpenStreetMap contributors, © CARTO."));
+    var pos=null,acc=0,map=null,dot=null,pin=null,pinAt=null;
+    function locate(){
+      if(!navigator.geolocation){me.querySelector("small").textContent="This phone can’t share its location here.";return}
+      me.querySelector("small").textContent="Finding you…";
+      navigator.geolocation.getCurrentPosition(function(p){
+        pos=[p.coords.latitude,p.coords.longitude];acc=Math.round(p.coords.accuracy||0);
+        me.querySelector("small").textContent="Accurate to "+(acc>=1000?(acc/1000).toFixed(1)+" km":acc+" m");
+        if(map){map.setView(pos,16);if(dot)dot.setLatLng(pos);else dot=L.circleMarker(pos,{radius:9,color:"#fff",weight:3,fillColor:"#1fa855",fillOpacity:1}).addTo(map)}
+      },function(){me.querySelector("small").textContent="Location is off. Allow it for this app, or search for a place."},{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
+    }
+    refresh.onclick=locate;fab.onclick=function(){if(pos&&map)map.setView(pos,16);else locate()};
+    me.onclick=function(){if(!pos){flash("Still finding your location…");return}me.disabled=true;
+      geo("https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&lat="+pos[0]+"&lon="+pos[1]).then(function(j){
+        var nm=j&&j.display_name?j.display_name.split(",").slice(0,3).join(",").trim():"My location";
+        sendLoc(pos[0],pos[1],nm,U.close)})};
+    function dropPin(lat,lng,label){
+      pinAt=[lat,lng];
+      if(map){if(pin)pin.setLatLng(pinAt);else pin=L.marker(pinAt).addTo(map)}
+      pinRow.hidden=false;var sm=pinRow.querySelector("small");sm.textContent=label||"Looking up the address…";pinRow.dataset.place=label||"";
+      if(!label)geo("https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&lat="+lat+"&lon="+lng).then(function(j){var nm=j&&j.display_name?j.display_name.split(",").slice(0,3).join(",").trim():"Pinned place";sm.textContent=nm;pinRow.dataset.place=nm});
+    }
+    pinRow.onclick=function(){if(!pinAt)return;pinRow.disabled=true;sendLoc(pinAt[0],pinAt[1],pinRow.dataset.place||"Pinned place",U.close)};
+    var qt=0;
+    U.inp.addEventListener("input",function(){clearTimeout(qt);var q=U.inp.value.trim();if(q.length<3){res.hidden=resH.hidden=true;return}qt=setTimeout(function(){search(q)},700)});
+    U.inp.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();clearTimeout(qt);var q=U.inp.value.trim();if(q)search(q);U.inp.blur()}});
+    function search(q){
+      var near=pos?"&viewbox="+(pos[1]-1)+","+(pos[0]+1)+","+(pos[1]+1)+","+(pos[0]-1):"";
+      geo("https://nominatim.openstreetmap.org/search?format=json&limit=8&q="+encodeURIComponent(q)+near).then(function(list){
+        res.textContent="";resH.hidden=res.hidden=false;
+        if(!list||!list.length){res.appendChild(el("div","wxempty","No places found. Try another spelling, or drop a pin on the map."));return}
+        list.forEach(function(p){
+          var b=el("button","wxrow");b.type="button";var parts=String(p.display_name||"").split(",");
+          b.innerHTML="<span class='wxic r'><svg viewBox='0 0 24 24' width='22' height='22'><path fill='currentColor' d='M12 2a7.5 7.5 0 0 0-7.5 7.5c0 5.6 7.5 12.5 7.5 12.5s7.5-6.9 7.5-12.5A7.5 7.5 0 0 0 12 2z'/><circle cx='12' cy='9.5' r='2.8' fill='#fff'/></svg></span>";
+          var tx=el("span","wxtx");tx.appendChild(el("b",null,parts[0]));tx.appendChild(el("small",null,parts.slice(1,4).join(",").trim()));b.appendChild(tx);
+          b.onclick=function(){var la=+p.lat,lo=+p.lon;if(map)map.setView([la,lo],16);dropPin(la,lo,parts.slice(0,3).join(",").trim());res.hidden=resH.hidden=true;try{U.o.querySelector(".wxsheet").scrollTop=0}catch(e){}};
+          res.appendChild(b);
+        });
+      });
+    }
+    loadLeaflet().then(function(){
+      if(!document.body.contains(U.o))return;
+      map=L.map(mapBox,{zoomControl:false,attributionControl:false}).setView(pos||[9.08,7.4],pos?16:6);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{maxZoom:19,subdomains:"abcd"}).addTo(map);
+      if(pos)dot=L.circleMarker(pos,{radius:9,color:"#fff",weight:3,fillColor:"#1fa855",fillOpacity:1}).addTo(map);
+      map.on("click",function(e){dropPin(e.latlng.lat,e.latlng.lng)});
+      setTimeout(function(){try{map.invalidateSize()}catch(e){}},300);
+    }).catch(function(){mapBox.appendChild(el("div","wxempty","The map couldn’t load. You can still send your current location or search for a place."))});
+    locate();
+  };
+
+  /* ---------- Contacts ---------- */
+  function initials(n){n=String(n||"?").trim().split(/\s+/);return ((n[0]||"?")[0]+(n.length>1?n[n.length-1][0]:"")).toUpperCase()}
+  var COLS=["#1fa855","#2d7dbd","#c2185b","#7b1fa2","#ef6c00","#00897b","#5d4037"];
+  function colr(s){var x=0;s=String(s||"");for(var i=0;i<s.length;i++)x=(x*31+s.charCodeAt(i))>>>0;return COLS[x%COLS.length]}
+  window.hubWaContacts=function(){
+    var next=el("button","wxnext","Send");next.type="button";next.disabled=true;
+    var U=shell("Share contacts",next);U.inp.placeholder="Search";
+    var list=el("div","wxlist");U.o.appendChild(list);
+    var people=[],seen={};
+    try{(typeof MEMBERS!=="undefined"?MEMBERS:[]).forEach(function(m){if(!m||!m.user_id||m.grp==="ai"||/cordial/i.test(m.name||""))return;
+      var p=(typeof PF==="function"?PF(m.user_id):{})||{};
+      var nm=m.name||(typeof memberName==="function"?memberName(m.user_id):"")||"Member";
+      var it={id:"u_"+m.user_id,uid:m.user_id,name:nm,phone:p.phone||"",email:(typeof EMAILS!=="undefined"&&EMAILS[m.user_id])||p.email||"",avatar:p.avatar||"",me:m.user_id===myId};
+      seen[nm.toLowerCase()]=1;people.push(it)})}catch(e){}
+    try{(S.people||[]).forEach(function(p){if(!p||!p.name||seen[String(p.name).toLowerCase()])return;people.push({id:"p_"+p.id,name:p.name,phone:p.phone||"",email:p.email||"",role:p.role||""})})}catch(e){}
+    var mine=people.filter(function(p){return p.me}),rest=people.filter(function(p){return !p.me}).sort(function(a,b){return a.name.localeCompare(b.name)});
+    var sel={};
+    function count(){var n=Object.keys(sel).length;U.sub.textContent=n+"/"+people.length;next.disabled=!n;next.textContent=n?"Send ("+n+")":"Send"}
+    function row(p){
+      var b=el("button","wxrow wxc");b.type="button";
+      var av=el("span","wxav");av.style.background=colr(p.name);av.textContent=initials(p.name);
+      if(p.avatar&&p.uid){try{av.textContent="";setBg(av,p.avatar)}catch(e){av.textContent=initials(p.name)}}
+      b.appendChild(av);
+      var tx=el("span","wxtx");tx.appendChild(el("b",null,p.name));var sm=[p.role,p.phone||p.email].filter(Boolean).join(" · ");if(sm)tx.appendChild(el("small",null,sm));b.appendChild(tx);
+      var ck=el("span","wxck");b.appendChild(ck);
+      b.onclick=function(){if(sel[p.id])delete sel[p.id];else sel[p.id]=p;b.classList.toggle("on",!!sel[p.id]);count()};
+      if(sel[p.id])b.classList.add("on");
+      return b;
+    }
+    function paint(){
+      var q=U.inp.value.trim().toLowerCase();list.textContent="";
+      function ok(p){return !q||(p.name+" "+(p.phone||"")+" "+(p.email||"")+" "+(p.role||"")).toLowerCase().indexOf(q)>=0}
+      var m2=mine.filter(ok);if(m2.length){list.appendChild(el("div","wxsec","You"));var g=el("div","wxgrp");m2.forEach(function(p){g.appendChild(row(p))});list.appendChild(g)}
+      var groups={};rest.filter(ok).forEach(function(p){var L1=(p.name[0]||"#").toUpperCase();if(!/[A-Z]/.test(L1))L1="#";(groups[L1]=groups[L1]||[]).push(p)});
+      Object.keys(groups).sort().forEach(function(k){var hd=el("div","wxsec",k);hd.id="wxL_"+k;list.appendChild(hd);var g=el("div","wxgrp");groups[k].forEach(function(p){g.appendChild(row(p))});list.appendChild(g)});
+      var other=el("button","wxrow");other.type="button";other.innerHTML="<span class='wxic g'><svg viewBox='0 0 24 24' width='22' height='22' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round'><path d='M12 5v14M5 12h14'/></svg></span><span class='wxtx'><b>Someone not in the hub</b><small>Type a name and phone number</small></span>";
+      other.onclick=function(){U.close();try{openSheet(contactForm)}catch(e){}};
+      list.appendChild(el("div","wxsec","Other"));var og=el("div","wxgrp");og.appendChild(other);list.appendChild(og);
+      if(!people.length)list.insertBefore(el("div","wxempty","No contacts in the hub yet. Add people under People, or type one in below."),list.firstChild);
+    }
+    var az=el("div","wxaz");"ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("").forEach(function(c){var s=el("span",null,c);s.onclick=function(){var t=document.getElementById("wxL_"+c);if(t)t.scrollIntoView({block:"start"})};az.appendChild(s)});U.o.appendChild(az);
+    U.inp.addEventListener("input",paint);
+    next.onclick=function(){
+      var ps=Object.keys(sel).map(function(k){return sel[k]});if(!ps.length)return;next.disabled=true;
+      ps.reduce(function(pr,p){return pr.then(function(){return post({kind:"contact",cname:p.name,phone:p.phone||"",email:p.email||""})})},Promise.resolve())
+        .then(function(){U.close();flash(ps.length>1?"Contacts sent.":"Contact sent.")},function(e){next.disabled=false;flash(typeof attachErr==="function"?attachErr(e):"Couldn’t send.")});
+    };
+    paint();count();
+  };
 })();
 </script>
 </body>
