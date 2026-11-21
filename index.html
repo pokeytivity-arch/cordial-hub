@@ -827,6 +827,7 @@ main{max-width:100%}
     <div class="arow"><span>Tone check<br><small class="meta" id="tonelbl"></small></span><input id="tonesl" type="range" min="0" max="10" step="1" style="width:46%" aria-label="Tone check sensitivity"></div>
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
+    <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -9743,6 +9744,48 @@ setInterval(function(){if(WA.open&&!document.hidden)render();try{if(!document.hi
     (document.body||document.documentElement).appendChild(b);
     setTimeout(function(){try{b.remove()}catch(e){}},5000);
   }catch(e){}
+})();
+</script>
+<script>
+/* Guide: allow camera and microphone once in iPhone Settings, so calls start without the permission box. */
+(function(){
+  var KEY="hubCamGuide2";
+  function isApple(){return /iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1)}
+  function show(){
+    if(document.getElementById("camguide"))return;
+    var o=document.createElement("div");o.id="camguide";o.setAttribute("role","dialog");o.setAttribute("aria-label","Allow camera and microphone");
+    o.style.cssText="position:fixed;inset:0;z-index:2147482000;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center";
+    var apple=isApple();
+    o.innerHTML="<div style='background:#fff;color:#111;width:100%;max-width:520px;border-radius:22px 22px 0 0;padding:20px 20px calc(18px + env(safe-area-inset-bottom,0px));font:16px/1.45 system-ui,-apple-system,sans-serif'>"+
+      "<div style='font-size:2rem;text-align:center'>🎙️📷</div>"+
+      "<h3 style='margin:6px 0 6px;text-align:center;font-size:1.2rem'>Let calls start straight away</h3>"+
+      "<p style='margin:0 0 12px;color:#444;text-align:center'>Allow the camera and microphone once, and the hub won’t need to ask each time you make or answer a call.</p>"+
+      (apple?
+      "<ol style='margin:0 0 14px;padding-left:22px'><li>Open the <b>Settings</b> app.</li><li>Tap <b>Apps</b>, then <b>Safari</b>.</li><li>Scroll to <b>Settings for Websites</b>.</li><li>Tap <b>Camera</b> and choose <b>Allow</b>.</li><li>Go back, tap <b>Microphone</b> and choose <b>Allow</b>.</li></ol>"+
+      "<p style='margin:0 0 14px;color:#666;font-size:.9rem'>On older iPhones, Safari is directly in Settings (Settings, then Safari).</p>"
+      :"<ol style='margin:0 0 14px;padding-left:22px'><li>Tap the lock or settings icon next to the web address (in Chrome: the three dots, then Settings, then Site settings).</li><li>Set <b>Camera</b> and <b>Microphone</b> to <b>Allow</b> for cordialcoparent.com.</li></ol>")+
+      "<button type='button' id='cgdone' style='display:block;width:100%;border:0;border-radius:12px;padding:13px;background:#1fa855;color:#fff;font:inherit;font-weight:700;margin-bottom:8px'>I’ve allowed them</button>"+
+      "<button type='button' id='cglater' style='display:block;width:100%;border:0;border-radius:12px;padding:12px;background:#eee;color:#111;font:inherit;font-weight:600'>Remind me later</button></div>";
+    document.body.appendChild(o);
+    o.querySelector("#cgdone").onclick=function(){try{localStorage.setItem(KEY,"done")}catch(e){}o.remove()};
+    o.querySelector("#cglater").onclick=function(){try{localStorage.setItem(KEY,String(Date.now()))}catch(e){}o.remove()};
+    o.onclick=function(e){if(e.target===o)o.remove()};
+  }
+  window.hubCamGuide=show;
+  try{var b=document.getElementById("camguidebtn");if(b)b.onclick=show}catch(e){}
+  /* Show it once by itself on phones after sign-in; "Remind me later" brings it back after a day. */
+  var tries=0,tm=setInterval(function(){
+    try{
+      if(++tries>24){clearInterval(tm);return}
+      if(!/iPhone|iPad|iPod|Android/.test(navigator.userAgent)&&!isApple()){clearInterval(tm);return}
+      var v=localStorage.getItem(KEY);if(v==="done"){clearInterval(tm);return}
+      if(v&&Date.now()-Number(v)<86400000){clearInterval(tm);return}
+      if(!window.myId)return;
+      if(document.getElementById("jc")&&!document.getElementById("jc").hidden)return;
+      if(document.getElementById("ringui")&&!document.getElementById("ringui").hidden)return;
+      clearInterval(tm);setTimeout(show,2500);
+    }catch(e){clearInterval(tm)}
+  },5000);
 })();
 </script>
 </body>
