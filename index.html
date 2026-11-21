@@ -676,6 +676,12 @@ html[data-look] #wa,#wa{margin:0!important;max-width:none!important;padding:0}
 .wch .ttl{flex:1;min-width:0;justify-content:flex-start;padding:0 14px 0 6px;height:46px}
 .wch .ttl b{font-size:1.08rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
 .wch .ttl small{display:block;color:var(--wmut);font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#wachat .wch .wpill.ttl{background:transparent!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;padding:0 6px!important;gap:12px}
+#wachat .wch .ttl .wav.sm{width:44px;height:44px;font-size:1.1rem}
+#wachat .wch .ttl b{font-size:1.06rem;font-weight:700;letter-spacing:-.2px}
+#wachat .wch .ttl small{font-size:.86rem;color:var(--wink);opacity:.75}
+#wachat .wch>.wpill:not(.ttl){-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+#wachat .wch{background:linear-gradient(180deg,var(--wchat) 55%,rgba(0,0,0,0))}
 #wapin{margin:0 12px;border-radius:14px;background:var(--wfloat);box-shadow:0 1px 5px rgba(0,0,0,.1);padding:8px 12px;display:flex;align-items:center;gap:10px;font-size:.92rem}
 #wapin .tx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #wamsgs{flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 12px 10px;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column}
@@ -848,7 +854,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 07:19</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 07:26</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -4669,6 +4675,10 @@ function waTrayOpen(sh){
   try{if(document.activeElement&&document.activeElement.blur)document.activeElement.blur()}catch(e){}
   var ms=document.getElementById("wamsgs");if(ms&&!ms.__trayClose){ms.__trayClose=1;ms.addEventListener("pointerdown",function(){if(r.hasAttribute("data-tray"))closeSheet()},true)}
 }
+(function(){var m=document.querySelector('meta[name="theme-color"]');if(!m)return;var orig=m.getAttribute("content"),last=null;
+  setInterval(function(){try{var w=document.getElementById("wa"),c=document.getElementById("wachat"),want=orig;
+    if(w&&!w.hidden){var el=(c&&c.offsetParent!==null)?c:w;var bg=getComputedStyle(el).backgroundColor;if(bg&&bg!=="rgba(0, 0, 0, 0)")want=bg}
+    if(want!==last){last=want;m.setAttribute("content",want)}}catch(e){}},500)})();
 setInterval(function(){try{if(document.documentElement.hasAttribute("data-tray")&&($("#sheet").hidden||!document.getElementById("wat")))waTrayClose()}catch(e){}},800);
 function waTrayClose(){
   var r=document.documentElement;if(!r.hasAttribute("data-tray"))return;
@@ -8822,7 +8832,7 @@ function buildChat(c){
   var bk=pill(ic("back",22)+(others?"<span style='font-weight:600'>"+others+"</span>":""),closeChat);hd.appendChild(bk);
   var tt=E("button","wpill ttl","");tt.type="button";tt.appendChild(avatar(c,"sm"));
   var tb=E("div");tb.style.cssText="min-width:0;text-align:left";if(c.type==="bot"){var bb2=E("b");bb2.style.cssText="display:block;font-weight:600;font-size:1.02rem;min-width:0";bb2.appendChild(botName(true));tb.appendChild(bb2)}else tb.appendChild(T("b",null,c.name));
-  var sub=c.type==="bot"?"Automated tips and help":c.type==="family"?"Everyone in the hub":c.type==="group"?c.members.map(mname).join(", "):"tap for info";
+  var sub=c.type==="bot"?"Automated tips and help":c.type==="family"?"Everyone in the hub":c.type==="group"?c.members.map(mname).join(", "):"tap for contact info";
   tb.appendChild(T("small",null,sub));tt.appendChild(tb);tt.onclick=function(){info(c)};hd.appendChild(tt);
   var cg=E("div","wpill","");cg.style.gap="14px";
   var v=E("button",null,ic("video",26,1.7)),p=E("button",null,ic("phone",24,1.7));v.type=p.type="button";
