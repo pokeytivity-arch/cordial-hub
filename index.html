@@ -216,10 +216,15 @@ body.locked #cbar,body.locked #jc{display:none!important}
 .jcb{width:48px;height:48px;border-radius:50%;border:0;background:rgba(30,26,24,.72);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 .jcb:active{transform:scale(.94)}
 .jcb.off{background:#fff;color:#111}
-#jcb{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(22px + env(safe-area-inset-bottom,0px));z-index:3;display:flex;gap:12px;padding:12px 14px;border-radius:40px;background:rgba(60,56,52,.62);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
-#jcb .jcb{width:56px;height:56px}
-#jcb .jend{background:#f2194a;color:#fff}
-#jcmenu{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(112px + env(safe-area-inset-bottom,0px));z-index:4;background:rgba(40,36,34,.95);border-radius:16px;padding:6px;min-width:210px;color:#fff}
+#jcb{position:absolute;left:50%;transform:translateX(-50%);width:min(440px,calc(100% - 20px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:3;display:grid;grid-template-columns:repeat(3,1fr);gap:14px 6px;padding:18px 10px 14px;border-radius:34px;background:rgba(32,32,34,.94);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+#jcb .jcc{display:flex;flex-direction:column;align-items:center;gap:7px;color:#fff;font-size:.92rem}
+#jcb .jcb{width:64px;height:64px;background:rgba(255,255,255,.09)}
+#jcb .jcb.off{background:#fff;color:#111}
+#jcb .jend{background:#d70029;color:#fff;width:68px;height:68px}
+#jcav{position:absolute;inset:0;z-index:2;background:radial-gradient(circle at 50% 38%,#17181a,#070707 70%);display:flex;align-items:center;justify-content:center;pointer-events:none}
+#jcav[hidden]{display:none}
+#jcav .jcav{width:min(62vw,300px);height:min(62vw,300px);border-radius:50%;background:#4f5d2f center/cover no-repeat;display:flex;align-items:center;justify-content:center;color:#fff;font-size:5rem;font-weight:700;margin-top:-6vh;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+#jcmenu{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(250px + env(safe-area-inset-bottom,0px));z-index:4;background:rgba(40,36,34,.95);border-radius:16px;padding:6px;min-width:210px;color:#fff}
 #jcmenu[hidden]{display:none}
 #jcmenu button,#jcmenu a{display:block;width:100%;text-align:left;background:none;border:0;color:#fff;padding:12px 14px;font:inherit;border-radius:10px;text-decoration:none;cursor:pointer}
 #jcmenu button:active,#jcmenu a:active{background:rgba(255,255,255,.14)}
@@ -4747,6 +4752,8 @@ function roomUrl(c){return "https://meet.jit.si/"+c.room+"#config.disableDeepLin
 
 var JC=null,JCUR=null,JAPI=null,JT=null,JSTART=0,JSCR={},JLOC=null,JREM=[],JPIN="remote";
 var JI={
+ spk:"<svg viewBox='0 0 24 24' width='28' height='28' fill='currentColor'><path d='M3 9.5v5h4l5 4v-13l-5 4z'/><path d='M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round'/></svg>",
+ shr:"<svg viewBox='0 0 24 24' width='28' height='28' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4' width='18' height='13' rx='2.5'/><path d='M12 14V8M9 10.5 12 7.5l3 3M8 21h8'/></svg>",
  min:"<svg viewBox='0 0 24 24' width='22' height='22' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7'/></svg>",
  add:"<svg viewBox='0 0 24 24' width='24' height='24' fill='currentColor'><circle cx='9' cy='8' r='4'/><path d='M1.5 20c0-3.6 3.4-6 7.5-6s7.5 2.4 7.5 6z'/><circle cx='19' cy='17' r='4.2' fill='#222'/><path d='M19 14.8v4.4M16.8 17h4.4' stroke='#fff' stroke-width='1.6' stroke-linecap='round'/></svg>",
  chat:"<svg viewBox='0 0 24 24' width='24' height='24' fill='currentColor'><path d='M12 3C6.5 3 2 6.6 2 11.2c0 2.3 1.2 4.4 3 5.8-.1 1.4-.6 2.8-1.5 3.8 2-.1 3.7-.8 4.9-1.8 1.1.3 2.3.5 3.6.5 5.5 0 10-3.6 10-8.2S17.5 3 12 3z'/></svg>",
@@ -4768,14 +4775,14 @@ function loadJitsi(host,path){
 }
 function jcStatus(t){var e=JC&&JC.querySelector("#jcs");if(e)e.textContent=t}
 function jcTick(){
-  if(!JSTART){jcStatus(JCUR&&JCUR.calling?"Calling…":"Waiting for others…");return}
+  if(!JSTART){jcStatus(!JJOINED?"Connecting…":JCUR&&JCUR.calling?"Ringing…":"Waiting for others…");jcAv();return}
   var d=Math.round((Date.now()-JSTART)/1000),m=Math.floor(d/60),sec=d%60;jcStatus(m+":"+(sec<10?"0":"")+sec);
 }
 function jcParts(){
   if(!JAPI)return;
   var n=1;try{n=JAPI.getNumberOfParticipants()}catch(e){}
   if(n>1){if(!JSTART){JSTART=Date.now();if(JCUR)JCUR.at=JSTART}}else if(JSTART&&n<=1){/* others left: keep timer */}
-  jcTick();
+  jcTick();jcAv();
 }
 function jcSwap(){
   if(!JAPI||!JLOC||!JREM.length){toast("Waiting for the other person to join.");return}
@@ -4790,7 +4797,7 @@ function jcToChat(){var cid=JCUR&&JCUR.chat;jcMin();if(window.waOpenChat)waOpenC
 function jcWarn(kind){
   if(!JC)return;var old=JC.querySelector("#jcwarn");if(old)old.remove();
   var w=h("div");w.id="jcwarn";w.setAttribute("role","alert");
-  w.style.cssText="position:absolute;left:10px;right:10px;bottom:96px;z-index:30;background:rgba(20,20,20,.95);color:#fff;border-radius:14px;padding:12px 14px;font:inherit;font-size:.95rem;line-height:1.35";
+  w.style.cssText="position:absolute;left:10px;right:10px;bottom:250px;z-index:30;background:rgba(20,20,20,.95);color:#fff;border-radius:14px;padding:12px 14px;font:inherit;font-size:.95rem;line-height:1.35";
   var what=kind==="both"?"camera and microphone":kind==="mic"?"microphone":"camera";
   w.appendChild(h("b",null,"Your "+what+" isn’t turned on"));
   w.appendChild(h("div",null,"Allow it in Safari: tap the aA icon in the address bar, then Website Settings, and set Camera and Microphone to Allow. On iPad you can also go to Settings > Apps > Safari > Camera / Microphone. Then tap Try again."));
@@ -4823,6 +4830,42 @@ function jcFlip(){
   }).catch(function(){toast("Couldn’t switch camera.")});
 }
 function jcMenu(){var m=JC.querySelector("#jcmenu");m.hidden=!m.hidden}
+function jcShare(){
+  JC.querySelector("#jcmenu").hidden=true;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getDisplayMedia){toast("Sharing the screen isn’t possible on this phone’s browser. Use the hub on a computer, or on an Android phone.");return}
+  if(JAPI)JAPI.executeCommand("toggleShareScreen");
+}
+function jcSpeaker(btn){
+  if(!JAPI){toast("The call isn’t connected yet.");return}
+  JAPI.getAvailableDevices().then(function(d){
+    var outs=(d&&d.audioOutput)||[];
+    if(outs.length<2){toast("On iPhone the sound plays through the phone’s own speaker or earpiece. Use the volume buttons, or AirPlay in Control Centre, to change it.");return}
+    JAPI.getCurrentDevices().then(function(cur){
+      var id=cur&&cur.audioOutput&&cur.audioOutput.deviceId,spk=outs.filter(function(x){return /speaker/i.test(x.label)})[0]||outs[0];
+      var other=outs.filter(function(x){return x.deviceId!==spk.deviceId})[0]||spk;
+      var pick=id===spk.deviceId?other:spk;
+      JAPI.setAudioOutputDevice(pick.label,pick.deviceId);btn.classList.toggle("off",pick.deviceId===spk.deviceId);
+    })
+  }).catch(function(){toast("Couldn’t change the speaker.")});
+}
+var JJOINED=false;
+function jcAv(){
+  var a=JC&&JC.querySelector("#jcav");if(!a)return;
+  var show=!!JCUR&&!JC.classList.contains("plain")&&(!!JCUR.audio||!JREM.length);
+  a.hidden=!show;
+}
+function jcAvInit(c){
+  var a=JC.querySelector("#jcav .jcav");if(!a)return;
+  a.style.backgroundImage="";a.textContent="";a.style.background="";
+  var url="",nm=c.title||"Call",col="#4f5d2f";
+  try{
+    var ch=c.chat&&c.chat!=="family"?chatById(c.chat):null;
+    if(ch&&ch.type==="dm"){var o=ch.members.filter(function(x){return x!==myId})[0],pf=PF(o);if(pf&&pf.avatar)url=pf.avatar;col=colorOf(o);nm=mname(o)||nm}
+    else if(!ch||ch.type==="family"){url=cap()}
+  }catch(e){}
+  if(url){a.style.backgroundImage="url('"+String(url).replace(/'/g,"%27")+"')"}
+  else{a.style.background=col;a.textContent=(nm||"C").trim().slice(0,1).toUpperCase()}
+}
 /* Ask for the microphone (and camera for video calls) the moment a call is started or answered, so the phone's permission prompt appears straight away. */
 var PRIMED=0;
 function primeMedia(audioOnly){
@@ -4843,29 +4886,32 @@ function openCall(c){
   if(!JC){
     JC=h("div");JC.id="jc";JC.hidden=true;JC.setAttribute("role","dialog");JC.setAttribute("aria-label","Call");
     var mt=h("div");mt.id="jcm";JC.appendChild(mt);
+    var av=h("div");av.id="jcav";av.appendChild(h("div","jcav"));JC.appendChild(av);
     var tp=h("div");tp.id="jct";
     tp.appendChild(jbtn("",JI.min,"Minimize: keep the call going and use the rest of the hub",function(){jcMin()}));
     var tt=h("div");tt.className="jtt";tt.appendChild(h("b",null,"Call"));var sp=h("span");sp.id="jcs";tt.appendChild(sp);tp.appendChild(tt);
     var rt=h("div");rt.className="jr";
     rt.appendChild(jbtn("",JI.add,"Add people",function(){if(window.hubAddToCall)hubAddToCall();else toast("Add people isn’t ready yet.")}));
     rt.appendChild(jbtn("",JI.chat,"Return to chat",function(){jcToChat()}));
-    var fl=jbtn("",JI.flip,"Switch camera",jcFlip);fl.id="jcflip";rt.appendChild(fl);
-    rt.appendChild(jbtn("",JI.swap,"Swap big and small video",jcSwap));
     tp.appendChild(rt);
     var bt=h("div");bt.id="jcb";
-    bt.appendChild(jbtn("",JI.more,"More",jcMenu));
-    var cb=jbtn("",JI.cam,"Camera",function(){if(JAPI){JAPI.executeCommand("toggleVideo");jcDev("camera")}});cb.id="jccam";bt.appendChild(cb);
-    var mb=jbtn("",JI.mic,"Microphone",function(){if(JAPI){JAPI.executeCommand("toggleAudio");jcDev("mic")}});mb.id="jcmic";bt.appendChild(mb);
-    bt.appendChild(jbtn("jend",JI.end,"End call",closeCall));
+    function jcc(btn,label){var w=h("div","jcc");w.appendChild(btn);w.appendChild(h("span",null,label));bt.appendChild(w)}
+    var spb=jbtn("",JI.spk,"Speaker",function(){jcSpeaker(spb)});spb.id="jcspk";jcc(spb,"Speaker");
+    var cb=jbtn("",JI.cam,"Camera",function(){if(JAPI){JAPI.executeCommand("toggleVideo");jcDev("camera")}});cb.id="jccam";jcc(cb,"Video");
+    var mb=jbtn("",JI.mic,"Microphone",function(){if(JAPI){JAPI.executeCommand("toggleAudio");jcDev("mic")}});mb.id="jcmic";jcc(mb,"Mute");
+    jcc(jbtn("",JI.more,"More",jcMenu),"More");
+    jcc(jbtn("jend",JI.end,"End call",closeCall),"End");
+    jcc(jbtn("",JI.shr,"Share screen",jcShare),"Share");
     var mn=h("div");mn.id="jcmenu";mn.hidden=true;
-    var m1=h("button",null,"Share screen");m1.onclick=function(){mn.hidden=true;if(!navigator.mediaDevices||!navigator.mediaDevices.getDisplayMedia){toast("Sharing the screen isn’t possible on this phone’s browser. Use the hub on a computer, or on an Android phone.");return}if(JAPI)JAPI.executeCommand("toggleShareScreen")};
+    var m0=h("button",null,"Switch camera");m0.onclick=function(){mn.hidden=true;jcFlip()};
+    var m1=h("button",null,"Swap big and small video");m1.onclick=function(){mn.hidden=true;jcSwap()};
     var m2=h("button",null,"Grid / speaker view");m2.onclick=function(){mn.hidden=true;if(JAPI)JAPI.executeCommand("toggleTileView")};
     var m3=h("a",null,"Open in new tab");m3.id="jcn";m3.target="_blank";m3.rel="noopener";
-    mn.appendChild(m1);mn.appendChild(m2);mn.appendChild(m3);
+    mn.appendChild(m0);mn.appendChild(m1);mn.appendChild(m2);mn.appendChild(m3);
     var sw=h("button");sw.id="jcswap";sw.type="button";sw.setAttribute("aria-label","Swap big and small video");sw.onclick=jcSwap;JC.appendChild(sw);JC.appendChild(tp);JC.appendChild(bt);JC.appendChild(mn);document.body.appendChild(JC);
     document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!JC.hidden&&!JC.classList.contains("min"))jcMin()});
   }
-  JCUR=c;JSTART=0;JLOC=null;JREM=[];JPIN="remote";JC.classList.remove("min");
+  JCUR=c;JSTART=0;JJOINED=false;JLOC=null;JREM=[];JPIN="remote";JC.classList.remove("min");jcAvInit(c);jcAv();
   var nm=(S.me||"").replace(/["\\]/g,"");
   var base=c.title||"Family call";JC.querySelector(".jtt b").textContent=base;
   var camb=JC.querySelector("#jccam"),micb=JC.querySelector("#jcmic"),nt=JC.querySelector("#jcn");
@@ -4895,7 +4941,7 @@ function openCall(c){
         userInfo:{displayName:S.me||"Guest"}};
       if(jwt)opts.jwt=jwt;
       var api=new JitsiMeetExternalAPI(host,opts);JAPI=api;
-      api.addListener("videoConferenceJoined",function(e){JLOC=e&&e.id;jcParts()});
+      api.addListener("videoConferenceJoined",function(e){JLOC=e&&e.id;JJOINED=true;jcParts()});
       api.addListener("participantJoined",function(e){if(e&&e.id&&JREM.indexOf(e.id)<0){JREM.push(e.id);if(JREM.length===1&&JPIN==="remote")setTimeout(function(){try{JAPI&&JAPI.executeCommand("pinParticipant",JREM[0])}catch(x){}},800)}jcParts()});
       api.addListener("participantLeft",function(e){if(e&&e.id)JREM=JREM.filter(function(x){return x!==e.id});jcParts();var mc=JCUR;setTimeout(function(){if(JCUR!==mc||!mc||!mc.callId||!JSTART)return;var n=1;try{n=JAPI.getNumberOfParticipants()}catch(e){}if(n<=1)closeCall()},1500)});
       api.addListener("audioMuteStatusChanged",function(e){micb.innerHTML=e.muted?JI.micoff:JI.mic;micb.classList.toggle("off",!!e.muted)});
