@@ -692,6 +692,9 @@ html[data-look] #wa,#wa{margin:0!important;max-width:none!important;padding:0}
 .wvoice .du{font-size:.8rem;color:var(--wmut);min-width:34px}
 #wareply{margin:0 12px;border-radius:14px 14px 0 0;background:var(--wfloat);padding:8px 12px;display:flex;align-items:center;gap:10px;border-left:4px solid #b5883c}
 #wareply .tx{flex:1;min-width:0;font-size:.92rem}#wareply b{display:block;color:#a06d1d;font-size:.86rem}#wareply .tx div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--wmut)}
+html[data-kb] #wa{top:var(--wavt,0px)!important;bottom:auto!important;height:var(--wavh,100%)!important}
+html[data-kb] #wacomp{padding-bottom:8px}
+html[data-kb] body:has(#wa:not([hidden])){overflow:hidden}
 #wacomp{display:flex;align-items:flex-end;gap:8px;padding:6px 10px calc(8px + env(safe-area-inset-bottom,0px));z-index:2}
 #wacomp .round{width:46px;height:46px;border-radius:50%;background:var(--wfloat);box-shadow:0 1px 6px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;flex:none}
 #wacomp .round.g{background:var(--wg);color:#fff}
@@ -9713,6 +9716,14 @@ setInterval(function(){if(WA.open&&!document.hidden)render();try{if(!document.hi
     var off=0;
     if(vv&&kb()&&!(vv.scale>1.02)){off=Math.max(0,window.innerHeight-vv.height-vv.offsetTop);if(off>window.innerHeight*.6)off=0}
     if(r.__vo!==off){r.__vo=off;r.style.setProperty("--vvoff",off+"px")}
+    /* WhatsApp look: keep the whole chat screen exactly the size of the visible area above the keyboard, so nothing behind it shows through */
+    if(vv){
+      var open=kb(),h=open?Math.round(vv.height):0,t=open?Math.round(vv.offsetTop):0;
+      if(r.__wh!==h||r.__wt!==t){r.__wh=h;r.__wt=t;
+        if(open){r.style.setProperty("--wavh",h+"px");r.style.setProperty("--wavt",t+"px");r.setAttribute("data-kb","1")}
+        else{r.style.removeProperty("--wavh");r.style.removeProperty("--wavt");r.removeAttribute("data-kb")}
+      }
+    }
   }
   function typing(){
     var a=document.activeElement,t=a&&a.tagName,ty=a&&a.type;
@@ -9720,7 +9731,7 @@ setInterval(function(){if(WA.open&&!document.hidden)render();try{if(!document.hi
     if(textish&&kb())r.setAttribute("data-typing","1");else r.removeAttribute("data-typing");
   }
   function fix(){pin();typing()}
-  if(vv){vv.addEventListener("resize",fix);vv.addEventListener("scroll",function(){if(kb())pin()})}
+  if(vv){vv.addEventListener("resize",fix);vv.addEventListener("scroll",function(){pin()})}
   document.addEventListener("focusin",function(){setTimeout(fix,150)});
   document.addEventListener("focusout",function(){setTimeout(fix,150)});
   window.addEventListener("scroll",function(){if(kb())pin()},{passive:true});
