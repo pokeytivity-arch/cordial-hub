@@ -712,11 +712,20 @@ html[data-look] #wa,#wa{margin:0!important;max-width:none!important;padding:0}
 .wm.me .wrx{right:10px}.wm:not(.me) .wrx{left:10px}
 .wm.hasrx{margin-bottom:12px}
 .wm.flash .wb{outline:3px solid var(--wg)}
-.wvoice{display:flex;align-items:center;gap:10px;min-width:210px;padding:2px 0}
-.wvoice .pl{width:36px;height:36px;border-radius:50%;background:var(--wg);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
-.wvoice .trk{flex:1;height:4px;border-radius:2px;background:rgba(120,130,140,.35);position:relative}
-.wvoice .trk i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--wg);width:0}
-.wvoice .du{font-size:.8rem;color:var(--wmut);min-width:34px}
+.wb.wvb{padding:10px 12px 8px 8px;min-width:270px;max-width:86%}
+.wvoice{display:flex;align-items:center;gap:8px;padding:0}
+.wvoice .pl{width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex:none;color:#54656f;background:none;border:0}
+.wvoice .vmid{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;padding-top:12px}
+.wvoice .wave{position:relative;display:flex;align-items:center;gap:2px;height:26px}
+.wvoice .wave span{flex:1;min-width:2px;max-width:3px;border-radius:2px;background:#b4bcc2}
+.wvoice .wave span.p{background:#54656f}
+.wvoice .vdot{position:absolute;top:50%;width:13px;height:13px;margin-top:-6.5px;border-radius:50%;background:#34b7f1;transition:left .2s linear}
+.wvoice .du{font-size:.78rem;color:var(--wmut);height:16px}
+.wvoice .vav{position:relative;width:52px;height:52px;border-radius:50%;flex:none;background-size:cover;background-position:center;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;margin-left:4px}
+.wvoice .vmic{position:absolute;left:-6px;bottom:-2px;color:#1fa855;display:flex;filter:drop-shadow(0 0 1px #fff)}
+.wvoice .vmic.heard{color:#34b7f1}
+.wb.wvb .wmeta{position:absolute;right:76px;bottom:8px;margin:0;float:none}
+
 #wareply{margin:0 12px;border-radius:14px 14px 0 0;background:var(--wfloat);padding:8px 12px;display:flex;align-items:center;gap:10px;border-left:4px solid #b5883c}
 #wareply .tx{flex:1;min-width:0;font-size:.92rem}#wareply b{display:block;color:#a06d1d;font-size:.86rem}#wareply .tx div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--wmut)}
 html[data-kb] #wa{top:var(--wavt,0px)!important;bottom:auto!important;height:var(--wavh,100%)!important}
@@ -862,7 +871,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 07:31</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 07:37</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -9006,7 +9015,7 @@ function renderChat(force){
       sq.onclick=function(e){e.stopPropagation();if(window.waStatusOpen)waStatusOpen(m.rby)};b.appendChild(sq)}
     else if(m.rid){var q=E("div","wq");q.appendChild(T("b",null,m.rby===myId?"You":mname(m.rby)));q.appendChild(T("div",null,m.rtext||""));q.onclick=function(e){e.stopPropagation();jump(m.rid)};b.appendChild(q)}
     if(stkm)b.appendChild(T("div","st",m.emoji||"🙂"));
-    else if(m.kind==="voice")b.appendChild(voiceEl(m));
+    else if(m.kind==="voice"){b.classList.add("wvb");b.appendChild(voiceEl(m))}
     else if(m.kind==="ytcard"){
       var yh=T("div","nm","🔴 "+(m.channel||"YouTube"));yh.style.cssText="color:#d93025;font-weight:700";b.appendChild(yh);
       b.appendChild(T("div",null,m.title||"Today’s session"));
@@ -9140,21 +9149,31 @@ function pinFlow(m){
 var audio=null,audioBtn=null;
 function fmt(s){s=Math.max(0,Math.round(s||0));return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")}
 function voiceEl(m){
-  var w=E("div","wvoice"),pl=E("button","pl",ic("play",18)),trk=E("div","trk"),bar=E("i");trk.appendChild(bar);
+  /* WhatsApp-style voice note: play button, waveform with a moving dot, length under it, and the sender's photo with a mic badge */
+  var w=E("div","wvoice"),pl=E("button","pl",ic("play",26)),mid=E("div","vmid"),wave=E("div","wave"),dot=E("i","vdot");
+  var seed=0,sid=String(m.id||m.path||"v");for(var i=0;i<sid.length;i++)seed=(seed*31+sid.charCodeAt(i))>>>0;
+  var N=34,bars=[];for(var k=0;k<N;k++){seed=(seed*1103515245+12345)>>>0;var hh=4+(seed>>>16)%19;var sp=E("span");sp.style.height=hh+"px";wave.appendChild(sp);bars.push(sp)}
+  wave.appendChild(dot);
   var du=T("span","du",fmt(m.dur));pl.type="button";
+  mid.appendChild(wave);mid.appendChild(du);
+  var av=E("span","vav"),who=m.by;
+  try{var pf=PF(who);av.style.background=colorOf(who);av.textContent=inits(memberName(who)||mname(who));if(pf&&pf.avatar){av.textContent="";setBg(av,pf.avatar)}}catch(e){}
+  var mic=E("span","vmic",ic("mic",14,2));av.appendChild(mic);
+  function prog(f){f=Math.max(0,Math.min(1,f||0));dot.style.left="calc("+(f*100)+"% - 6px)";var on=Math.round(f*N);bars.forEach(function(x,j){x.classList.toggle("p",j<on)})}
+  prog(0);
   pl.onclick=async function(e){
     e.stopPropagation();
     if(audio&&audio._for===m.id){if(audio.paused){audio.play()}else audio.pause();return}
-    if(audio){audio.pause();if(audioBtn)audioBtn.innerHTML=ic("play",18)}
+    if(audio){audio.pause();if(audioBtn)audioBtn.innerHTML=ic("play",26)}
     try{
       var u=await signed(m.path);audio=new Audio(u);audio._for=m.id;audioBtn=pl;
-      audio.ontimeupdate=function(){bar.style.width=(audio.currentTime/(audio.duration||m.dur||1)*100)+"%";du.textContent=fmt(audio.currentTime)};
-      audio.onplay=function(){pl.innerHTML=ic("pause",18)};audio.onpause=function(){pl.innerHTML=ic("play",18)};
-      audio.onended=function(){pl.innerHTML=ic("play",18);bar.style.width="0";du.textContent=fmt(m.dur);audio=null};
+      audio.ontimeupdate=function(){prog(audio.currentTime/(audio.duration||m.dur||1));du.textContent=fmt(audio.currentTime)};
+      audio.onplay=function(){pl.innerHTML=ic("pause",26);mic.classList.add("heard")};audio.onpause=function(){pl.innerHTML=ic("play",26)};
+      audio.onended=function(){pl.innerHTML=ic("play",26);prog(0);du.textContent=fmt(m.dur);audio=null};
       await audio.play();
     }catch(er){toast("Couldn’t play this voice message on this device.")}
   };
-  w.appendChild(pl);w.appendChild(trk);w.appendChild(du);return w;
+  w.appendChild(pl);w.appendChild(mid);w.appendChild(av);return w;
 }
 var RC=null;
 async function recStart(){
