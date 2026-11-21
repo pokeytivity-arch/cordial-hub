@@ -903,7 +903,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 16:48</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 16:58</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1622,6 +1622,7 @@ function reimbBox(rec,payerId,save,what){
   var w=h("div");w.style.marginTop="6px";
   if(rec.reimbAt){
     var c=h("div","meta","↩️ Reimbursed on "+new Date(rec.reimbAt).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+(rec.reimbBy?" by "+xtName(rec.reimbBy):"")+" · "+money(rec.amount)+(rec.reimbConfirmedBy?" · confirmed by "+xtName(rec.reimbConfirmedBy):""));c.style.color="#1f8a4c";w.appendChild(c);
+    if(rec.reimbRead&&(rec.reimbRead.amount!=null||rec.reimbRead.narration)){w.appendChild(h("div","meta","Transfer: "+(rec.reimbRead.amount!=null?money(rec.reimbRead.amount):"")+(rec.reimbRead.date?" on "+rec.reimbRead.date:"")+(rec.reimbRead.narration?" · “"+rec.reimbRead.narration+"”":"")))}
     var rl=xtRc(rec.reimbReceipts||[],"Reimbursement receipt");if(rl)w.appendChild(rl);
     if(canWrite&&(isAdminAcct()||(rec.reimbConfirmedBy&&rec.reimbConfirmedBy===myId)))w.appendChild(xtBtn("Undo reimbursed",function(){if(confirm("Undo this reimbursement?"))save({reimbAt:null,reimbBy:null,reimbReceipts:null,reimbCheck:null,reimbConfirmedBy:null,reimbReqAt:null,reimbReqBy:null})},"quiet"));
     return w}
@@ -2039,7 +2040,7 @@ function stkAddDlg(opt){
       function selTotal(){var t=0,any=false;rows.forEach(function(r){if(r.cb.checked&&r.it.price!=null){t+=r.it.price;any=true}});return any?t:(j.total||"")}
       rows.forEach(function(r){r.cb.addEventListener("change",function(){if(!exSel.value)return;ai.value=selTotal()})});
       exSel.onchange=function(){var v=exSel.value;aw2.hidden=!v;rw2.hidden=v!=="reimb";if(v&&!ai.value)ai.value=selTotal();
-        exHelp.textContent=v==="mine"?"Saved in Expenses as paid by you. It counts only towards your spending and doesn’t show on "+othN+"’s side.":v==="reimb"?"Saved in Expenses as bought by "+othN+" and reimbursed by you. It shows as a reimbursement and counts towards your spending, not "+othN+"’s. Attach the transfer receipt: Cordial checks it shows exactly this amount.":""};
+        exHelp.textContent=v==="mine"?"Saved in Expenses as paid by you. It counts only towards your spending and doesn’t show on "+othN+"’s side.":v==="reimb"?"Saved in Expenses as bought by "+othN+" and reimbursed by you. It shows as a reimbursement and counts towards your spending, not "+othN+"’s. Attach the transfer receipt: Cordial reads its amount, date and narration and shows you what it found. A transfer for a different amount (for example sent with other money) is fine.":""};
       res.appendChild(exBox);
       go.textContent="Add to Supplies";go.disabled=false;
       go.onclick=async function(){
@@ -2053,10 +2054,15 @@ function stkAddDlg(opt){
             var rf=Array.prototype.slice.call(rfi.files||[]);
             if(!rf.length){er.textContent="Attach the transfer receipt for the reimbursement ("+money(exAmt)+").";er.hidden=false;return}
             go.disabled=true;go.textContent="Cordial is checking the transfer receipt…";
-            try{rchk=await aiVerifyMany(rfi.files,{kind:"reimbursement",title:"Reimbursement of supplies"+(j.store?" from "+j.store:""),amount:exAmt,date:key(new Date())})}catch(e){rchk=null}
-            var got=rchk&&rchk.read&&typeof rchk.read.amount==="number"?rchk.read.amount:null;
-            if(!rchk||rchk.status==="unchecked"||got===null){go.disabled=false;go.textContent="Add to Supplies";er.textContent="Cordial couldn’t read an amount on the transfer receipt. Try a clearer photo or screenshot.";er.hidden=false;return}
-            if(Math.round(got*100)!==Math.round(exAmt*100)){go.disabled=false;go.textContent="Add to Supplies";er.textContent="The transfer receipt shows "+money(got)+" but the reimbursement is "+money(exAmt)+". Change the amount or attach the right receipt.";er.hidden=false;return}
+            var rkey=rf.map(function(f){return f.name+":"+f.size}).join("|")+"|"+exAmt;
+            if(window.__stkRC&&window.__stkRC.k===rkey)rchk=window.__stkRC.c;
+            else{try{rchk=await aiVerifyMany(rfi.files,{kind:"reimbursement",title:"Reimbursement of supplies"+(j.store?" from "+j.store:""),amount:exAmt,date:key(new Date())})}catch(e){rchk=null}window.__stkRC={k:rkey,c:rchk};window.__stkRAck=null}
+            /* not strict on the amount: a reimbursement is often sent together with other money. Cordial's reading (amount, date, narration) is saved with it for both parents to see */
+            var rd=(rchk&&rchk.read)||{},got=typeof rd.amount==="number"?rd.amount:null;
+            if(!rchk||(rchk.status==="unchecked"&&got===null&&!rd.date&&!rd.narration)){go.disabled=false;go.textContent="Add to Supplies";er.textContent="Cordial couldn’t read that transfer receipt. Try a clearer photo or screenshot.";er.hidden=false;return}
+            var rnote=[got!=null?"Transfer of "+money(got)+(Math.round(got*100)!==Math.round(exAmt*100)?(got>exAmt?" (more than "+money(exAmt)+"; sent with other money)":" (less than "+money(exAmt)+")"):""):"",rd.date?"on "+rd.date:"",rd.narration?"· narration: “"+rd.narration+"”":""].filter(Boolean).join(" ");
+            if(window.__stkRAck!==rkey){window.__stkRAck=rkey;go.disabled=false;go.textContent="Looks right, add to Supplies";er.style.color="#1a7f45";er.textContent="Cordial read: "+(rnote||"no amount, date or narration")+". Tap the button again to save.";er.hidden=false;return}
+            window.__stkRAck=null;window.__stkRC=null;er.style.color="#b3261e";
             for(var q=0;q<rf.length;q++){var u0=await xtUp(rf[q]);u0.aicheck=rchk;rcs.push(u0)}
           }
         }
@@ -2076,7 +2082,7 @@ function stkAddDlg(opt){
               else{
                 var pr={path:paths[0],name:"receipt.jpg",type:"image/jpeg"},xrec=withShare({ts:Date.now(),desc:desc,amount:amt,by:payer,date:key(new Date(base)),proof:pr,fromSupplies:1,addedBy:myId},"exp");
                 if(paths.length>1)xrec.proofs=paths.map(function(pp){return {path:pp,name:"receipt.jpg",type:"image/jpeg"}});
-                if(exSel.value==="reimb"){xrec.reimbAt=Date.now();xrec.reimbBy=myId;xrec.reimbReceipts=rcs;xrec.reimbCheck=rchk}
+                if(exSel.value==="reimb"){xrec.reimbAt=Date.now();xrec.reimbBy=myId;xrec.reimbReceipts=rcs;xrec.reimbCheck=rchk;var rd2=(rchk&&rchk.read)||{};xrec.reimbRead={amount:typeof rd2.amount==="number"?rd2.amount:null,date:rd2.date||"",narration:rd2.narration||"",payee:rd2.payee||""}}
                 await db.collection("expenses").add(xrec);
                 exMsg=exSel.value==="reimb"?" Saved in Expenses as a reimbursement to "+othN+".":" Saved in Expenses as your contribution.";
               }
