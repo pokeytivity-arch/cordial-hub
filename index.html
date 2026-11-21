@@ -903,7 +903,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 16:40</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 16:48</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1968,10 +1968,10 @@ function stkAddDlg(opt){
   var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px";
   var c=h("div","card");c.style.cssText="width:min(94vw,460px);max-height:90vh;overflow:auto;box-sizing:border-box";
   c.appendChild(h("h2",null,opt.again?"Bought more "+opt.again.name:"Add supplies ✨"));
-  c.appendChild(h("p","meta",opt.again?"Add the new receipt if you have one. The meter starts again from today.":"Add a photo of the receipt (up to 4 photos). Cordial adds only the items printed on the receipt; photos of the items just help it get brands and sizes right."));
+  c.appendChild(h("p","meta",opt.again?"Add the new receipt if you have one. The meter starts again from today.":"Add photos of the receipts, as many as you like. Cordial adds only the items printed on the receipts; photos of the items just help it get brands and sizes right."));
   var lf=h("label",null,"Receipt and item photos");var fi=h("input");fi.type="file";fi.accept="image/*";fi.multiple=true;fi.style.maxWidth="100%";lf.appendChild(fi);c.appendChild(lf);
   var th=h("div");th.style.cssText="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0";c.appendChild(th);
-  fi.onchange=function(){th.textContent="";Array.prototype.slice.call(fi.files,0,4).forEach(function(f){var im=h("img");im.src=URL.createObjectURL(f);im.style.cssText="width:64px;height:64px;object-fit:cover;border-radius:8px";th.appendChild(im)})};
+  fi.onchange=function(){th.textContent="";Array.prototype.slice.call(fi.files).forEach(function(f){var im=h("img");im.src=URL.createObjectURL(f);im.style.cssText="width:64px;height:64px;object-fit:cover;border-radius:8px";th.appendChild(im)})};
   var ta=null;if(!opt.again){ta=h("textarea");ta.rows=2;ta.maxLength=1000;ta.placeholder="Anything to add? e.g. “2 packs of Pampers size 4, 40 each” (optional)";ta.style.cssText="width:100%;box-sizing:border-box;margin-top:6px";c.appendChild(ta)}
   var er=h("div","meta");er.style.color="#b3261e";er.hidden=true;c.appendChild(er);
   var res=h("div");c.appendChild(res);
@@ -1983,21 +1983,30 @@ function stkAddDlg(opt){
     var x=opt.again,dw=h("label",null,"Lasts how many days?"),di=h("input");di.type="number";di.value=x.days||7;dw.appendChild(di);c.insertBefore(dw,er);
     var pw=h("label",null,"Price (₦, optional)"),pi=h("input");pi.type="number";pw.appendChild(pi);c.insertBefore(pw,er);
     go.onclick=async function(){go.disabled=true;go.textContent="Saving…";
-      try{var files=Array.prototype.slice.call(fi.files,0,4),paths=files.length?await upAll(files):[];
+      try{var files=Array.prototype.slice.call(fi.files),paths=files.length?await upAll(files):[];
         await xtDoc(x.id,{date:key(new Date()),ts:Date.now(),by:myId,days:parseInt(di.value,10)||x.days,price:pi.value===""?null:parseFloat(pi.value),rcpt:paths,photo:0,usedAt:null,usedBy:null,lowPost:0,outPost:0,hist:opt.hist});
         ov.remove();note("Meter restarted for "+x.name+".");setTimeout(function(){note("")},2200)}catch(e){go.disabled=false;go.textContent="Save";er.textContent="Couldn’t save. "+(e&&e.message==="toolarge"?"A photo is too large.":"Try again.");er.hidden=false}};
     return;
   }
   go.onclick=async function(){
     er.hidden=true;res.textContent="";
-    var files=Array.prototype.slice.call(fi.files,0,4),txt=ta.value.trim();
+    var files=Array.prototype.slice.call(fi.files),txt=ta.value.trim();
     if(!files.length&&!txt){er.textContent="Add a photo of the receipt or items first.";er.hidden=false;return}
     go.disabled=true;go.textContent="Cordial is reading…";
     try{
       var imgs=[],thumbs=[];for(var i=0;i<files.length;i++){var d=await evThumb(files[i]);thumbs.push(d);imgs.push({media:"image/jpeg",data:d.slice(d.indexOf(",")+1)})}
       var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)throw 0;
-      var r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({stock:{text:txt,images:imgs}})});
-      var j={};try{j=await r.json()}catch(x){}
+      /* any number of photos: Cordial reads them in groups of 8 and the lists are joined */
+      var j={items:[],store:"",date:"",total:null},r={ok:true,status:200},G=8,ng=Math.max(1,Math.ceil(imgs.length/G));
+      for(var gi=0;gi<ng;gi++){
+        if(ng>1)go.textContent="Cordial is reading… ("+(gi+1)+" of "+ng+")";
+        var part=imgs.slice(gi*G,gi*G+G);
+        r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({stock:{text:gi===0?txt:"",images:part}})});
+        var jj={};try{jj=await r.json()}catch(x){}
+        if(!r.ok){j=jj;break}
+        j.items=j.items.concat(jj.items||[]);if(!j.store&&jj.store)j.store=jj.store;if(!j.date&&jj.date)j.date=jj.date;
+        if(jj.total!=null)j.total=(j.total||0)+jj.total;
+      }
       if(!r.ok){er.textContent="Cordial couldn’t read that ("+r.status+(j.detail?": "+j.detail:"")+"). Try again, or use a clearer photo.";er.hidden=false;go.disabled=false;go.textContent="Read it";return}
       var items=[],mg={};(j.items||[]).forEach(function(it){var g=stkNorm(it.name)+"|"+stkNorm(it.brand)+"|"+(it.price==null?"":it.price);if(mg[g]){mg[g].qty=(mg[g].qty||1)+(it.qty||1);mg[g].merged=1}else{mg[g]=Object.assign({},it);items.push(mg[g])}});
       if(!items.length){er.textContent="Cordial didn’t find any items. Try a clearer photo of the receipt, or type what you bought in the box.";er.hidden=false;go.disabled=false;go.textContent="Read it";return}

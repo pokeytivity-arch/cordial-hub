@@ -116,7 +116,7 @@ const _handler = async (event) => {
 
   // Supplies from a receipt or photos of items: list each item with a guess of how long it lasts in a home with a toddler
   if (b0 && b0.stock && typeof b0.stock === "object") {
-    const sk = b0.stock, imgs = (Array.isArray(sk.images) ? sk.images : []).slice(0, 4).filter((im) => im && /^image\/(jpeg|png|webp)$/.test(im.media || "") && typeof im.data === "string" && im.data.length < 1500000);
+    const sk = b0.stock, imgs = (Array.isArray(sk.images) ? sk.images : []).slice(0, 10).filter((im) => im && /^image\/(jpeg|png|webp)$/.test(im.media || "") && typeof im.data === "string" && im.data.length < 1500000);
     const txt0 = clip(sk.text, 2000).trim();
     if (!imgs.length && !txt0) return out(400, { error: "empty" });
     const todayL = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(new Date());
