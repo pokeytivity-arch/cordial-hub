@@ -908,7 +908,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">21 Nov 2026 · 17:16</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">22 Nov 2026 · 18:45</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -9454,6 +9454,16 @@ function waDownBtn(){
   return b}
 function waDownChk(){var L=CH.list,b=waDownBtn();if(!L||!b)return;var far=L.scrollHeight-L.scrollTop-L.clientHeight>260;b.hidden=!far}
 document.addEventListener("scroll",function(e){if(CH.list&&e.target===CH.list)waDownChk()},true);
+/* when the keyboard opens or closes, keep the same messages next to the message box (like WhatsApp): the newest stay in view */
+(function(){
+  var gap=null,vv=window.visualViewport;
+  function remember(){var L=CH.list;if(L)gap=Math.max(0,L.scrollHeight-L.scrollTop-L.clientHeight)}
+  function restore(){var L=CH.list;if(!L||gap===null)return;L.scrollTop=L.scrollHeight-L.clientHeight-gap}
+  document.addEventListener("pointerdown",function(e){if(e.target&&e.target.id==="wat")remember()},true);
+  document.addEventListener("focusin",function(e){if(e.target&&e.target.id==="wat"){if(gap===null)remember();if(gap<400)gap=0;[60,180,350,600].forEach(function(t){setTimeout(restore,t)})}},true);
+  document.addEventListener("focusout",function(e){if(e.target&&e.target.id==="wat"){remember();[80,300].forEach(function(t){setTimeout(function(){restore();gap=null},t)})}},true);
+  if(vv)vv.addEventListener("resize",function(){var a=document.activeElement;if(a&&a.id==="wat"&&gap!==null)restore()});
+})();
 /* gestures: swipe right to reply, press and hold for actions */
 function gest(row,m,b){
   var x0=0,y0=0,dx=0,down=false,tm=null,drag=false,ico=null,hit=false;
