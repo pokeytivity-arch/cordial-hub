@@ -911,7 +911,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 09:45</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 09:55</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1729,6 +1729,27 @@ function expFilterBar(){
     var b=h("button",cur===f[0]?"go":"quiet",f[1]+(cnt[f[0]]?" ("+cnt[f[0]]+")":""));b.type="button";b.style.cssText="padding:5px 12px;font-size:.85rem";b.onclick=function(){XT.ef=f[0];renderExp();expFilterBar()};bar.appendChild(b)});
 }
 /* Supplies and Clothes tabs: only the bills, receipts and reimbursements; the items themselves are in the Checklist */
+/* Medical, Supplies and Clothes bills fold into year → quarter → month, closed by default (what you open stays open) */
+function ymqFold(parent,items,keyp,render){
+  var MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  function grp(par,k,label,sub){var d=h("details","supg");supKeep(d,k);var sm=h("summary");sm.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 2px;cursor:pointer;font-weight:700;list-style:none;border-bottom:1px solid rgba(128,128,128,.2)";
+    var t=h("span",null,(d.open?"▾ ":"▸ ")+label),c=h("span","meta",sub);c.style.whiteSpace="nowrap";sm.appendChild(t);sm.appendChild(c);d.appendChild(sm);var body=h("div");body.style.paddingLeft="10px";d.appendChild(body);par.appendChild(d);
+    d.addEventListener("toggle",function(){t.textContent=(d.open?"▾ ":"▸ ")+label});return body}
+  function sub(L){var n=L.length,t=L.reduce(function(q,i){return q+(+i.amt||0)},0);return n+(n===1?" bill":" bills")+" · "+money(t)}
+  var Y={};items.forEach(function(i){var d=String(i.date||"");var y=+d.slice(0,4)||0,m=(+d.slice(5,7)||1)-1;i._y=y;i._m=m;(Y[y]=Y[y]||[]).push(i)});
+  Object.keys(Y).sort(function(a,b){return b-a}).forEach(function(y){
+    var yb=grp(parent,keyp+y,y==="0"?"No date":y,sub(Y[y])),Q={};
+    Y[y].forEach(function(i){var q=Math.floor(i._m/3)+1;(Q[q]=Q[q]||[]).push(i)});
+    Object.keys(Q).sort(function(a,b){return b-a}).forEach(function(q){
+      var qb=grp(yb,keyp+y+"q"+q,"Q"+q+" · "+MN[(q-1)*3].slice(0,3)+"–"+MN[(q-1)*3+2].slice(0,3),sub(Q[q])),M={};
+      Q[q].forEach(function(i){(M[i._m]=M[i._m]||[]).push(i)});
+      Object.keys(M).sort(function(a,b){return b-a}).forEach(function(m){
+        var mb=grp(qb,keyp+y+"m"+m,MN[m],sub(M[m]));
+        M[m].sort(function(a,b){return String(b.date||"").localeCompare(String(a.date||""))}).forEach(function(i){mb.appendChild(render(i))});
+      });
+    });
+  });
+}
 function xtBills(cat){
   var box=$(cat==="supplies"?"#xs-stockb":"#xs-clob");if(!box)return;
   var ae=document.activeElement;if(ae&&ae.closest&&ae.closest(cat==="supplies"?"#xs-stockb":"#xs-clob")&&ae.matches&&ae.matches("input,select,textarea"))return;
@@ -1741,7 +1762,8 @@ function xtBills(cat){
   var list=S.exp.filter(function(x){return expCat(x)===cat}).sort(function(p,q){return String(q.date||"").localeCompare(String(p.date||""))||(q.ts||0)-(p.ts||0)});
   var tot=list.reduce(function(q,x){return q+(+x.amount||0)},0);top.appendChild(h("div","meta",list.length+(list.length===1?" bill":" bills")+" · "+money(tot)));
   box.appendChild(top);
-  var c=h("div","card");if(!list.length)c.appendChild(h("p","meta","No "+nmC.toLowerCase()+" bills yet."));list.forEach(function(x){c.appendChild(expRowEl(x))});box.appendChild(c);
+  var c=h("div","card");if(!list.length)c.appendChild(h("p","meta","No "+nmC.toLowerCase()+" bills yet."));
+  else ymqFold(c,list.map(function(x){return {date:x.date,amt:x.amount,x:x}}),cat+"_",function(i){return expRowEl(i.x)});box.appendChild(c);
 }
 function renderExp(){
   var pa=0,pb=0;S.exp.forEach(function(x){if(x.review&&x.review.state==="rejected")return;var pay=x.reimbAt?(x.by==="a"?"b":"a"):x.by;if(pay==="a")pa+=x.amount;else pb+=x.amount});
@@ -2691,14 +2713,15 @@ function xtMed(){
   var L=medList(),top=h("div","card");top.appendChild(h("h2",null,"Medical"));
   top.appendChild(h("p","meta","Hospital, clinic, lab and pharmacy bills for Janet. Upload the bill or receipt, Cordial reads it, and the other parent can reimburse it here. Medical receipts added in Expenses come here automatically."));
   if(canWrite){var ad=h("button","go","🩺 Add a medical bill");ad.type="button";ad.onclick=medAddDlg;top.appendChild(ad)}
-  var owe={a:0,b:0};L.forEach(function(x){if(!x.reimbAt&&x.by)owe[x.by]+=+x.amount||0});
-  var tot=L.reduce(function(q,x){return q+(+x.amount||0)},0);
-  top.appendChild(h("div","meta",L.length+(L.length===1?" bill":" bills")+" · "+money(tot)+" in total"+(owe.a?" · "+money(owe.a)+" paid by "+medFirst("a")+" not yet reimbursed":"")+(owe.b?" · "+money(owe.b)+" paid by "+medFirst("b")+" not yet reimbursed":"")));
+  var owe={a:0,b:0},ME=S.exp.filter(function(x){return expCat(x)==="medical"});L.concat(ME).forEach(function(x){if(!x.reimbAt&&x.by)owe[x.by]+=+x.amount||0});
+  var tot=L.concat(ME).reduce(function(q,x){return q+(+x.amount||0)},0),NB=L.length+ME.length;
+  top.appendChild(h("div","meta",NB+(NB===1?" bill":" bills")+" · "+money(tot)+" in total"+(owe.a?" · "+money(owe.a)+" paid by "+medFirst("a")+" not yet reimbursed":"")+(owe.b?" · "+money(owe.b)+" paid by "+medFirst("b")+" not yet reimbursed":"")));
   box.appendChild(top);
-  var ME=S.exp.filter(function(x){return expCat(x)==="medical"});
   if(!L.length&&!ME.length){var e=h("div","card");e.appendChild(h("p","meta","No medical bills yet."));box.appendChild(e);return}
-  L.forEach(function(x){box.appendChild(medCard(x))});
-  if(ME.length){var mc=h("div","card");mc.appendChild(h("h3",null,"Medical bills from Expenses"));ME.forEach(function(x){mc.appendChild(expRowEl(x))});box.appendChild(mc)}
+  var mc=h("div","card");
+  ymqFold(mc,L.map(function(x){return {date:x.date,amt:x.amount,m:x}}).concat(ME.map(function(x){return {date:x.date,amt:x.amount,x:x}})),"med_",function(i){
+    if(i.x)return expRowEl(i.x);var el=medCard(i.m);el.className="";el.style.cssText="padding:10px 0;border-bottom:1px solid rgba(128,128,128,.2)";return el});
+  box.appendChild(mc);
 }
 function medCard(rec){
   var c=h("div","card"),save=function(p){return xtDoc(rec.id,p)};
