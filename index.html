@@ -911,7 +911,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 11:20</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 11:55</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1884,9 +1884,43 @@ function chkBuy(nd,i,sec,role,days){
   if(role){cur[role]={by:myId,ts:ts};rec[role]={by:myId,ts:ts}}
   nd[i.k]=cur;xtDoc(pid,rec);
 }
+/* purchases from receipts tick the matching Checklist item (by the buyer; the other parent confirms as usual) */
+var CHKMAP=[
+ [/tooth/,null], [/wipe/,"Wipes"],[/diaper|pamper|nappy|nappies|huggies|molfix/,"Diapers"],[/rash|sudocrem|zinc/,"Rash cream"],[/training pant|pull.?up/,"Training pants"],[/potty/,"Potty or toilet-training seat"],[/changing mat|disposal bag/,"Changing mat and disposal bags"],
+ [/formula|milk|aptamil|nido|peak|cowbell|similac|nan\b/,"Milk or formula"],[/cereal|cerelac|nutribone|golden morn|baby food|puree/,"Baby cereal and foods"],[/yogh?urt|snack|biscuit|crackers|juice/,"Yogurt and snacks"],[/bowl|plate|spoon|cutlery|fork/,"Bowls, plates and cutlery"],[/sippy|water bottle|cup/,"Sippy cup and water bottle"],[/\bbib/,"Bibs"],[/flask/,"Hot Water Flask"],
+ [/soap|shampoo|lotion|body wash|bath|petroleum jelly|vaseline|jelly|baby oil|cream|perfume|cologne|antiseptic|carex|purit|dettol/,"Baby soap, shampoo and lotion"],[/powder/,"Powder"],[/towel|washcloth/,"Towel and washcloths"],[/sunscreen|sunblock/,"Sunscreen"],[/repellent|mosquito spray/,"Mosquito repellent for babies"],[/detangl|hair|comb|hairbrush/,"Hair products and a soft detangler"],
+ [/thermometer/,"Thermometer"],[/plaster|bandage|first.?aid|cotton wool|gauze/,"First-aid basics"],[/paracetamol|calpol|fever|emzor|panadol|syrup|vitamin|babyrex|mixture/,"Children’s fever syrup"],
+ [/block|lego/,"Building blocks"],[/book/,"Picture books"],[/puzzle/,"Puzzles"],[/crayon|colou?ring|drawing/,"Crayons and paper"],[/teddy|soft toy|plush|doll/,"Soft toys"],
+ [/car seat/,"Car seat"],[/stroller|pram|buggy/,"Stroller"],[/diaper bag/,"Diaper bag"],[/backpack/,"Small backpack"],
+ [/mattress|\bcot\b|crib/,"Bed or cot and mattress"],[/bedding|bedsheet|blanket|pillow|duvet/,"Bedding"],[/mosquito net/,"Mosquito net"],[/night light/,"Night light"],
+ [/uniform/,"Uniform"],[/school bag/,"School bag"],[/lunch ?box/,"Lunch box and water bottle"],[/school shoe/,"School shoes"],[/stationer|pencil|exercise book|eraser/,"Stationery"]
+];
+var CLOMAP={"Tops":"Everyday outfits","Bottoms":"Everyday outfits","Dresses and one-pieces":"Everyday outfits","Sleepwear":"Sleepwear","Socks":"Socks","Shoes":"Shoes","Layers and outerwear":"Light and warm layers"};
+function chkKeyOf(name){var out=null;CHK.forEach(function(c,ci){c[2].forEach(function(it,ii){if(!out&&it[0]===name)out=ci+"_"+ii})});
+  if(!out){var st=chkState(),ex=st.extra||{};Object.keys(ex).forEach(function(ci){(ex[ci]||[]).forEach(function(t,ii){if(!out&&t===name)out="x"+ci+"_"+ii})})}return out}
+var CHKSYNC=0;
+function chkAutoSync(){
+  try{
+    if(!canWrite||OBS||!db||Date.now()-CHKSYNC<15000)return;
+    var st=chkState();if(!st||!(S.xo||[]).length)return;
+    var done=Object.assign({},st.done||{}),auto=Object.assign({},st.auto||{}),add=0;
+    (S.xo||[]).forEach(function(x){
+      if(x.removed||(x.kind!=="supply"&&x.kind!=="clothes"))return;
+      var nm=null,t=String((x.name||"")+" "+(x.brand||"")+" "+(x.section||"")).toLowerCase();
+      if(x.kind==="clothes"){var cc=cloCatOf(x.cat);if(/school/.test(t)&&/shoe/.test(t))nm="School shoes";else if(/uniform|school polo|school shirt/.test(t))nm="Uniform";else nm=CLOMAP[cc]||null}
+      else{for(var i=0;i<CHKMAP.length;i++)if(CHKMAP[i][0].test(t)){nm=CHKMAP[i][1];break}}
+      if(auto[x.id])return;if(!nm)return;var k=chkKeyOf(nm);if(!k)return;auto[x.id]=1;add++;
+      var d=chkNorm(done[k]),ts=x.ts||x.added||Date.now();if(d&&(d.ts||0)>=ts)return;
+      var role=chkRoleOf(x.by),cur={by:x.by||myId,ts:ts,t:nm,pid:x.id,src:"receipt"};if(x.days)cur.days=x.days;if(role)cur[role]={by:x.by||myId,ts:ts};
+      done[k]=cur;
+    });
+    CHKSYNC=Date.now();
+    if(add)xtDoc("chk_state",{kind:"chk",done:done,auto:auto});
+  }catch(e){}
+}
 function chkHist(){
   var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},seen={},out=[];
-  (S.xo||[]).forEach(function(x){if(x.kind==="chkbuy"){seen[x.id]=1;out.push(x)}});
+  (S.xo||[]).forEach(function(x){if(x.kind==="chkbuy"){seen[x.id]=1;out.push(x)}else if(x.kind==="supply"||x.kind==="clothes")seen[x.id]=1});
   Object.keys(done).forEach(function(k){var d=chkNorm(done[k]);if(!d||(d.pid&&seen[d.pid]))return;
     var m=k.match(/^(\d+)_(\d+)$/),xm=k.match(/^x(\d+)_(\d+)$/),nm=d.t,sec="";
     if(m&&CHK[m[1]]){sec=CHK[m[1]][1];if(!nm&&CHK[m[1]][2][m[2]])nm=CHK[m[1]][2][m[2]][0]}else if(xm&&CHK[xm[1]]){sec=CHK[xm[1]][1];if(!nm)nm=((st.extra||{})[xm[1]]||[])[xm[2]]}
@@ -2500,8 +2534,18 @@ function stkWatch(){
 }
 setInterval(function(){try{stkWatch()}catch(e){}},60000);
 
+/* everything on the Checklist folds and starts closed; what you open stays open */
+var CHKOPEN2={},CHKHOPEN=false,FOLDOPEN={};
+function foldBox(id,title,sub){
+  var box=$(id);if(!box||!box.children.length)return;
+  var d=h("details","card");d.open=!!FOLDOPEN[id];d.addEventListener("toggle",function(){FOLDOPEN[id]=d.open});
+  var sm=h("summary");sm.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;list-style:none";
+  var t=h("b",null,title);t.style.fontSize="1.2rem";sm.appendChild(t);sm.appendChild(h("span","meta",(sub||"")+(d.open?" ▾":" ▸")));d.appendChild(sm);
+  d.addEventListener("toggle",function(){sm.lastChild.textContent=(sub||"")+(d.open?" ▾":" ▸")});
+  var inner=h("div");while(box.firstChild)inner.appendChild(box.firstChild);inner.querySelectorAll(":scope > .card, :scope > details.card").forEach(function(c){c.style.boxShadow="none";c.style.border="1px solid rgba(128,128,128,.18)"});d.appendChild(inner);box.appendChild(d);
+}
 function xtChk(){
-  var box=$("#xs-chk");if(!box)return;box.textContent="";
+  var box=$("#xs-chk");if(!box)return;try{chkAutoSync()}catch(e){}box.textContent="";
   var st=(S.xo||[]).filter(function(x){return x.id==="chk_state"})[0]||{},done=st.done||{},extra=st.extra||{};
   var total=0,got=0,both=0;
   CHK.forEach(function(c,ci){total+=c[2].length+(extra[ci]||[]).length;c[2].forEach(function(it,ii){var d=chkNorm(done[ci+"_"+ii]);if(d){got++;if(chkSides(d).confirmed)both++}});(extra[ci]||[]).forEach(function(t,ii){var d=chkNorm(done["x"+ci+"_"+ii]);if(d){got++;if(chkSides(d).confirmed)both++}})});
@@ -2514,10 +2558,10 @@ function xtChk(){
   var LB=chkLastMap();
   CHK.forEach(function(c,ci){
     var card=h("div","card"),items=c[2].map(function(it,ii){return {k:ci+"_"+ii,t:it[0],n:it[1]}}).concat((extra[ci]||[]).map(function(t,ii){return {k:"x"+ci+"_"+ii,t:t,n:""}}));
-    var n=items.filter(function(i){return done[i.k]}).length,shut=!!CHKSHUT[ci];
+    var n=items.filter(function(i){return done[i.k]}).length,shut=!CHKOPEN2[ci];
     var hd=h("button","quiet");hd.type="button";hd.style.cssText="display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;padding:0;background:none;text-decoration:none";
     hd.appendChild(h("b",null,c[0]+" "+c[1]));hd.appendChild(h("span","meta",n+"/"+items.length+(shut?" ▸":" ▾")));
-    hd.onclick=function(){CHKSHUT[ci]=!shut;xtChk()};card.appendChild(hd);
+    hd.onclick=function(){CHKOPEN2[ci]=shut;xtChk()};card.appendChild(hd);
     if(!shut){
       items.forEach(function(i){
         var d=chkNorm(done[i.k]),cons=CHKCONS.indexOf(i.t)>=0,row=h("div","item");row.style.cssText="display:flex;gap:12px;align-items:flex-start";
@@ -2602,7 +2646,10 @@ function xtChk(){
         ad.appendChild(inp);ad.appendChild(bt);card.appendChild(ad)}
     }
     box.appendChild(card)});
-  var H=chkHist(),hc=h("div","card");hc.appendChild(h("h2",null,"Purchase history ("+H.length+")"));
+  var H=chkHist(),hc=h("div","card");
+  var hh=h("button","quiet");hh.type="button";hh.style.cssText="display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;padding:0;background:none;text-decoration:none";
+  hh.appendChild(h("b",null,"🧾 Purchase history ("+H.length+")"));hh.appendChild(h("span","meta",CHKHOPEN?"▾":"▸"));hh.onclick=function(){CHKHOPEN=!CHKHOPEN;xtChk()};hc.appendChild(hh);
+  if(!CHKHOPEN){box.appendChild(hc);return}
   hc.appendChild(h("p","meta","Every purchase is kept with its date, so you can look back years from now. Download the spreadsheet or PDF any time."));
   if(!H.length)hc.appendChild(h("p","meta","Nothing bought yet. Tick an item above when it is bought."));
   H.slice(0,CHKHN).forEach(function(p){
@@ -2767,6 +2814,13 @@ async function stkFromFiles(files,date){
   }catch(e){}
 }
 
+
+/* Supplies and Clothes on the Checklist fold into one closed section each, every time they are drawn */
+(function(){
+  var _s=xtStock,_c=xtClothes;
+  xtStock=function(){_s.apply(this,arguments);try{var sl=stkList(),inu=sl.filter(function(x){return !x.usedAt&&(!stkLeft(x)||stkLeft(x).left>0)}).length,lw=sl.filter(function(x){var m=stkLeft(x);return m&&!x.usedAt&&m.left>0&&m.pc<=0.3}).length;foldBox("#xs-stock","🧴 Supplies",inu+" in use"+(lw?" · "+lw+" running low":""))}catch(e){}};
+  xtClothes=function(){_c.apply(this,arguments);try{var cL=cloList().filter(function(x){return !x.outAt}),pcs=cL.reduce(function(q,x){return q+Math.max(1,x.pieces||x.qty||1)},0);foldBox("#xs-clo","👕 Clothes",pcs+(pcs===1?" piece":" pieces")+" in "+cL.length+(cL.length===1?" item":" items"))}catch(e){}};
+})();
 function renderXtra(){
   xtTabs();
   var ae=document.activeElement;if(ae&&ae.matches&&ae.matches("input,select,textarea")&&ae.closest&&ae.closest("#xs-shop,#xs-sup,#xs-fee,#xs-chk"))return;
