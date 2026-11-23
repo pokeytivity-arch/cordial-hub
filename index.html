@@ -721,6 +721,7 @@ html[data-kb] #wadown{bottom:76px}
 .wm.flash .wb{animation:wflash 1.6s ease}
 @keyframes wflash{0%,30%{box-shadow:0 0 0 4px rgba(37,211,102,.55);filter:brightness(.9)}100%{box-shadow:none;filter:none}}
 details.supd>summary::-webkit-details-marker,details.supg>summary::-webkit-details-marker{display:none}
+details.card>summary::-webkit-details-marker{display:none}
 #wapin{margin:0 12px;border-radius:14px;background:var(--wfloat);box-shadow:0 1px 5px rgba(0,0,0,.1);padding:8px 12px;display:flex;align-items:center;gap:10px;font-size:.92rem}
 #wapin .tx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #wamsgs{flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 12px 10px;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column}
@@ -910,7 +911,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 10:50</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 11:20</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -2004,6 +2005,23 @@ function stkCol(pc){return pc>0.5?"#1fa855":pc>0.3?"#e0a100":"#d93025"}
 function stkMoney(n,c){return n==null||n===""?"":c&&c!=="NGN"?cloMoney(n,c):"₦"+Number(n).toLocaleString("en-NG",{maximumFractionDigits:0})}
 function stkDate(ts){return new Date(ts).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}
 function stkThumb(el,path){if(!path)return;if(/\.pdf$/i.test(path)){el.textContent="📄";el.onclick=function(e){e.stopPropagation();signed(path).then(function(u){preview({title:"Receipt",name:"receipt.pdf",type:"application/pdf",path:path,url:u,viewOnly:true})})};return}signed(path).then(function(u){el.style.backgroundImage="url('"+u+"')";el.onclick=function(e){e.stopPropagation();openViewer(u)}}).catch(function(){})}
+/* supply categories on the Checklist; older items are placed by their old section and name */
+var STKCATS=[["Food and groceries","🍎"],["Feeding","🍼"],["Diapers and wipes","🧷"],["Toiletries and skin care","🧴"],["Health and medicine","💊"],["Toys","🧸"],["Books and learning","📚"],["Baby gear and furniture","🛏️"],["Travel and outings","🚗"],["School items","🎒"],["Home","🏠"],["Other","📦"]];
+var STKOPEN={};
+function stkCatOf(x){
+  var s=x.cat2||x.section||"",n=String(x.name||"").toLowerCase();
+  if(STKCATS.some(function(c){return c[0]===s}))return s;
+  if(/diaper|pamper|nappy|wipe/.test(n))return "Diapers and wipes";
+  if(/syrup|vitamin|medic|tablet|drop|mixture|paracetamol|first aid|thermometer/.test(n))return "Health and medicine";
+  if(/book|flash ?card|puzzle|crayon|colou?ring/.test(n))return "Books and learning";
+  if(/toy|doll|ball|block|lego|teddy/.test(n))return "Toys";
+  if(/soap|shampoo|lotion|cream|jelly|vaseline|oil|perfume|antiseptic|toothpaste|toothbrush|powder|carex|purit|dettol/.test(n))return "Toiletries and skin care";
+  if(/milk|formula|cereal|snack|yogh?urt|juice|biscuit|fruit|rice|noodle|food/.test(n))return "Food and groceries";
+  if(/bottle|cup|bib|plate|spoon|bowl/.test(n))return "Feeding";
+  var old={"Diapers and changing":"Diapers and wipes","Bathing and skin care":"Toiletries and skin care","Health and safety":"Health and medicine","Play and learning":"Toys","Sleep":"Baby gear and furniture","Clothing":"Other"};
+  return old[s]||"Other";
+}
+function stkIcon(c){var f=STKCATS.filter(function(k){return k[0]===c})[0];return f?f[1]:"📦"}
 function xtStock(){
   var box=$("#xs-stock");if(!box)return;box.textContent="";
   try{stkClean()}catch(e){}
@@ -2036,6 +2054,8 @@ function xtStock(){
     if(canWrite){
       var bb=h("div");
       if(m&&m.left>0)bb.appendChild(xtBtn("Used up",function(){xtDoc(x.id,{usedAt:Date.now(),usedBy:myId})},"quiet"));
+      if(!m&&!x.usedAt)bb.appendChild(xtBtn("No longer used → archive",function(){xtDoc(x.id,{usedAt:Date.now(),usedBy:myId})},"quiet"));
+      if(x.usedAt&&!m)bb.appendChild(xtBtn("Back in use",function(){xtDoc(x.id,{usedAt:null,usedBy:null})},"quiet"));
       if(m)bb.appendChild(xtBtn(m.left>0?"Bought more":"Bought again",function(){stkAgain(x)},"quiet"));
       if(m&&m.pc<=0.3)bb.appendChild(cartBtn("Add to shopping list",async function(){
         var rec={kind:"shop",date:key(new Date()),title:x.name,note:"",by:myId,status:"requested",prio:3,ts:Date.now(),days:x.days};if(x.brand)rec.brand=x.brand;if(x.store)rec.store=x.store;if(x.qty)rec.qty=String(x.qty);
@@ -2045,18 +2065,26 @@ function xtStock(){
       if(STK.open[x.id]){
         var f=h("div");f.style.cssText="margin-top:8px;display:grid;gap:6px";
         function fld(lbl,val,type){var w=h("label",null,lbl),i=h("input");i.type=type||"text";i.value=val==null?"":val;w.appendChild(i);f.appendChild(w);return i}
-        var i1=fld("Item",x.name),i2=fld("Brand",x.brand),i3=fld("Quantity",x.qty,"number"),i4=fld("Shop",x.store),i5=fld("Price (₦)",x.price,"number"),i6=fld("Lasts how many days? (0 = doesn’t get used up)",x.days||0,"number");
-        var sv=h("div");sv.appendChild(xtBtn("Save",function(){var d=parseInt(i6.value,10)||0;xtDoc(x.id,{name:i1.value.trim()||x.name,brand:i2.value.trim(),qty:parseFloat(i3.value)||1,store:i4.value.trim(),price:i5.value===""?null:parseFloat(i5.value),days:d});STK.open[x.id]=false}));
+        var i1=fld("Item",x.name),i2=fld("Brand",x.brand),i3=fld("Quantity",x.qty,"number"),i4=fld("Shop",x.store),i5=fld("Price (₦)",x.price,"number"),i6=fld("Lasts how many days? (0 = doesn’t get used up)",x.days||0,"number");var cw=h("label",null,"Category"),csel=h("select");STKCATS.forEach(function(k){var o=h("option",null,k[1]+" "+k[0]);o.value=k[0];if(k[0]===stkCatOf(x))o.selected=true;csel.appendChild(o)});cw.appendChild(csel);f.appendChild(cw);
+        var sv=h("div");sv.appendChild(xtBtn("Save",function(){var d=parseInt(i6.value,10)||0;xtDoc(x.id,{name:i1.value.trim()||x.name,brand:i2.value.trim(),qty:parseFloat(i3.value)||1,store:i4.value.trim(),price:i5.value===""?null:parseFloat(i5.value),days:d,cat2:csel.value});STK.open[x.id]=false}));
         sv.appendChild(xtBtn("Remove",function(){if(confirm("Remove "+x.name+" from Supplies?"))xtDoc(x.id,{removed:Date.now(),removedBy:myId})},"quiet"));
         f.appendChild(sv);c.appendChild(f);
       }
     }
     return c;
   }
-  if(act.length){box.appendChild(h("h3",null,"In use"));act.forEach(function(x){box.appendChild(card(x))})}
-  if(keep.length){box.appendChild(h("h3",null,"Kept items"));keep.forEach(function(x){box.appendChild(card(x))})}
-  if(done.length){var dh=h("button","quiet","🗄️ Archive · used up ("+done.length+") "+(STK.showDone?"▲":"▼"));dh.type="button";dh.style.margin="10px 0";dh.onclick=function(){STK.showDone=!STK.showDone;xtStock()};box.appendChild(dh);
-    if(STK.showDone)done.sort(function(a,b){return (b.usedAt||stkLeft(b).end)-(a.usedAt||stkLeft(a).end)}).forEach(function(x){box.appendChild(card(x))})}
+  /* grouped by category (Food and groceries, Toiletries, Toys, Books…); each group folds and starts closed */
+  function group(list,keyp,title){
+    var by={};list.forEach(function(x){var c=stkCatOf(x);(by[c]=by[c]||[]).push(x)});
+    STKCATS.forEach(function(cc){var c=cc[0],items=by[c];if(!items||!items.length)return;
+      var k=keyp+c,d=h("details","card");d.open=!!STKOPEN[k];d.addEventListener("toggle",function(){STKOPEN[k]=d.open});
+      var sm=h("summary");sm.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;list-style:none;font-weight:700;font-size:1.05rem";
+      var lowN=items.filter(function(x){var m=stkLeft(x);return m&&m.left>0&&m.pc<=0.3}).length,soon=items.map(function(x){var m=stkLeft(x);return m&&m.left>0?m.end:0}).filter(Boolean).sort(function(a,b){return a-b})[0];
+      sm.appendChild(h("span",null,cc[1]+" "+c));sm.appendChild(h("span","meta",items.length+(items.length===1?" item":" items")+(title?"":lowN?" · "+lowN+" running low":soon?" · next runs out "+stkDate(soon):"")));
+      d.appendChild(sm);items.forEach(function(x){var cd=card(x);cd.style.boxShadow="none";cd.style.margin="8px 0 0";cd.style.border="1px solid rgba(128,128,128,.2)";d.appendChild(cd)});box.appendChild(d)});
+  }
+  var live=act.concat(keep);if(live.length)group(live,"L","");
+  if(done.length){box.appendChild(h("h3",null,"🗄️ Archive · used up or no longer used ("+done.length+")"));group(done.sort(function(a,b){return (b.usedAt||stkLeft(b)&&stkLeft(b).end||0)-(a.usedAt||stkLeft(a)&&stkLeft(a).end||0)}),"A","archive")}
 }
 /* the meter restarts; the earlier purchase is kept in the item's history */
 function stkAgain(x){
