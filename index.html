@@ -909,7 +909,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 03:50</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 08:25</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -964,6 +964,8 @@ main{max-width:100%}
   </div>
   <div id="xs-sup" hidden></div>
   <div id="xs-fee" hidden></div>
+  <div id="xs-stock" hidden></div>
+  <div id="xs-clo" hidden></div>
 </section>
 
 <section id="p-chats" hidden>
@@ -1020,12 +1022,10 @@ main{max-width:100%}
 </section>
 
 <section id="p-todo" hidden>
-  <div class="card" style="padding:10px"><div class="seg" id="tdseg"><button type="button" class="on" data-p="tasks">To-do <span id="tdn1"></span></button><button type="button" data-p="shop">Shopping list <span id="tdn2"></span></button><button type="button" data-p="chk">Checklist</button><button type="button" data-p="stock">Supplies</button><button type="button" data-p="clo">Clothes</button></div></div>
+  <div class="card" style="padding:10px"><div class="seg" id="tdseg"><button type="button" class="on" data-p="tasks">To-do <span id="tdn1"></span></button><button type="button" data-p="shop">Shopping list <span id="tdn2"></span></button><button type="button" data-p="chk">Checklist</button></div></div>
   <div id="todocard"></div>
   <div id="xs-shop" hidden></div>
   <div id="xs-chk" hidden></div>
-  <div id="xs-stock" hidden></div>
-  <div id="xs-clo" hidden></div>
 </section>
 <section id="p-meet" hidden>
   <div class="card" id="zoomcard"><button type="button" id="zoomhd" aria-expanded="false" style="display:flex;width:100%;align-items:center;justify-content:space-between;background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer"><span style="font-size:1.15rem;font-weight:700">Zoom connection</span><span><span id="zoomtick" style="font-size:1.2rem">…</span> <span id="zoomch" style="opacity:.6">›</span></span></button><div id="zoomdet" hidden style="margin-top:8px"><div id="zoomsts" class="meta">Checking…</div><button class="quiet" id="zoomchk" type="button" style="padding:4px 0;text-decoration:underline">Check again</button></div></div>
@@ -1706,13 +1706,13 @@ function renderExp(){
 
 /* ---------- Shopping list, monthly support and school fees (saved in the expenses collection, each with a "kind") ---------- */
 var XT={edit:{},tab:"exp",open:{},openT:{}};S.xo=[];
-var XTABS=[["exp","Expenses"],["sup","Support"],["fee","School fees"]];
+var XTABS=[["exp","Expenses"],["sup","Support"],["fee","School fees"],["stock","Supplies"],["clo","Clothes"]];
 /* the shopping list now lives on the To-do and Shopping List page */
 var TDT="tasks";
 function tdTabs(){
   var sg=$("#tdseg");if(!sg)return;
   Array.prototype.forEach.call(sg.children,function(b){b.className=b.dataset.p===TDT?"on":""});
-  var tc=$("#todocard"),sh=$("#xs-shop");if(tc)tc.hidden=TDT!=="tasks";if(sh)sh.hidden=TDT!=="shop";var ck=$("#xs-chk");if(ck){ck.hidden=TDT!=="chk";if(TDT==="chk")safe(xtChk)()}var sk=$("#xs-stock");if(sk){sk.hidden=TDT!=="stock";if(TDT==="stock")safe(xtStock)()}var cl=$("#xs-clo");if(cl){cl.hidden=TDT!=="clo";if(TDT==="clo")safe(xtClothes)()}
+  var tc=$("#todocard"),sh=$("#xs-shop");if(tc)tc.hidden=TDT!=="tasks";if(sh)sh.hidden=TDT!=="shop";var ck=$("#xs-chk");if(ck){ck.hidden=TDT!=="chk";if(TDT==="chk")safe(xtChk)()}
 }
 (function(){var sg=document.getElementById("tdseg");if(!sg)return;
   Array.prototype.forEach.call(sg.children,function(b){b.onclick=function(){TDT=b.dataset.p;tdTabs()}})})();
@@ -2156,7 +2156,7 @@ function stkAddDlg(opt){
               }
             }
           }
-          ov.remove();note("Added "+[nClo?nClo+(nClo===1?" item":" items")+" to Clothes":"",nSup?nSup+(nSup===1?" item":" items")+" to Supplies":""].filter(Boolean).join(" and ")+"."+exMsg);if(nClo&&!opt.clothes){TDT="clo";tdTabs()}setTimeout(function(){note("")},exMsg?6000:2500);
+          ov.remove();note("Added "+[nClo?nClo+(nClo===1?" item":" items")+" to Clothes":"",nSup?nSup+(nSup===1?" item":" items")+" to Supplies":""].filter(Boolean).join(" and ")+"."+exMsg);if(nClo&&!opt.clothes){XT.tab="clo";renderXtra()}setTimeout(function(){note("")},exMsg?6000:2500);
         }catch(e){go.disabled=false;go.textContent=goTxt;er.textContent="Couldn’t save. "+(e&&e.message==="toolarge"?"A photo is too large.":"Try again. ("+String((e&&(e.message||e.code||e.error))||e||"").slice(0,120)+")");er.hidden=false}
       };
     }catch(e){er.textContent=e&&e.pdfbig?"That PDF is too big (over 30 MB). Try saving fewer pages, or screenshots of it.":"Something went wrong. Try again.";er.hidden=false;go.disabled=false;go.textContent="Read it"}
@@ -2504,7 +2504,8 @@ function xtDoc(id,patch,base){var cur=(S.xo||[]).filter(function(x){return x.id=
 function xtTabs(){
   var t=$("#xsub");if(!t)return;t.textContent="";
   XTABS.forEach(function(x){var b=h("button",XT.tab===x[0]?"on":"",x[1]);b.type="button";b.style.cssText="flex:1 1 45%;margin-bottom:6px";b.onclick=function(){XT.tab=x[0];renderXtra()};t.appendChild(b)});
-  ["exp","sup","fee"].forEach(function(k){var e=$("#xs-"+k);if(e)e.hidden=XT.tab!==k});
+  ["exp","sup","fee","stock","clo"].forEach(function(k){var e=$("#xs-"+k);if(e)e.hidden=XT.tab!==k});
+  if(XT.tab==="stock")safe(xtStock)();if(XT.tab==="clo")safe(xtClothes)();
   tdTabs();
   var q=document.querySelector("#p-exp .cordq");if(q)q.hidden=XT.tab!=="exp";
 }
@@ -8399,7 +8400,8 @@ async function start(session){
         r.onclick=function(){
           r.classList.remove("un");
           if(e.go==="sched"){showTab("sched");window.scrollTo(0,0);return}
-          if(e.go==="chk"||e.go==="stock"){showTab("todo");TDT=e.go;tdTabs();window.scrollTo(0,0);return}
+          if(e.go==="stock"||e.go==="clo"){showTab("exp");XT.tab=e.go;renderXtra();window.scrollTo(0,0);return}
+          if(e.go==="chk"){showTab("todo");TDT=e.go;tdTabs();window.scrollTo(0,0);return}
           if(e.go==="todo"){window.__todoFocus=e.task||null;showTab("todo");TDT="tasks";tdTabs();try{renderTodos()}catch(x){}if(!e.task)window.scrollTo(0,0);return}
           if((e.k==="tag"||e.k==="post")&&e.post){showTab("feed");var pq=S.posts.filter(function(x){return x.id===e.post})[0];if(pq&&typeof openComments==="function")setTimeout(function(){openComments(pq)},250);return}
           if(e.k==="msg"&&/^\s*📝?\s*Meeting summary/i.test(e.text||"")){openCalPane("vm");return}
