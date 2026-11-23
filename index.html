@@ -911,7 +911,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 09:55</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 10:50</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -5365,7 +5365,7 @@ window.pushSubscribe=async function(){
   },3000);
 })();
 try{if(location.search.indexOf("ring=")>=0)history.replaceState(null,"",location.pathname)}catch(e){}
-function openFromUrl(u){try{var yt=String(u||"").match(/[?&]yt=([\w-]+)/);if(yt&&window.ytOpen)ytOpen(yt[1]);var m=String(u||"").match(/[?&]chat=([\w-]+)/);if(m&&window.waOpenChat)waOpenChat(m[1]);var g=String(u||"").match(/[?&]goto=(\w+)/);if(g&&g[1]==="janet"){showTab("people");setTimeout(openJanetJournal,600)}else if(g&&g[1]==="chk"){showTab("todo");TDT="chk";tdTabs()}else if(g&&g[1]==="todo"){var tk=String(u||"").match(/[?&]task=([\w-]+)/);window.__todoFocus=tk?tk[1]:null;showTab("todo");TDT="tasks";tdTabs();try{renderTodos()}catch(x){}}else if(g&&typeof showTab==="function")showTab(g[1])}catch(e){}}
+function openFromUrl(u){try{var tp=String(u||"").match(/[?&]tip=(\d+)/);if(tp){var lq=LPf();lq.tips=(lq.tips||[]).filter(function(x){return +x!==+tp[1]});lq.tips.push(+tp[1]);lq.tips=lq.tips.slice(-60);if(lq.read)lq.read[BOT_ID]=Date.now();saveLP(true);botCache={key:"",list:[]}}}catch(e){}try{var yt=String(u||"").match(/[?&]yt=([\w-]+)/);if(yt&&window.ytOpen)ytOpen(yt[1]);var m=String(u||"").match(/[?&]chat=([\w-]+)/);if(m&&window.waOpenChat)waOpenChat(m[1]);var g=String(u||"").match(/[?&]goto=(\w+)/);if(g&&g[1]==="janet"){showTab("people");setTimeout(openJanetJournal,600)}else if(g&&g[1]==="chk"){showTab("todo");TDT="chk";tdTabs()}else if(g&&g[1]==="todo"){var tk=String(u||"").match(/[?&]task=([\w-]+)/);window.__todoFocus=tk?tk[1]:null;showTab("todo");TDT="tasks";tdTabs();try{renderTodos()}catch(x){}}else if(g&&typeof showTab==="function")showTab(g[1])}catch(e){}}
 try{if(location.search.indexOf("chat=")>=0||location.search.indexOf("goto=")>=0||location.search.indexOf("yt=")>=0){var cu=location.search;setTimeout(function(){openFromUrl(cu);try{history.replaceState(null,"",location.pathname)}catch(e){}},3500)}}catch(e){}
 try{if(navigator.serviceWorker)navigator.serviceWorker.addEventListener("message",function(e){if(e.data&&e.data.type==="open")openFromUrl(e.data.url)})}catch(e){}
 function previewText(m){
@@ -9300,15 +9300,16 @@ function botMsgs(){
     for(var dj=0;dj<7;dj++){var dd=new Date();dd.setDate(dd.getDate()-dj);dd.setHours(9,0,0,0);if((dd.getDay()===2||dd.getDay()===5)&&dd.getTime()<=Date.now()&&dd.getTime()>bs+5000)jn.push(dd.getTime())}
   }
   if(AIH===null)AIH=aiLoad();
-  var yd0=S.prof&&S.prof.cordial_daily;var key=bs+"|"+new Date().getHours()+"|"+day.getTime()+"|"+(new Date().getHours()>=8?1:0)+"|"+AIH.length+(AIPEND?"p":"")+"|"+(yd0?yd0.vid+(yd0.seen||"")+(nsppdLive(yd0)?"L":""):"")+"|"+((S.prof&&S.prof.cordial_recap&&S.prof.cordial_recap.items||[]).map(function(x){return x.ts}).join(","))+"|"+((S.prof&&S.prof.cordial_summaries&&S.prof.cordial_summaries.items||[]).map(function(x){return x.ts}).join(","));
+  var yd0=S.prof&&S.prof.cordial_daily;var key=bs+"|t"+((lp.tips||[]).join(","))+"|"+new Date().getHours()+"|"+day.getTime()+"|"+(new Date().getHours()>=8?1:0)+"|"+AIH.length+(AIPEND?"p":"")+"|"+(yd0?yd0.vid+(yd0.seen||"")+(nsppdLive(yd0)?"L":""):"")+"|"+((S.prof&&S.prof.cordial_recap&&S.prof.cordial_recap.items||[]).map(function(x){return x.ts}).join(","))+"|"+((S.prof&&S.prof.cordial_summaries&&S.prof.cordial_summaries.items||[]).map(function(x){return x.ts}).join(","));
   if(botCache.key===key)return botCache.list;
   var L=[{id:"bot_w",by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs,text:"Hi, I’m Cordial 👋\n\nI’m the AI agent for this hub, and I’m not a real person. I send co-parenting tips and help with the hub, and you can ask me questions here.\n\nI can make mistakes, and I’m not a lawyer, doctor or counsellor. I can’t see your private messages, files or calendar."}];
   BOT_HELP.forEach(function(t,i){L.push({id:"bot_h"+i,by:BOT_ID,chat:BOT_ID,kind:"text",ts:bs+1000*(i+1),text:t})});
   jn.forEach(function(t){L.push({id:"bot_janet_"+Math.floor(t/86400000),by:BOT_ID,chat:BOT_ID,kind:"text",ts:t,text:"📝 Janet’s journal\n\nHi Mummy! Could you share a photo or two of Janet, and tell me how she is doing: what she has been up to, how school is going, her health, how happy she is, and anything about her we should know?\n\nThis helps document Janet’s journey, and Janet’s account (run by me) can post on her behalf. Open People, then tap “Add to Janet’s journal”."})});
   for(var k=6;k>=0;k--){
     var t=day.getTime()-k*86400000;
-    if(t>bs+5000&&t<=Date.now()){var n=Math.floor(t/86400000);L.push({id:"bot_t"+n,by:BOT_ID,chat:BOT_ID,kind:"text",ts:t,text:"💡 Tip of the day\n\n"+BOT_TIPS[n%BOT_TIPS.length]})}
+    /* tips now arrive as notifications; a tip shows here once its notification is tapped */
   }
+  (lp.tips||[]).forEach(function(n){n=+n;if(n>=0)L.push({id:"bot_t"+n,by:BOT_ID,chat:BOT_ID,kind:"text",ts:n*86400000+25200000,text:"💡 Tip of the day\n\n"+BOT_TIPS[n%BOT_TIPS.length]})});
   var yd=S.prof&&S.prof.cordial_daily;
   /* YouTube live cards from NSPPD / Pastor Jerry are no longer sent by Cordial */
   var rc=S.prof&&S.prof.cordial_recap;

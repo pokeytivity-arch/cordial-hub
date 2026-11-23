@@ -6,6 +6,7 @@ import { cleanEnv } from "./env-clean.js";
 import call_reminders from "./netlify/functions/call-reminders.js";
 import cordial from "./netlify/functions/cordial.js";
 import daily_feed from "./netlify/functions/daily-feed.js";
+import daily_tip from "./netlify/functions/daily-tip.js";
 import evening_recap from "./netlify/functions/evening-recap.js";
 import extra_check from "./netlify/functions/extra-check.js";
 import feed_extra from "./netlify/functions/feed-extra.js";
@@ -28,7 +29,7 @@ import zoom_sync from "./netlify/functions/zoom-sync.js";
 import zoom_webhook from "./netlify/functions/zoom-webhook.js";
 
 const FN = {
-  "call-reminders": call_reminders, cordial, "daily-feed": daily_feed, "evening-recap": evening_recap,
+  "call-reminders": call_reminders, cordial, "daily-feed": daily_feed, "daily-tip": daily_tip, "evening-recap": evening_recap,
   "extra-check": extra_check, "feed-extra": feed_extra, feed, invite, "jaas-token": jaas_token,
   "live-check": live_check, "move-notice": move_notice, push, recap, reschedule, shoplatest, "story-cleanup": story_cleanup, summary,
   "task-reminders": task_reminders, "unseen-reminder": unseen_reminder, "zoom-backfill": zoom_backfill,
@@ -43,6 +44,7 @@ const DUE = [
   ["task-reminders", (h, m) => m === 0],
   ["live-check", (h, m) => m % 10 === 0 && h >= 5 && h <= 14],
   ["daily-feed", (h, m) => h === 6 && m === 5],
+  ["daily-tip", (h, m) => h === 7 && m === 0],
   ["summary", (h, m) => h === 19 && m === 30],
   ["story-cleanup", (h, m) => h === 3 && m === 30],
   ["move-notice", (h, m) => m % 15 === 0],
