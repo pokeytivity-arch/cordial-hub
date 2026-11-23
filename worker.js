@@ -44,7 +44,7 @@ const DUE = [
   ["task-reminders", (h, m) => m === 0],
   ["live-check", (h, m) => m % 10 === 0 && h >= 5 && h <= 14],
   ["daily-feed", (h, m) => h === 6 && m === 5],
-  ["daily-tip", (h, m) => h === 7 && m === 0],
+  ["daily-tip", (h, m) => h === 19 && m === 0],
   ["summary", (h, m) => h === 19 && m === 30],
   ["story-cleanup", (h, m) => h === 3 && m === 30],
   ["move-notice", (h, m) => m % 15 === 0],

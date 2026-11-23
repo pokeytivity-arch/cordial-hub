@@ -1,5 +1,5 @@
-// Cordial's tip of the day, sent as a phone notification (not a chat message) at 8:00 am Nigerian time.
-// Tapping it opens the Cordial page in the hub with that day's tip.
+// Cordial's tip of the day, sent as a phone notification (not a chat message) at 8:00 pm Nigerian time.
+// The whole tip is in the notification; tapping it opens the Cordial page. Tips are never added to the chat.
 const push = require("./push.js");
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -63,7 +63,7 @@ async function run(force) {
     for (const s of subs) {
       if (!s || !s.endpoint || !s.keys) continue;
       let st = 0;
-      try { st = await push._sendOne(s, { kind: "summary", title: "💡 Cordial’s tip of the day", body: short(tip), tag: "cordial-tip", url: `/?chat=cordial_ai&tip=${n}` }); } catch {}
+      try { st = await push._sendOne(s, { kind: "summary", title: "💡 Cordial’s tip of the day", body: tip, tag: "cordial-tip", url: "/?chat=cordial_ai" }); } catch {}
       if (st >= 200 && st < 300) sent++;
       if (st !== 404 && st !== 410) keep.push(s);
     }
