@@ -720,6 +720,7 @@ html[data-look] #wa,#wa{margin:0!important;max-width:none!important;padding:0}
 html[data-kb] #wadown{bottom:76px}
 .wm.flash .wb{animation:wflash 1.6s ease}
 @keyframes wflash{0%,30%{box-shadow:0 0 0 4px rgba(37,211,102,.55);filter:brightness(.9)}100%{box-shadow:none;filter:none}}
+details.supd>summary::-webkit-details-marker,details.supg>summary::-webkit-details-marker{display:none}
 #wapin{margin:0 12px;border-radius:14px;background:var(--wfloat);box-shadow:0 1px 5px rgba(0,0,0,.1);padding:8px 12px;display:flex;align-items:center;gap:10px;font-size:.92rem}
 #wapin .tx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #wamsgs{flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 12px 10px;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column}
@@ -909,7 +910,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 10:30</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 10:50</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -3149,6 +3150,17 @@ function xtWeeks(startKey){
 /* the week that was saved as "16 Nov" is now "13 Nov": keep its paid/received record */
 var SUPLEG={"2026-11-13":"2026-11-16"};
 function supWid(y,m,d,recs){var k=y+"-"+pad(m)+"-"+pad(d),id="sup_w_"+k;if(!recs[id]&&SUPLEG[k]&&recs["sup_w_"+SUPLEG[k]])id="sup_w_"+SUPLEG[k];return id}
+/* Support payments: groups that fold, closed by default; what you open stays open while the page refreshes */
+var SUPOPEN={};
+function supKeep(el,k){el.open=!!SUPOPEN[k];el.addEventListener("toggle",function(){SUPOPEN[k]=el.open})}
+function supGrp(parent,k,label){
+  parent.__g=parent.__g||{};if(parent.__g[k])return parent.__g[k];
+  var d=h("details","supg");supKeep(d,k);var sm=h("summary");sm.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 2px;cursor:pointer;font-weight:700;list-style:none;border-bottom:1px solid rgba(128,128,128,.2)";
+  var t=h("span",null,"▸ "+label),c=h("span","meta");sm.appendChild(t);sm.appendChild(c);d.appendChild(sm);var body=h("div");body.style.paddingLeft="10px";d.appendChild(body);parent.appendChild(d);
+  d.addEventListener("toggle",function(){t.textContent=(d.open?"▾ ":"▸ ")+label});if(d.open)t.textContent="▾ "+label;
+  var g={body:body,n:{},paint:function(){var n=g.n,p=[];if(n.ok)p.push(n.ok+" received");if(n.wait)p.push(n.wait+" waiting");if(n.due)p.push(n.due+" unpaid");if(n.fut)p.push(n.fut+" not due");c.textContent=p.join(" · ");c.style.color=n.due?"#e8833a":""}};
+  parent.__g[k]=g;return g;
+}
 function xtSup(){
   var box=$("#xs-sup");if(!box)return;box.textContent="";
   var cfg=(S.xo||[]).filter(function(x){return x.id==="support_cfg"})[0]||{};
@@ -3179,8 +3191,8 @@ function xtSup(){
   months.forEach(function(mm){
     var id=wk?supWid(mm.y,mm.m,mm.d,recs):"sup_"+mm.y+"_"+pad(mm.m),r=recs[id]||{};
     var lbl=wk?"Week of "+mm.d+" "+sn[mm.m-1]+" "+mm.y:mn[mm.m-1]+" "+mm.y;
-    var row=h("div","item");row.style.flexDirection="column";
-    var top=h("div");top.style.cssText="display:flex;justify-content:space-between;gap:8px;align-items:center";
+    var row=h("details","item supd");row.style.flexDirection="column";supKeep(row,"p_"+id);
+    var top=h("summary");top.style.cssText="display:flex;justify-content:space-between;gap:8px;align-items:center;cursor:pointer;list-style:none";
     var future=wk?mm.status!=="due":mm.y*100+mm.m>curKey;
     top.appendChild(h("b",null,lbl+((future&&!wk)?" (upcoming)":"")));
     top.appendChild(r.receivedAt?xtChip("Received","#1fa855"):r.paidAt?xtChip("Paid · waiting for confirmation","#2f7de1"):(wk&&mm.status==="next")?xtChip("Up next","#2f7de1"):xtChip(future?"Not due":"Unpaid",future?"#8a949c":"#e8833a"));
@@ -3208,7 +3220,12 @@ function xtSup(){
       if(isAdminAcct())acts.appendChild(xtBtn("Undo paid",function(){xtDoc(id,{paidAt:null,paidBy:null,receipt:null,selfie_paid:null})},"quiet"));
     }
     if(r.paidAt)acts.appendChild(reimbBox(r,r.paidBy,function(pt){return xtDoc(id,pt)},"support"));
-    row.appendChild(acts);L.appendChild(row)});
+    row.appendChild(acts);
+    /* grouped by year, then month (weekly payments sit inside their month); everything starts closed */
+    var st=r.receivedAt?"ok":r.paidAt?"wait":future?"fut":"due";
+    var yb=supGrp(L,"y"+mm.y,String(mm.y)),mb=supGrp(yb.body,"m"+mm.y+"_"+mm.m,mn[mm.m-1]+" "+mm.y);
+    [yb,mb].forEach(function(g){g.n[st]=(g.n[st]||0)+1;g.paint()});
+    (wk?mb.body:mb.body).appendChild(row)});
   box.appendChild(L);
 }
 /* school fees: 15 academic sessions from 2026/2027, three terms each */
