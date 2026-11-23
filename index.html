@@ -909,7 +909,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 03:05</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 03:15</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -3990,7 +3990,7 @@ function spdItems(){
   var A=(ownerM()||{}).user_id||"",B=(mumM()||{}).user_id||"",out=[];
   function who(id){return id===B?"b":id===A?"a":"o"}
   function dt(s){var p=String(s||"").split("-");return p.length>2?new Date(+p[0],+p[1]-1,+p[2]).getTime():0}
-  (S.exp||[]).forEach(function(x){if(x.review&&x.review.state==="rejected")return;var w0=x.by==="b"?"b":"a";out.push({w:w0,t:dt(x.date)||x.ts||0,amt:+x.amount||0,c:"Expenses",r:x.reimbAt||0});if(x.reimbAt)out.push({w:w0==="a"?"b":"a",t:x.reimbAt,amt:+x.amount||0,c:"Expenses",r:0})});
+  (S.exp||[]).forEach(function(x){if(x.review&&x.review.state==="rejected")return;var w0=x.by==="b"?"b":"a";var fc=x.origCur&&x.origCur!=="NGN"&&x.origAmount?x.origCur:"",fo=fc?+x.origAmount:0;out.push({w:w0,t:dt(x.date)||x.ts||0,amt:+x.amount||0,c:"Expenses",r:x.reimbAt||0,cur:fc,orig:fo});if(x.reimbAt)out.push({w:w0==="a"?"b":"a",t:x.reimbAt,amt:+x.amount||0,c:"Expenses",r:0,cur:fc,orig:fo})});
   (S.xo||[]).forEach(function(x){
     if(x.kind==="sup"&&x.paidAt){var ws=who(x.paidBy);out.push({w:ws,t:x.paidAt,amt:+x.amount||0,c:"Support",r:x.reimbAt||0});if(x.reimbAt)out.push({w:ws==="a"?"b":"a",t:x.reimbAt,amt:+x.amount||0,c:"Support",r:0})}
     else if(x.kind==="feex"&&x.paid)out.push({w:who(x.paidBy||x.by),t:x.paidOn||x.ts||0,amt:+x.amount||0,c:"School fees"});
@@ -3998,6 +3998,9 @@ function spdItems(){
   });
   return out;
 }
+/* spending split by the currency it was paid in: naira, then each other currency with its naira value in brackets */
+function spdMix(list){var ng=0,fx={},ord=[];list.forEach(function(i){if(i.cur){if(!fx[i.cur]){fx[i.cur]={o:0,n:0};ord.push(i.cur)}fx[i.cur].o+=i.orig;fx[i.cur].n+=i.amt}else ng+=i.amt});
+  var parts=[];if(ng||!ord.length)parts.push(money(ng));ord.forEach(function(c){parts.push(cloMoney(fx[c].o,c)+" (≈ "+money(fx[c].n)+")")});return {txt:parts.join(" + "),multi:ord.length>0}}
 function renderSpend(){
   var card=$("#spendcard");if(!card)return;
   var ok=false;try{ok=tabOk("spend")}catch(e){}
@@ -4026,9 +4029,10 @@ function renderSpend(){
     var row=h("div","item"),c=h("div");c.style.flex="1";
     c.appendChild(h("div","meta",(admin?nm(w):"You")+(RB?" · paid back":"")));
     var big=h("div",null,money(tot));big.style.cssText="font-size:1.25rem;font-weight:800";c.appendChild(big);
-    cats.forEach(function(k){var v=mine_.filter(function(i){return i.c===k}).reduce(function(q,i){return q+i.amt},0);c.appendChild(h("div","meta",k+": "+money(v)))});
+    var mx=spdMix(mine_);if(mx.multi){var ml=h("div","meta","Paid in: "+mx.txt);ml.style.fontWeight="600";c.appendChild(ml)}
+    cats.forEach(function(k){c.appendChild(h("div","meta",k+": "+spdMix(mine_.filter(function(i){return i.c===k})).txt))});
     row.appendChild(c);L.appendChild(row)});
-  if(admin){var g=h("div","item"),gc=h("div");gc.appendChild(h("div","meta","Together"+(RB?" · paid back":"")));var gb=h("div",null,money(grand));gb.style.cssText="font-size:1.25rem;font-weight:800";gc.appendChild(gb);g.appendChild(gc);L.appendChild(g)}
+  if(admin){var g=h("div","item"),gc=h("div");gc.appendChild(h("div","meta","Together"+(RB?" · paid back":"")));var gb=h("div",null,money(grand));gb.style.cssText="font-size:1.25rem;font-weight:800";gc.appendChild(gb);var gm=spdMix(items.filter(function(i){return who.indexOf(i.w)>=0}));if(gm.multi)gc.appendChild(h("div","meta","Paid in: "+gm.txt));g.appendChild(gc);L.appendChild(g)}
 }
 function renderHome(){
   var e=S.sched[key(new Date())],L=$("#fam");L.textContent="";
