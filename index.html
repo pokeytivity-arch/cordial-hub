@@ -1716,7 +1716,7 @@ function renderExp(){
         rb2.onclick=async function(){rb2.disabled=true;rb2.textContent="Cordial is reading the receipt…";
           try{var fs=[];for(var qi=0;qi<pl.length&&qi<3;qi++){var u=await signed(pl[qi].path),bl=await (await fetch(u)).blob();fs.push(new File([bl],"receipt"+qi+(bl.type==="application/pdf"?".pdf":".jpg"),{type:bl.type}))}
             var ck=await aiVerifyMany(fs,{kind:"expense",title:x.desc||"Receipt",amount:x.amount,date:x.date}),its=(ck&&ck.read&&ck.read.items)||[];
-            if(!its.length){rb2.disabled=false;rb2.textContent="🧾 Read item prices from the receipt";return note("Cordial couldn’t read items on that receipt. A flat, well-lit photo works best.")}
+            if(!its.length){var rdA=ck&&ck.read&&typeof ck.read.amount==="number";if(rdA){rb2.replaceWith(h("div","meta","🧾 This receipt shows only a total ("+money(ck.read.amount)+"), with no list of items."));return}rb2.disabled=false;rb2.textContent="🧾 Read item prices from the receipt";return note("Cordial couldn’t read items on that receipt. A flat, well-lit photo works best.")}
             await db.doc("expenses/"+x.id).update({rcItems:its,rcShop:(ck.read.payee||"")});note("Read "+its.length+" items ✓")}
           catch(e){rb2.disabled=false;rb2.textContent="🧾 Read item prices from the receipt";fail(e)}};
         l.appendChild(rb2)}}catch(e){}
