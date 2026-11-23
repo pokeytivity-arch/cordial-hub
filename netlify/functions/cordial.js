@@ -140,7 +140,18 @@ const _handler = async (event) => {
         price: num(x.price), consumable: x.consumable !== false && (num(x.lasts_days) || 0) > 0, lasts_days: Math.max(0, Math.min(730, Math.round(num(x.lasts_days) || 0))), section: clip(x.section, 40),
         clothing: x.clothing === true, category: clip(x.category, 30), pieces: Math.max(1, Math.min(999, Math.round(num(x.pieces) || num(x.qty) || 1))), color: clip(x.color, 40),
       }));
-      return out(200, { store: clip(pr.store, 80), date: /^\d{4}-\d{2}-\d{2}$/.test(pr.date || "") ? pr.date : "", total: num(pr.total), currency: /^[A-Z]{3}$/.test(pr.currency || "") ? pr.currency : "NGN", items });
+      const currency = /^[A-Z]{3}$/.test(pr.currency || "") ? pr.currency : "NGN";
+      // receipts in another currency: today's rate to naira, so the amount can be filled in for the parent
+      let fx = null;
+      if (currency !== "NGN") {
+        try {
+          const fr = await fetch(`https://open.er-api.com/v6/latest/${currency}`, { signal: AbortSignal.timeout(4000) });
+          const fj = fr.ok ? await fr.json() : {};
+          const rate = fj && fj.rates && Number(fj.rates.NGN);
+          if (rate > 0) fx = { rate: Math.round(rate * 100) / 100, date: new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(new Date()), src: "open.er-api.com" };
+        } catch {}
+      }
+      return out(200, { store: clip(pr.store, 80), date: /^\d{4}-\d{2}-\d{2}$/.test(pr.date || "") ? pr.date : "", total: num(pr.total), currency, fx, items });
     } catch (e) { return out(502, { error: "ai_failed", detail: clip(e && e.message || e, 120) }); }
   }
 

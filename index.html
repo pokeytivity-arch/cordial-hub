@@ -909,7 +909,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 02:30</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 02:55</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -2012,7 +2012,7 @@ function stkAddDlg(opt){
         r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({stock:{text:gi===0?txt:"",images:part,clothes:!!opt.clothes}})});
         var jj={};try{jj=await r.json()}catch(x){}
         if(!r.ok){j=jj;break}
-        j.items=j.items.concat(jj.items||[]);if(!j.store&&jj.store)j.store=jj.store;if(!j.date&&jj.date)j.date=jj.date;if(!j.currency&&jj.currency)j.currency=jj.currency;
+        j.items=j.items.concat(jj.items||[]);if(!j.store&&jj.store)j.store=jj.store;if(!j.date&&jj.date)j.date=jj.date;if(!j.currency&&jj.currency)j.currency=jj.currency;if(!j.fx&&jj.fx)j.fx=jj.fx;
         if(jj.total!=null)j.total=(j.total||0)+jj.total;
       }
       if(!r.ok){er.textContent="Cordial couldn’t read that ("+r.status+(j.detail?": "+j.detail:"")+"). Try again, or use a clearer photo.";er.hidden=false;go.disabled=false;go.textContent="Read it";return}
@@ -2057,15 +2057,20 @@ function stkAddDlg(opt){
       exBox.appendChild(exSel);
       var exHelp=h("div","meta","");exBox.appendChild(exHelp);
       var aw2=h("label",null,"Amount (₦)"),ai=h("input");ai.type="number";ai.min="0";ai.step="any";aw2.appendChild(ai);aw2.hidden=true;exBox.appendChild(aw2);
-      var rw2=h("label",null,"Transfer receipt for the reimbursement (required)"),rfi=h("input");rfi.type="file";rfi.accept="image/*,application/pdf";rfi.multiple=true;rw2.appendChild(rfi);rw2.hidden=true;exBox.appendChild(rw2);
+      var rw2=h("label",null,"Transfer receipt for the reimbursement (optional: the invoice is enough)"),rfi=h("input");rfi.type="file";rfi.accept="image/*,application/pdf";rfi.multiple=true;rw2.appendChild(rfi);rw2.hidden=true;exBox.appendChild(rw2);
       /* the receipts' own totals include VAT: use them when everything is ticked, and scale the ticked items by the same VAT share otherwise */
       function selTotal(){var t=0,all=0,any=false,allOn=true;rows.forEach(function(r){var p=r.it.price;if(p!=null)all+=p;if(r.cb.checked){if(p!=null){t+=p;any=true}}else if(!r.dup)allOn=false});
         if(j.total>0){if(allOn)return Math.round(j.total*100)/100;if(any&&all>0)return Math.round(t*j.total/all*100)/100}
         return any?t:(j.total||"")}
-      rows.forEach(function(r){r.cb.addEventListener("change",function(){if(!exSel.value||foreign)return;ai.value=selTotal()})});
-      if(foreign)exHelp.dataset.fx="The receipt is in "+cur+". Enter what it cost in naira.";
-      exSel.onchange=function(){var v=exSel.value;aw2.hidden=!v;rw2.hidden=v!=="reimb";if(v&&!ai.value&&!foreign)ai.value=selTotal();
-        exHelp.textContent=v==="mine"?"Saved in Expenses as paid by you. It counts only towards your spending and doesn’t show on "+othN+"’s side.":v==="reimb"?"Saved in Expenses as bought by "+othN+" and reimbursed by you. It shows as a reimbursement and counts towards your spending, not "+othN+"’s. Attach the transfer receipt: Cordial reads its amount, date and narration and shows you what it found. A transfer for a different amount (for example sent with other money) is fine.":"";if(v&&foreign)exHelp.textContent=exHelp.dataset.fx+" "+exHelp.textContent};
+      
+      /* receipts in dollars (or another currency): Cordial converts the ticked total to naira at today's rate */
+      var fxR=foreign&&j.fx&&j.fx.rate>0?j.fx.rate:0,fxL=h("div","meta");fxL.style.fontWeight="600";aw2.appendChild(fxL);
+      function autoAmt(){var t=selTotal();if(t===""||t==null){return}if(!foreign){ai.value=t;return}
+        if(fxR){ai.value=Math.round(t*fxR);fxL.textContent=cloMoney(t,cur)+" × "+stkMoney(fxR)+" per "+cloCur(cur).trim()+"1 (rate on "+(j.fx.date||"today")+") ≈ "+stkMoney(Math.round(t*fxR))+". Change it if your bank charged a different amount."}
+        else fxL.textContent="Spent "+cloMoney(t,cur)+". Cordial couldn’t get today’s rate, so type the naira amount."}
+      rows.forEach(function(r){r.cb.addEventListener("change",function(){if(exSel.value)autoAmt()})});
+      exSel.onchange=function(){var v=exSel.value;aw2.hidden=!v;rw2.hidden=v!=="reimb";if(v)autoAmt();
+        exHelp.textContent=v==="mine"?"Saved in Expenses as paid by you. It counts only towards your spending and doesn’t show on "+othN+"’s side.":v==="reimb"?"Saved in Expenses as bought by "+othN+" and reimbursed by you. It shows as a reimbursement and counts towards your spending, not "+othN+"’s. The invoice is the proof. If you attach the transfer receipt too, Cordial reads its amount, date and narration and shows you what it found. A transfer for a different amount (for example sent with other money) is fine.":""};
       res.appendChild(exBox);
       var goTxt=rows.every(function(r){return r.clo})?"Add to Clothes":rows.some(function(r){return r.clo})?"Add to Clothes and Supplies":"Add to Supplies";
       go.textContent=goTxt;go.disabled=false;
@@ -2076,9 +2081,8 @@ function stkAddDlg(opt){
         if(exSel.value&&me){
           if(!thumbs.length){er.textContent="Add a photo of the purchase receipt to record the money.";er.hidden=false;return}
           if(!(exAmt>0)){er.textContent="Add the amount (above zero) to record the money.";er.hidden=false;return}
-          if(exSel.value==="reimb"){
-            var rf=Array.prototype.slice.call(rfi.files||[]);
-            if(!rf.length){er.textContent="Attach the transfer receipt for the reimbursement ("+money(exAmt)+").";er.hidden=false;return}
+          var rf=Array.prototype.slice.call(rfi.files||[]);
+          if(exSel.value==="reimb"&&rf.length){
             go.disabled=true;go.textContent="Cordial is checking the transfer receipt…";
             var rkey=rf.map(function(f){return f.name+":"+f.size}).join("|")+"|"+exAmt;
             if(window.__stkRC&&window.__stkRC.k===rkey)rchk=window.__stkRC.c;
@@ -2108,7 +2112,7 @@ function stkAddDlg(opt){
               var dupX=(S.exp||[]).filter(function(x){return x.date===key(new Date(base))&&Math.round(+x.amount)===Math.round(amt)&&x.by===payer})[0];
               if(dupX)exMsg=" An expense for "+money(amt)+" on that day was already in Expenses, so it wasn’t added again.";
               else{
-                var pft=function(pp){return /\.pdf$/i.test(pp)?{path:pp,name:"receipt.pdf",type:"application/pdf"}:{path:pp,name:"receipt.jpg",type:"image/jpeg"}},pr=pft(paths[0]),xrec=withShare({ts:Date.now(),desc:desc,amount:amt,by:payer,date:key(new Date(base)),proof:pr,fromSupplies:1,addedBy:myId},"exp");
+                var pft=function(pp){return /\.pdf$/i.test(pp)?{path:pp,name:"receipt.pdf",type:"application/pdf"}:{path:pp,name:"receipt.jpg",type:"image/jpeg"}},pr=pft(paths[0]),xrec=withShare({ts:Date.now(),desc:desc+(foreign&&selTotal()?" ("+cloMoney(selTotal(),cur)+")":""),amount:amt,by:payer,date:key(new Date(base)),proof:pr,fromSupplies:1,addedBy:myId},"exp");if(foreign){xrec.origCur=cur;xrec.origAmount=selTotal()||null;if(fxR)xrec.fxRate=fxR}
                 if(paths.length>1)xrec.proofs=paths.map(pft);
                 if(exSel.value==="reimb"){xrec.reimbAt=Date.now();xrec.reimbBy=myId;xrec.reimbReceipts=rcs;xrec.reimbCheck=rchk;var rd2=(rchk&&rchk.read)||{};xrec.reimbRead={amount:typeof rd2.amount==="number"?rd2.amount:null,date:rd2.date||"",narration:rd2.narration||"",payee:rd2.payee||""}}
                 await db.collection("expenses").add(xrec);
@@ -2141,7 +2145,7 @@ function cloKey(n,u){
 /* read a size label such as 4T, 4-5T, 2-4T, 18-24M, 7-8 Years, Size 4, Ages 3-10 */
 function cloSize(s){
   var t=String(s||"").toUpperCase().replace(/YEARS?|YRS?/g,"Y").replace(/MONTHS?|MOS?/g,"M").replace(/\s+/g,"");
-  if(!t||/ONESIZE|^OS$|FREESIZE/.test(t))return null;
+  if(!t||/ONESIZE|^OS$|FREESIZE|INCH|IN$|\d(IN|CM)|"/.test(t))return null;
   var m=t.match(/(\d+)(?:[TYM])?-(\d+)([TYM]?)/);
   if(m){var u=m[3]||(+m[2]>5?"Y":"T");return {lo:cloKey(+m[1],u),hi:cloKey(+m[2],u)}}
   m=t.match(/(\d+)([TYM])/);if(m){var k=cloKey(+m[1],m[2]);return {lo:k,hi:k}}
@@ -2160,7 +2164,7 @@ function cloWhen(limit,isH){var k=cloMe(),t=isH?k.htAt:k.wtAt,v=isH?k.ht:k.wt*2.
   if(v>=limit)return t-(v-limit)/cloRate(cloAgeM(t),isH)*CLOM;
   for(var i=0;i<240;i++){var r=cloRate(cloAgeM(t),isH);if(v+r>=limit)return t+(limit-v)/r*CLOM;v+=r;t+=CLOM}return null}
 function cloSizeNow(t){var w=cloProj(t||Date.now(),false);if(w==null)return "";for(var i=0;i<CLOORDER.length;i++){var z=CLOSZ[CLOORDER[i]];if(w<z[1])return CLOORDER[i]}return "14"}
-function cloKept(x){return x.fitM===0||(x.fitM==null&&cloCatOf(x.cat)==="Accessories"&&!cloSize(x.size))}
+function cloKept(x){return x.fitM===0||(x.fitM==null&&cloCatOf(x.cat)==="Accessories")}
 /* when she is likely to outgrow it: the parent's months if set, else the size chart and her growth */
 function cloFit(x){
   if(cloKept(x))return null;
