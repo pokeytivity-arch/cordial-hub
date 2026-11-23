@@ -911,7 +911,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 11:55</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 09:45</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -4410,7 +4410,7 @@ function spdItems(){
   var A=(ownerM()||{}).user_id||"",B=(mumM()||{}).user_id||"",out=[];
   function who(id){return id===B?"b":id===A?"a":"o"}
   function dt(s){var p=String(s||"").split("-");return p.length>2?new Date(+p[0],+p[1]-1,+p[2]).getTime():0}
-  (S.exp||[]).forEach(function(x){if(x.review&&x.review.state==="rejected")return;var w0=x.by==="b"?"b":"a";var fc=x.origCur&&x.origCur!=="NGN"&&x.origAmount?x.origCur:"",fo=fc?+x.origAmount:0;out.push({w:w0,t:dt(x.date)||x.ts||0,amt:+x.amount||0,c:"Expenses",r:x.reimbAt||0,cur:fc,orig:fo});if(x.reimbAt)out.push({w:w0==="a"?"b":"a",t:x.reimbAt,amt:+x.amount||0,c:"Expenses",r:0,cur:fc,orig:fo})});
+  (S.exp||[]).forEach(function(x){if(x.review&&x.review.state==="rejected")return;var w0=x.by==="b"?"b":"a";var fc=x.origCur&&x.origCur!=="NGN"&&x.origAmount?x.origCur:"",fo=fc?+x.origAmount:0;var cx="Expenses";try{var ec=expCat(x);cx=ec==="medical"?"Medical":ec==="school"?"School fees":"Expenses"}catch(e){}out.push({w:w0,t:dt(x.date)||x.ts||0,amt:+x.amount||0,c:cx,r:x.reimbAt||0,cur:fc,orig:fo});if(x.reimbAt)out.push({w:w0==="a"?"b":"a",t:x.reimbAt,amt:+x.amount||0,c:cx,r:0,cur:fc,orig:fo})});
   (S.xo||[]).forEach(function(x){
     if(x.kind==="sup"&&x.paidAt){var ws=who(x.paidBy);out.push({w:ws,t:x.paidAt,amt:+x.amount||0,c:"Support",r:x.reimbAt||0});if(x.reimbAt)out.push({w:ws==="a"?"b":"a",t:x.reimbAt,amt:+x.amount||0,c:"Support",r:0})}
     else if(x.kind==="feex"&&x.paid)out.push({w:who(x.paidBy||x.by),t:x.paidOn||x.ts||0,amt:+x.amount||0,c:"School fees"});
