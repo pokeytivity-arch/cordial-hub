@@ -909,7 +909,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 02:55</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 03:05</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1699,7 +1699,7 @@ function renderExp(){
           catch(e){rb2.disabled=false;rb2.textContent="🧾 Read item prices from the receipt";fail(e)}};
         l.appendChild(rb2)}}catch(e){}
     l.appendChild(reimbBox(x,xpid,function(pt){return db.doc("expenses/"+x.id).update(pt)},"expense"));if(x.reimbAt)l.style.opacity=".7";
-    var rt=h("div");rt.style.textAlign="right";rt.appendChild(h("div","amt",money(x.amount)));
+    var rt=h("div");rt.style.textAlign="right";if(x.origCur&&x.origAmount){rt.appendChild(h("div","amt",cloMoney(x.origAmount,x.origCur)));rt.appendChild(h("div","meta","(≈ "+money(x.amount)+")"))}else rt.appendChild(h("div","amt",money(x.amount)));
     var rm=h("button","quiet","Remove");rm.onclick=function(){db.doc("expenses/"+x.id).delete().catch(fail)};
     if(canWrite&&canRemoveRec(x))rt.appendChild(rm);r.appendChild(l);r.appendChild(rt);L.appendChild(r)});
 }
@@ -1933,7 +1933,7 @@ function xtStock(){
     var tx=h("div");tx.style.cssText="flex:1;min-width:0";
     var nm=h("b",null,x.name);nm.style.fontSize="1.05rem";tx.appendChild(nm);
     var sub=[x.brand,(x.qty>1?x.qty+" × ":"")+(x.size||x.unit||""),x.store].filter(function(v){return v&&String(v).trim()}).join(" · ");if(sub)tx.appendChild(h("div","meta",sub));
-    tx.appendChild(h("div","meta","Bought "+stkDate(x.ts)+(x.by?" by "+(x.by===myId?"you":(memberName(x.by)||"")):"")+(x.price!=null?" · "+stkMoney(x.price,x.cur):"")));
+    tx.appendChild(h("div","meta","Bought "+stkDate(x.ts)+(x.by?" by "+(x.by===myId?"you":(memberName(x.by)||"")):"")+(x.price!=null?" · "+fxShow(x.price,x.cur,x.fx):"")));
     row.appendChild(tx);c.appendChild(row);
     if(m){
       var bar=h("div");bar.style.cssText="height:12px;border-radius:6px;background:rgba(128,128,128,.22);overflow:hidden;margin-top:10px";
@@ -2016,9 +2016,9 @@ function stkAddDlg(opt){
         if(jj.total!=null)j.total=(j.total||0)+jj.total;
       }
       if(!r.ok){er.textContent="Cordial couldn’t read that ("+r.status+(j.detail?": "+j.detail:"")+"). Try again, or use a clearer photo.";er.hidden=false;go.disabled=false;go.textContent="Read it";return}
-      var items=[],mg={},cur=j.currency||"NGN",foreign=cur!=="NGN";(j.items||[]).forEach(function(it){var g=stkNorm(it.name)+"|"+stkNorm(it.brand)+"|"+(it.price==null?"":it.price)+(it.clothing?"|"+stkNorm(it.size)+"|"+stkNorm(it.color):"");if(mg[g]){mg[g].qty=(mg[g].qty||1)+(it.qty||1);if(it.clothing)mg[g].pieces=(mg[g].pieces||1)+(it.pieces||it.qty||1);mg[g].merged=1}else{mg[g]=Object.assign({},it);items.push(mg[g])}});
+      var items=[],mg={},cur=j.currency||"NGN",foreign=cur!=="NGN",fxR=foreign&&j.fx&&j.fx.rate>0?j.fx.rate:0;(j.items||[]).forEach(function(it){var g=stkNorm(it.name)+"|"+stkNorm(it.brand)+"|"+(it.price==null?"":it.price)+(it.clothing?"|"+stkNorm(it.size)+"|"+stkNorm(it.color):"");if(mg[g]){mg[g].qty=(mg[g].qty||1)+(it.qty||1);if(it.clothing)mg[g].pieces=(mg[g].pieces||1)+(it.pieces||it.qty||1);mg[g].merged=1}else{mg[g]=Object.assign({},it);items.push(mg[g])}});
       if(!items.length){er.textContent="Cordial didn’t find any items. Try a clearer photo of the receipt, or type what you bought in the box.";er.hidden=false;go.disabled=false;go.textContent="Read it";return}
-      res.appendChild(h("b",null,"Found "+items.length+(items.length===1?" item":" items")+(j.store?" from "+j.store:"")+(j.total!=null?" · total "+stkMoney(j.total,cur):"")+". "+(items.some(function(it){return it.clothing})?"Check the type, size and pieces of the clothes":"Check the days each lasts")+", untick anything you don’t want."));
+      res.appendChild(h("b",null,"Found "+items.length+(items.length===1?" item":" items")+(j.store?" from "+j.store:"")+(j.total!=null?" · total "+fxShow(j.total,cur,fxR):"")+(fxR?" at "+stkMoney(fxR)+" per "+cloCur(cur).trim()+"1 today":"")+". "+(items.some(function(it){return it.clothing})?"Check the type, size and pieces of the clothes":"Check the days each lasts")+", untick anything you don’t want."));
       var when=h("label",null,"Bought on");var wd=h("input");wd.type="date";wd.value=j.date||key(new Date());when.appendChild(wd);res.appendChild(when);
       var rows=[];
       items.forEach(function(it){
@@ -2027,7 +2027,7 @@ function stkAddDlg(opt){
         var dts=j.date?new Date(j.date+"T12:00:00").getTime():Date.now(),isClo=!!it.clothing,dup=isClo?cloDupOf(it.name,dts,it.price,j.store||"",it.size,it.color):stkDupOf(it.name,dts,it.price,j.store||"");
         if(dup){cb.checked=false;var dn=h("div","meta","Already in "+(isClo?"Clothes":"Supplies")+" from this purchase, so it’s left out. Tick it if you really bought it twice.");dn.style.cssText="color:#c07a00;font-weight:600"}
         var nm=h("input");nm.value=it.name;nm.style.cssText="flex:1;font-weight:600";hd.appendChild(nm);rw.appendChild(hd);
-        rw.appendChild(h("div","meta",[it.brand,isClo?"":(it.qty>1?it.qty+" × ":"")+(it.size||it.unit||""),it.price!=null?stkMoney(it.price,cur):""].filter(function(v){return v&&String(v).trim()}).join(" · ")));
+        rw.appendChild(h("div","meta",[it.brand,isClo?"":(it.qty>1?it.qty+" × ":"")+(it.size||it.unit||""),it.price!=null?fxShow(it.price,cur,fxR):""].filter(function(v){return v&&String(v).trim()}).join(" · ")));
         var di=null,ccs=null,csz=null,cpc=null,ccol=null;
         if(isClo){
           var tag=h("div","meta","👕 Goes to Clothes");tag.style.cssText="font-weight:600;color:#1a7f45";rw.appendChild(tag);
@@ -2064,10 +2064,11 @@ function stkAddDlg(opt){
         return any?t:(j.total||"")}
       
       /* receipts in dollars (or another currency): Cordial converts the ticked total to naira at today's rate */
-      var fxR=foreign&&j.fx&&j.fx.rate>0?j.fx.rate:0,fxL=h("div","meta");fxL.style.fontWeight="600";aw2.appendChild(fxL);
-      function autoAmt(){var t=selTotal();if(t===""||t==null){return}if(!foreign){ai.value=t;return}
-        if(fxR){ai.value=Math.round(t*fxR);fxL.textContent=cloMoney(t,cur)+" × "+stkMoney(fxR)+" per "+cloCur(cur).trim()+"1 (rate on "+(j.fx.date||"today")+") ≈ "+stkMoney(Math.round(t*fxR))+". Change it if your bank charged a different amount."}
-        else fxL.textContent="Spent "+cloMoney(t,cur)+". Cordial couldn’t get today’s rate, so type the naira amount."}
+      var fxL=h("div","meta");fxL.style.fontWeight="600";aw2.appendChild(fxL);
+      if(fxR){aw2.firstChild.textContent="Amount ("+cloCur(cur).trim()+", as on the invoice)";ai.step="0.01"}
+      function fxLine(){var v=parseFloat(ai.value);fxL.textContent=fxR?(v>0?"(≈ "+stkMoney(Math.round(v*fxR))+" at "+stkMoney(fxR)+" per "+cloCur(cur).trim()+"1, rate on "+(j.fx.date||"today")+")":""):foreign?"Spent "+cloMoney(selTotal(),cur)+". Cordial couldn’t get today’s rate, so type the naira amount.":""}
+      ai.addEventListener("input",fxLine);
+      function autoAmt(){var t=selTotal();if(t===""||t==null){return}if(!foreign||fxR)ai.value=t;fxLine()}
       rows.forEach(function(r){r.cb.addEventListener("change",function(){if(exSel.value)autoAmt()})});
       exSel.onchange=function(){var v=exSel.value;aw2.hidden=!v;rw2.hidden=v!=="reimb";if(v)autoAmt();
         exHelp.textContent=v==="mine"?"Saved in Expenses as paid by you. It counts only towards your spending and doesn’t show on "+othN+"’s side.":v==="reimb"?"Saved in Expenses as bought by "+othN+" and reimbursed by you. It shows as a reimbursement and counts towards your spending, not "+othN+"’s. The invoice is the proof. If you attach the transfer receipt too, Cordial reads its amount, date and narration and shows you what it found. A transfer for a different amount (for example sent with other money) is fine.":""};
@@ -2077,7 +2078,7 @@ function stkAddDlg(opt){
       go.onclick=async function(){
         var pick=rows.filter(function(r){return r.cb.checked&&r.nm.value.trim()});if(!pick.length){er.textContent="Tick at least one item.";er.hidden=false;return}
         /* recording money needs proof: the purchase receipt, and for a reimbursement the transfer receipt for exactly the amount */
-        var exAmt=parseFloat(ai.value),rcs=[],rchk=null;
+        var exAmt=parseFloat(ai.value),exOrig=null,rcs=[],rchk=null;if(fxR&&exAmt>0){exOrig=exAmt;exAmt=Math.round(exAmt*fxR)}
         if(exSel.value&&me){
           if(!thumbs.length){er.textContent="Add a photo of the purchase receipt to record the money.";er.hidden=false;return}
           if(!(exAmt>0)){er.textContent="Add the amount (above zero) to record the money.";er.hidden=false;return}
@@ -2102,8 +2103,8 @@ function stkAddDlg(opt){
           var d0=wd.value?new Date(wd.value+"T12:00:00").getTime():Date.now(),base=Math.min(Date.now(),d0);
           var nClo=0,nSup=0;
           for(var n=0;n<pick.length;n++){var p=pick[n],it=p.it,id=(p.clo?"clo_":"sup_")+Date.now().toString(36)+n+Math.random().toString(36).slice(2,5);
-            if(p.clo){nClo++;await xtDoc(id,{kind:"clothes",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",cat:p.ccs.value,size:p.csz.value.trim(),pieces:Math.max(1,parseInt(p.cpc.value,10)||1),color:p.ccol.value.trim(),qty:it.qty||1,price:it.price,cur:cur,store:j.store||"",ts:base,by:myId,rcpt:paths,added:Date.now()});continue}
-            nSup++;await xtDoc(id,{kind:"supply",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",qty:it.qty||1,unit:it.unit||"",size:it.size||"",price:it.price,store:j.store||"",cur:cur,section:it.section||"",days:parseInt(p.di.value,10)||0,ts:base,by:myId,rcpt:paths,photo:0,added:Date.now()})}
+            if(p.clo){nClo++;await xtDoc(id,{kind:"clothes",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",cat:p.ccs.value,size:p.csz.value.trim(),pieces:Math.max(1,parseInt(p.cpc.value,10)||1),color:p.ccol.value.trim(),qty:it.qty||1,price:it.price,cur:cur,fx:fxR||null,store:j.store||"",ts:base,by:myId,rcpt:paths,added:Date.now()});continue}
+            nSup++;await xtDoc(id,{kind:"supply",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",qty:it.qty||1,unit:it.unit||"",size:it.size||"",price:it.price,store:j.store||"",cur:cur,fx:fxR||null,section:it.section||"",days:parseInt(p.di.value,10)||0,ts:base,by:myId,rcpt:paths,photo:0,added:Date.now()})}
           var exMsg="";
           if(exSel.value&&me){
             var amt=exAmt;
@@ -2112,7 +2113,7 @@ function stkAddDlg(opt){
               var dupX=(S.exp||[]).filter(function(x){return x.date===key(new Date(base))&&Math.round(+x.amount)===Math.round(amt)&&x.by===payer})[0];
               if(dupX)exMsg=" An expense for "+money(amt)+" on that day was already in Expenses, so it wasn’t added again.";
               else{
-                var pft=function(pp){return /\.pdf$/i.test(pp)?{path:pp,name:"receipt.pdf",type:"application/pdf"}:{path:pp,name:"receipt.jpg",type:"image/jpeg"}},pr=pft(paths[0]),xrec=withShare({ts:Date.now(),desc:desc+(foreign&&selTotal()?" ("+cloMoney(selTotal(),cur)+")":""),amount:amt,by:payer,date:key(new Date(base)),proof:pr,fromSupplies:1,addedBy:myId},"exp");if(foreign){xrec.origCur=cur;xrec.origAmount=selTotal()||null;if(fxR)xrec.fxRate=fxR}
+                var pft=function(pp){return /\.pdf$/i.test(pp)?{path:pp,name:"receipt.pdf",type:"application/pdf"}:{path:pp,name:"receipt.jpg",type:"image/jpeg"}},pr=pft(paths[0]),xrec=withShare({ts:Date.now(),desc:desc,amount:amt,by:payer,date:key(new Date(base)),proof:pr,fromSupplies:1,addedBy:myId},"exp");if(foreign&&exOrig){xrec.origCur=cur;xrec.origAmount=exOrig;xrec.fxRate=fxR}
                 if(paths.length>1)xrec.proofs=paths.map(pft);
                 if(exSel.value==="reimb"){xrec.reimbAt=Date.now();xrec.reimbBy=myId;xrec.reimbReceipts=rcs;xrec.reimbCheck=rchk;var rd2=(rchk&&rchk.read)||{};xrec.reimbRead={amount:typeof rd2.amount==="number"?rd2.amount:null,date:rd2.date||"",narration:rd2.narration||"",payee:rd2.payee||""}}
                 await db.collection("expenses").add(xrec);
@@ -2179,6 +2180,8 @@ function cloFit(x){
   return {end:end,left:left,pc:Math.max(0,Math.min(1,left/tot)),small:end<=now,from:from&&from>now?from:null,how:how,z:z};
 }
 function cloMon(ts){return new Date(ts).toLocaleDateString("en-GB",{month:"short",year:"numeric"})}
+/* a price in the receipt's currency, with the naira value at the saved rate in brackets */
+function fxShow(n,c,rate){if(n==null||n==="")return "";if(!c||c==="NGN")return stkMoney(n);return cloMoney(n,c)+(rate>0?" (≈ "+stkMoney(Math.round(n*rate))+")":"")}
 function cloCur(c){return ({USD:"$",GBP:"£",EUR:"€",NGN:"₦",CAD:"CA$"})[c||"NGN"]||((c||"")+" ")}
 function cloMoney(n,c){var f=c&&c!=="NGN"?2:0;return n==null||n===""?"":cloCur(c)+Number(n).toLocaleString("en-NG",{minimumFractionDigits:f,maximumFractionDigits:f})}
 function cloDupOf(name,ts,price,store,size,color){var g=stkSig(name+" "+(size||"")+" "+(color||""),ts,price,store);return cloList().filter(function(x){return stkSig(x.name+" "+(x.size||"")+" "+(x.color||""),x.ts,x.price,x.store)===g})[0]||null}
@@ -2240,7 +2243,7 @@ function xtClothes(){
     else tx.appendChild(h("div","meta","Doesn’t get outgrown"));
     r.appendChild(tx);r.onclick=function(){CLO.open[x.id]=!CLO.open[x.id];xtClothes()};c.appendChild(r);
     if(CLO.open[x.id]){
-      c.appendChild(h("div","meta","Bought "+stkDate(x.ts)+(x.by?" by "+(x.by===myId?"you":(memberName(x.by)||"")):"")+(x.price!=null?" · "+cloMoney(x.price,x.cur):"")+(x.store?" · "+x.store:"")));
+      c.appendChild(h("div","meta","Bought "+stkDate(x.ts)+(x.by?" by "+(x.by===myId?"you":(memberName(x.by)||"")):"")+(x.price!=null?" · "+fxShow(x.price,x.cur,x.fx):"")+(x.store?" · "+x.store:"")));
       if(canWrite){
         var f=h("div");f.style.cssText="margin-top:6px;display:grid;gap:6px";
         function fld(lbl,val,type){var w=h("label",null,lbl),i=h("input");i.type=type||"text";i.value=val==null?"":val;w.appendChild(i);f.appendChild(w);return i}
