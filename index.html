@@ -909,7 +909,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 03:25</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 03:40</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1971,6 +1971,24 @@ function stkAgain(x){
   var hist=(x.hist||[]).concat([{ts:x.ts,by:x.by,price:x.price,store:x.store,qty:x.qty,days:x.days,rcpt:x.rcpt||[],usedAt:x.usedAt||Date.now()}]).slice(-30);
   stkAddDlg({again:x,hist:hist});
 }
+/* PDF pages as pictures (so Cordial can see product photos on an order); hi = sharp copy for cropping, lo = smaller copy to send */
+async function pdfPages(file,max){
+  await loadLib("https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js");
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+  var doc=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise,out=[];
+  for(var n=1;n<=Math.min(doc.numPages,max||15);n++){var pg=await doc.getPage(n),v0=pg.getViewport({scale:1}),sc=Math.min(3,1800/Math.max(v0.width,v0.height)),v=pg.getViewport({scale:sc});
+    var cv=document.createElement("canvas");cv.width=Math.round(v.width);cv.height=Math.round(v.height);var cx=cv.getContext("2d");cx.fillStyle="#fff";cx.fillRect(0,0,cv.width,cv.height);
+    await pg.render({canvasContext:cx,viewport:v}).promise;
+    var hi=cv.toDataURL("image/jpeg",.88),k=Math.min(1,1400/Math.max(cv.width,cv.height)),c2=document.createElement("canvas");c2.width=Math.round(cv.width*k);c2.height=Math.round(cv.height*k);var x2=c2.getContext("2d");x2.drawImage(cv,0,0,c2.width,c2.height);
+    out.push({hi:hi,lo:c2.toDataURL("image/jpeg",.8)})}
+  return out;
+}
+/* cut a product photo out of a page: box = [left, top, right, bottom] as fractions of the picture */
+function cropBox(src,box){return new Promise(function(res){
+  if(!src||!Array.isArray(box)||box.length!==4)return res(null);var b=box.map(Number);if(b.some(function(v){return !(v>=0&&v<=1)})||b[2]-b[0]<0.02||b[3]-b[1]<0.01)return res(null);
+  var im=new Image();im.onload=function(){var W=im.naturalWidth,H=im.naturalHeight,px=0.01,x0=Math.max(0,(b[0]-px)*W),y0=Math.max(0,(b[1]-px*W/H)*H),x1=Math.min(W,(b[2]+px)*W),y1=Math.min(H,(b[3]+px*W/H)*H),w=x1-x0,hh=y1-y0;
+    if(w<12||hh<12)return res(null);var k=Math.min(1,600/Math.max(w,hh)),cv=document.createElement("canvas");cv.width=Math.round(w*k);cv.height=Math.round(hh*k);var cx=cv.getContext("2d");cx.fillStyle="#fff";cx.fillRect(0,0,cv.width,cv.height);cx.drawImage(im,x0,y0,w,hh,0,0,cv.width,cv.height);res(cv.toDataURL("image/jpeg",.88))};
+  im.onerror=function(){res(null)};im.src=src})}
 function stkAddDlg(opt){
   opt=opt||{};
   var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px";
@@ -2002,20 +2020,26 @@ function stkAddDlg(opt){
     if(!files.length&&!txt){er.textContent="Add a photo of the receipt or items first.";er.hidden=false;return}
     go.disabled=true;go.textContent="Cordial is reading…";
     try{
-      var imgs=[],thumbs=[];for(var i=0;i<files.length;i++){if(/pdf/i.test(files[i].type)){if(files[i].size>30*1048576)throw {pdfbig:1};go.textContent="Uploading "+String(files[i].name||"PDF").slice(0,24)+"…";var pth=await upload("docs",files[i],"receipt.pdf"),pu=await signed(pth);thumbs.push({file:files[i],path:pth});imgs.push({media:"application/pdf",url:pu});continue}var d=await evThumb(files[i]);thumbs.push(d);imgs.push({media:"image/jpeg",data:d.slice(d.indexOf(",")+1)})}
+      var imgs=[],thumbs=[],hires=[];for(var i=0;i<files.length;i++){if(/pdf/i.test(files[i].type)){if(files[i].size>30*1048576)throw {pdfbig:1};go.textContent="Uploading "+String(files[i].name||"PDF").slice(0,24)+"…";var pth=await upload("docs",files[i],"receipt.pdf");thumbs.push({file:files[i],path:pth});
+          /* the pages go to Cordial as pictures so it can point at each product photo; if that fails, Cordial reads the PDF itself */
+          var pgs=null;try{go.textContent="Opening "+String(files[i].name||"PDF").slice(0,24)+"…";pgs=await pdfPages(files[i],15)}catch(e){pgs=null}
+          if(pgs&&pgs.length){pgs.forEach(function(q){imgs.push({media:"image/jpeg",data:q.lo.slice(q.lo.indexOf(",")+1)});hires.push(q.hi)})}
+          else{var pu=await signed(pth);imgs.push({media:"application/pdf",url:pu});hires.push(null)}
+          continue}
+        var d=await evThumb(files[i]);thumbs.push(d);imgs.push({media:"image/jpeg",data:d.slice(d.indexOf(",")+1)});hires.push(URL.createObjectURL(files[i]))}
       var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)throw 0;
       /* any number of photos: Cordial reads them in groups of 8 and the lists are joined */
       go.textContent="Cordial is reading…";
       /* each PDF is read on its own; photos in groups of 8 */
-      var grp=[],cur8=[];imgs.forEach(function(im){if(im.url)grp.push([im]);else{cur8.push(im);if(cur8.length===8){grp.push(cur8);cur8=[]}}});if(cur8.length||!grp.length)grp.push(cur8);
+      var grp=[],cur8=[];imgs.forEach(function(im,ix){im.ix=ix;if(im.url)grp.push([im]);else{cur8.push(im);if(cur8.length===8){grp.push(cur8);cur8=[]}}});if(cur8.length||!grp.length)grp.push(cur8);
       var j={items:[],store:"",date:"",total:null},r={ok:true,status:200},ng=grp.length;
       for(var gi=0;gi<ng;gi++){
         if(ng>1)go.textContent="Cordial is reading… ("+(gi+1)+" of "+ng+")";
         var part=grp[gi];
-        r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({stock:{text:gi===0?txt:"",images:part,clothes:!!opt.clothes}})});
+        r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({stock:{text:gi===0?txt:"",images:part.map(function(im){return im.url?{media:im.media,url:im.url}:{media:im.media,data:im.data}}),clothes:!!opt.clothes}})});
         var jj={};try{jj=await r.json()}catch(x){}
         if(!r.ok){j=jj;break}
-        j.items=j.items.concat(jj.items||[]);if(!j.store&&jj.store)j.store=jj.store;if(!j.date&&jj.date)j.date=jj.date;if(!j.currency&&jj.currency)j.currency=jj.currency;if(!j.fx&&jj.fx)j.fx=jj.fx;
+        (jj.items||[]).forEach(function(it){var ph=it.photo;it.src=null;if(ph&&ph.img>=1&&part[ph.img-1]){it.src=hires[part[ph.img-1].ix];it.box=ph.box}});j.items=j.items.concat(jj.items||[]);if(!j.store&&jj.store)j.store=jj.store;if(!j.date&&jj.date)j.date=jj.date;if(!j.currency&&jj.currency)j.currency=jj.currency;if(!j.fx&&jj.fx)j.fx=jj.fx;
         if(jj.total!=null)j.total=(j.total||0)+jj.total;
       }
       if(!r.ok){er.textContent="Cordial couldn’t read that ("+r.status+(j.detail?": "+j.detail:"")+"). Try again, or use a clearer photo.";er.hidden=false;go.disabled=false;go.textContent="Read it";return}
@@ -2031,9 +2055,16 @@ function stkAddDlg(opt){
         if(dup){cb.checked=false;var dn=h("div","meta","Already in "+(isClo?"Clothes":"Supplies")+" from this purchase, so it’s left out. Tick it if you really bought it twice.");dn.style.cssText="color:#c07a00;font-weight:600"}
         var nm=h("input");nm.value=it.name;nm.style.cssText="flex:1;font-weight:600";hd.appendChild(nm);rw.appendChild(hd);
         rw.appendChild(h("div","meta",[it.brand,isClo?"":(it.qty>1?it.qty+" × ":"")+(it.size||it.unit||""),it.price!=null?fxShow(it.price,cur,fxR):""].filter(function(v){return v&&String(v).trim()}).join(" · ")));
-        var di=null,ccs=null,csz=null,cpc=null,ccol=null;
+        var di=null,ccs=null,csz=null,cpc=null,ccol=null,rec=null;
         if(isClo){
           var tag=h("div","meta","👕 Goes to Clothes");tag.style.cssText="font-weight:600;color:#1a7f45";rw.appendChild(tag);
+          var phr=h("div");phr.style.cssText="display:flex;gap:10px;align-items:center;margin:6px 0";var phi=h("div");phi.style.cssText="width:72px;height:72px;border-radius:10px;flex:none;background:#e9e9ee center/contain no-repeat;display:flex;align-items:center;justify-content:center;font-size:1.6rem";phi.textContent="📷";phr.appendChild(phi);
+          var phb=h("div");phb.style.cssText="display:flex;flex-direction:column;gap:2px;font-size:.85rem";var phm=h("span","meta","Finding the photo…");phb.appendChild(phm);
+          var phx=h("button","quiet","Remove photo");phx.type="button";phx.style.cssText="padding:0;text-align:left;text-decoration:underline";var phc=h("button","quiet","Use my own photo");phc.type="button";phc.style.cssText="padding:0;text-align:left;text-decoration:underline";
+          var phf=h("input");phf.type="file";phf.accept="image/*";phf.hidden=true;phb.appendChild(phx);phb.appendChild(phc);phb.appendChild(phf);phr.appendChild(phb);rw.appendChild(phr);
+          var setPh=function(d){rec.photo=d||null;phi.style.backgroundImage=d?"url('"+d+"')":"";phi.textContent=d?"":"📷";phm.textContent=d?"Photo from the order":"No photo";phx.hidden=!d};
+          phx.onclick=function(){setPh(null)};phc.onclick=function(){phf.click()};phf.onchange=function(){if(phf.files&&phf.files[0])evThumb(phf.files[0]).then(function(d){setPh(d);phm.textContent="Your photo"})};
+          rec={photo:null};setPh(null);phm.textContent=it.box?"Finding the photo…":"No photo on the order";cropBox(it.src,it.box).then(function(d){if(d)setPh(d);else phm.textContent="No photo on the order"});
           var g2=h("div");g2.style.cssText="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px";
           var l1=h("label",null,"Type");ccs=h("select");CLOCATS.forEach(function(k){var o=h("option",null,CLOICON[k]+" "+k);o.value=k;if(k===cloCatOf(it.category))o.selected=true;ccs.appendChild(o)});l1.appendChild(ccs);g2.appendChild(l1);
           var l2=h("label",null,"Size");csz=h("input");csz.value=it.size||"";csz.placeholder="e.g. 4T";l2.appendChild(csz);g2.appendChild(l2);
@@ -2048,7 +2079,7 @@ function stkAddDlg(opt){
           di=h("input");di.type="number";di.min="0";di.value=it.lasts_days||0;di.style.cssText="width:80px";dl.appendChild(di);dl.appendChild(document.createTextNode("days (0 = doesn’t get used up)"));rw.appendChild(dl);
         }
         if(dup)rw.appendChild(dn);if(it.merged)rw.appendChild(h("div","meta","Listed more than once on the receipt, so the quantities were added together."));
-        res.appendChild(rw);rows.push({it:it,cb:cb,nm:nm,di:di,dup:!!dup,clo:isClo,ccs:ccs,csz:csz,cpc:cpc,ccol:ccol});
+        res.appendChild(rw);rows.push({it:it,cb:cb,nm:nm,di:di,dup:!!dup,clo:isClo,ccs:ccs,csz:csz,cpc:cpc,ccol:ccol,ph:isClo?rec:null});
       });
       var nDup=rows.filter(function(r){return r.dup}).length;
       if(nDup&&nDup===rows.length){var aw=h("div","meta","This receipt looks like it was already added. Nothing new to add.");aw.style.cssText="color:#c07a00;font-weight:700";res.insertBefore(aw,res.firstChild)}
@@ -2106,7 +2137,8 @@ function stkAddDlg(opt){
           var d0=wd.value?new Date(wd.value+"T12:00:00").getTime():Date.now(),base=Math.min(Date.now(),d0);
           var nClo=0,nSup=0;
           for(var n=0;n<pick.length;n++){var p=pick[n],it=p.it,id=(p.clo?"clo_":"sup_")+Date.now().toString(36)+n+Math.random().toString(36).slice(2,5);
-            if(p.clo){nClo++;await xtDoc(id,{kind:"clothes",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",cat:p.ccs.value,size:p.csz.value.trim(),pieces:Math.max(1,parseInt(p.cpc.value,10)||1),color:p.ccol.value.trim(),qty:it.qty||1,price:it.price,cur:cur,fx:fxR||null,store:j.store||"",ts:base,by:myId,rcpt:paths,added:Date.now()});continue}
+            if(p.clo){nClo++;var phP=null;if(p.ph&&p.ph.photo){try{phP=await upload("docs",await (await fetch(p.ph.photo)).blob(),"clothes.jpg")}catch(e){phP=null}}
+              await xtDoc(id,{photoPath:phP,photo:phP?1:0,kind:"clothes",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",cat:p.ccs.value,size:p.csz.value.trim(),pieces:Math.max(1,parseInt(p.cpc.value,10)||1),color:p.ccol.value.trim(),qty:it.qty||1,price:it.price,cur:cur,fx:fxR||null,store:j.store||"",ts:base,by:myId,rcpt:paths,added:Date.now()});continue}
             nSup++;await xtDoc(id,{kind:"supply",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",qty:it.qty||1,unit:it.unit||"",size:it.size||"",price:it.price,store:j.store||"",cur:cur,fx:fxR||null,section:it.section||"",days:parseInt(p.di.value,10)||0,ts:base,by:myId,rcpt:paths,photo:0,added:Date.now()})}
           var exMsg="";
           if(exSel.value&&me){
@@ -2131,7 +2163,7 @@ function stkAddDlg(opt){
   };
 }
 /* ---------- Clothes: items from receipts or invoices, sorted by type, each with a meter for when Janet is likely to outgrow it ---------- */
-var CLO={open:{},showOut:false,editKid:false};
+var CLO={open:{},showOut:false,editKid:false,cat:{}};
 var CLOCATS=["Tops","Bottoms","Dresses and one-pieces","Sleepwear","Underwear","Socks","Layers and outerwear","Shoes","Accessories"];
 var CLOICON={"Tops":"👕","Bottoms":"👖","Dresses and one-pieces":"👗","Sleepwear":"🌙","Underwear":"🩲","Socks":"🧦","Layers and outerwear":"🧥","Shoes":"👟","Accessories":"🎀"};
 function cloList(){return (S.xo||[]).filter(function(x){return x.kind==="clothes"&&!x.removed})}
@@ -2207,12 +2239,50 @@ function cloKidCard(){
       c.appendChild(f)}}
   return c;
 }
+/* photos for clothes already added: Cordial re-reads their saved receipts, points at each product picture and the hub crops it */
+var CLOFIND=false;
+function cloScore(a,b){var ta=stkNorm(a.name+" "+(a.brand||"")).split(" "),tb=stkNorm(b.name+" "+(b.brand||"")).split(" "),sc=0;
+  ta.forEach(function(t){if(t.length>2&&tb.indexOf(t)>=0)sc+=1});
+  var ca=stkNorm(a.color),cb=stkNorm(b.color);if(ca&&cb){if(ca===cb)sc+=3;else if(ca.indexOf(cb)>=0||cb.indexOf(ca)>=0)sc+=2;else return -99}
+  var sa=stkNorm(a.size).replace(/ /g,""),sb=stkNorm(b.size).replace(/ /g,"");if(sa&&sb)sc+=sa===sb?1:-1;
+  if(a.price!=null&&b.price!=null)sc+=Math.abs(a.price-b.price)<0.01?2:-1;return sc}
+async function cloFindPhotos(){
+  if(CLOFIND)return;CLOFIND=true;
+  try{
+    var need=cloList().filter(function(x){return !x.photoPath&&x.rcpt&&x.rcpt.length});if(!need.length){note("Every item with a receipt already has a photo.");return}
+    var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)throw 0;
+    var byR={};need.forEach(function(x){var k=x.rcpt.join("|");(byR[k]=byR[k]||[]).push(x)});
+    var keys=Object.keys(byR),done=0,ki;
+    for(ki=0;ki<keys.length;ki++){
+      var its=byR[keys[ki]],paths=its[0].rcpt,imgs=[],hires=[];
+      note("Finding photos… (receipt "+(ki+1)+" of "+keys.length+")");
+      for(var pi=0;pi<paths.length;pi++){
+        var u=await signed(paths[pi]),bl=await (await fetch(u)).blob();
+        if(/\.pdf$/i.test(paths[pi])){var pgs=await pdfPages(bl,15);pgs.forEach(function(q){imgs.push({media:"image/jpeg",data:q.lo.slice(q.lo.indexOf(",")+1)});hires.push(q.hi)})}
+        else{var d=await evThumb(bl);imgs.push({media:"image/jpeg",data:d.slice(d.indexOf(",")+1)});hires.push(u)}
+      }
+      for(var g=0;g<imgs.length;g+=8){
+        var part=imgs.slice(g,g+8),r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({stock:{text:"",images:part,clothes:true}})});
+        if(!r.ok)continue;var jj={};try{jj=await r.json()}catch(e){}
+        for(var n=0;n<(jj.items||[]).length;n++){var it=jj.items[n];if(!it.photo)continue;
+          var best=null,bs=2;its.forEach(function(x){if(x._got)return;var sc=cloScore(it,x);if(sc>bs){bs=sc;best=x}});if(!best)continue;
+          var crop=await cropBox(hires[g+it.photo.img-1],it.photo.box);if(!crop)continue;
+          var pth=await upload("docs",await (await fetch(crop)).blob(),"clothes.jpg");best._got=1;done++;await xtDoc(best.id,{photoPath:pth,photo:1});
+        }
+      }
+    }
+    var left=need.length-done;note("Added "+done+(done===1?" photo":" photos")+"."+(left?" "+left+" item"+(left===1?" has":"s have")+" no picture on the receipt; tap an item, then Edit, to add your own.":""));setTimeout(function(){note("")},7000);
+  }catch(e){note("Couldn’t finish finding photos. Try again.");setTimeout(function(){note("")},4000)}
+  finally{CLOFIND=false;cloList().forEach(function(x){delete x._got})}
+}
 function xtClothes(){
   var box=$("#xs-clo");if(!box)return;box.textContent="";
   var L=cloList(),now=Date.now(),live=L.filter(function(x){return !x.outAt}),gone=L.filter(function(x){return !!x.outAt});
   var top=h("div","card");top.appendChild(h("h2",null,"Clothes"));
   top.appendChild(h("p","meta","Add the receipt, invoice or order confirmation. Cordial sorts the clothes by type with their sizes and how many pieces, and works out when Janet is likely to outgrow each one from her size chart and how fast toddlers grow."));
-  if(canWrite){var add=h("button","go","📸 Add from a receipt or invoice");add.type="button";add.onclick=function(){stkAddDlg({clothes:true})};top.appendChild(add)}
+  if(canWrite){var add=h("button","go","📸 Add from a receipt or invoice");add.type="button";add.onclick=function(){stkAddDlg({clothes:true})};top.appendChild(add);
+    var nph=live.filter(function(x){return !x.photoPath&&x.rcpt&&x.rcpt.length}).length;
+    if(nph){var fp=h("button","quiet",CLOFIND?"Finding photos…":"🖼️ Find photos for "+nph+(nph===1?" item":" items")+" from their receipts");fp.type="button";fp.style.cssText="display:block;margin-top:8px;text-decoration:underline;padding:0";fp.onclick=function(){fp.textContent="Finding photos…";cloFindPhotos()};top.appendChild(fp)}}
   /* the whole wardrobe: when half and most of the pieces will be too small */
   var pcs=[],tot=0;live.forEach(function(x){var n=Math.max(1,x.pieces||x.qty||1);tot+=n;var m=cloFit(x);if(m)for(var i=0;i<n;i++)pcs.push(m.end)});
   pcs.sort(function(a,b){return a-b});
@@ -2269,10 +2339,13 @@ function xtClothes(){
     var its=live.filter(function(x){return cloCatOf(x.cat)===k});if(!its.length)return;
     its.sort(function(a,b){var ma=cloFit(a),mb=cloFit(b);return (ma?ma.end:Infinity)-(mb?mb.end:Infinity)});
     var cc=h("div","card"),n=its.reduce(function(s,x){return s+Math.max(1,x.pieces||x.qty||1)},0);
-    var hd=h("div");hd.style.cssText="display:flex;justify-content:space-between;align-items:baseline;gap:8px";hd.appendChild(h("b",null,(CLOICON[k]||"")+" "+k));
+    /* each type is folded by default; tap its heading to open or close it */
+    var opn=!!CLO.cat[k],hd=h("div");hd.style.cssText="display:flex;justify-content:space-between;align-items:baseline;gap:8px;cursor:pointer;user-select:none";hd.setAttribute("role","button");hd.setAttribute("aria-expanded",opn?"true":"false");
+    hd.appendChild(h("b",null,(opn?"▾ ":"▸ ")+(CLOICON[k]||"")+" "+k));
     var first=its.map(cloFit).filter(function(m){return m&&!m.from})[0];
-    hd.appendChild(h("span","meta",n+(n===1?" piece":" pieces")+(first?" · first too small "+(first.small?"now":cloMon(first.end)):"")));cc.appendChild(hd);
-    its.forEach(function(x){cc.appendChild(row(x))});box.appendChild(cc);
+    hd.appendChild(h("span","meta",n+(n===1?" piece":" pieces")+(first?" · first too small "+(first.small?"now":cloMon(first.end)):"")));
+    hd.onclick=function(){CLO.cat[k]=!CLO.cat[k];xtClothes()};cc.appendChild(hd);
+    if(opn)its.forEach(function(x){cc.appendChild(row(x))});box.appendChild(cc);
   });
   if(gone.length){var dh=h("button","quiet","Outgrown ("+gone.length+") "+(CLO.showOut?"▲":"▼"));dh.type="button";dh.style.margin="10px 0";dh.onclick=function(){CLO.showOut=!CLO.showOut;xtClothes()};box.appendChild(dh);
     if(CLO.showOut){var oc=h("div","card");gone.sort(function(a,b){return b.outAt-a.outAt}).forEach(function(x){oc.appendChild(row(x))});box.appendChild(oc)}}
