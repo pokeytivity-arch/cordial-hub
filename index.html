@@ -909,7 +909,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 03:15</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 03:25/span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -2002,13 +2002,16 @@ function stkAddDlg(opt){
     if(!files.length&&!txt){er.textContent="Add a photo of the receipt or items first.";er.hidden=false;return}
     go.disabled=true;go.textContent="Cordial is reading…";
     try{
-      var imgs=[],thumbs=[];for(var i=0;i<files.length;i++){if(/pdf/i.test(files[i].type)){if(files[i].size>2200000)throw {pdfbig:1};var pd=await readDataUrl(files[i]);thumbs.push(files[i]);imgs.push({media:"application/pdf",data:pd.slice(pd.indexOf(",")+1)});continue}var d=await evThumb(files[i]);thumbs.push(d);imgs.push({media:"image/jpeg",data:d.slice(d.indexOf(",")+1)})}
+      var imgs=[],thumbs=[];for(var i=0;i<files.length;i++){if(/pdf/i.test(files[i].type)){if(files[i].size>30*1048576)throw {pdfbig:1};go.textContent="Uploading "+String(files[i].name||"PDF").slice(0,24)+"…";var pth=await upload("docs",files[i],"receipt.pdf"),pu=await signed(pth);thumbs.push({file:files[i],path:pth});imgs.push({media:"application/pdf",url:pu});continue}var d=await evThumb(files[i]);thumbs.push(d);imgs.push({media:"image/jpeg",data:d.slice(d.indexOf(",")+1)})}
       var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)throw 0;
       /* any number of photos: Cordial reads them in groups of 8 and the lists are joined */
-      var j={items:[],store:"",date:"",total:null},r={ok:true,status:200},G=8,ng=Math.max(1,Math.ceil(imgs.length/G));
+      go.textContent="Cordial is reading…";
+      /* each PDF is read on its own; photos in groups of 8 */
+      var grp=[],cur8=[];imgs.forEach(function(im){if(im.url)grp.push([im]);else{cur8.push(im);if(cur8.length===8){grp.push(cur8);cur8=[]}}});if(cur8.length||!grp.length)grp.push(cur8);
+      var j={items:[],store:"",date:"",total:null},r={ok:true,status:200},ng=grp.length;
       for(var gi=0;gi<ng;gi++){
         if(ng>1)go.textContent="Cordial is reading… ("+(gi+1)+" of "+ng+")";
-        var part=imgs.slice(gi*G,gi*G+G);
+        var part=grp[gi];
         r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({stock:{text:gi===0?txt:"",images:part,clothes:!!opt.clothes}})});
         var jj={};try{jj=await r.json()}catch(x){}
         if(!r.ok){j=jj;break}
@@ -2099,7 +2102,7 @@ function stkAddDlg(opt){
         }
         go.disabled=true;go.textContent="Saving…";
         try{
-          var paths=[];for(var k=0;k<thumbs.length;k++){var tk0=thumbs[k],isPdf=typeof tk0!=="string",bl=isPdf?tk0:await (await fetch(tk0)).blob();paths.push(await upload("docs",bl,isPdf?"receipt.pdf":"receipt.jpg"))}
+          var paths=[];for(var k=0;k<thumbs.length;k++){var tk0=thumbs[k];if(tk0&&tk0.path){paths.push(tk0.path);continue}var bl=await (await fetch(tk0)).blob();paths.push(await upload("docs",bl,"receipt.jpg"))}
           var d0=wd.value?new Date(wd.value+"T12:00:00").getTime():Date.now(),base=Math.min(Date.now(),d0);
           var nClo=0,nSup=0;
           for(var n=0;n<pick.length;n++){var p=pick[n],it=p.it,id=(p.clo?"clo_":"sup_")+Date.now().toString(36)+n+Math.random().toString(36).slice(2,5);
@@ -2124,7 +2127,7 @@ function stkAddDlg(opt){
           ov.remove();note("Added "+[nClo?nClo+(nClo===1?" item":" items")+" to Clothes":"",nSup?nSup+(nSup===1?" item":" items")+" to Supplies":""].filter(Boolean).join(" and ")+"."+exMsg);if(nClo&&!opt.clothes){TDT="clo";tdTabs()}setTimeout(function(){note("")},exMsg?6000:2500);
         }catch(e){go.disabled=false;go.textContent=goTxt;er.textContent="Couldn’t save. "+(e&&e.message==="toolarge"?"A photo is too large.":"Try again. ("+String((e&&(e.message||e.code||e.error))||e||"").slice(0,120)+")");er.hidden=false}
       };
-    }catch(e){er.textContent=e&&e.pdfbig?"That PDF is too big (over 2 MB). Try a screenshot of it instead.":"Something went wrong. Try again.";er.hidden=false;go.disabled=false;go.textContent="Read it"}
+    }catch(e){er.textContent=e&&e.pdfbig?"That PDF is too big (over 30 MB). Try saving fewer pages, or screenshots of it.":"Something went wrong. Try again.";er.hidden=false;go.disabled=false;go.textContent="Read it"}
   };
 }
 /* ---------- Clothes: items from receipts or invoices, sorted by type, each with a meter for when Janet is likely to outgrow it ---------- */
