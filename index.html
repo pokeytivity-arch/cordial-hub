@@ -909,7 +909,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 03:40</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 03:50</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1933,7 +1933,7 @@ function xtStock(){
     var tx=h("div");tx.style.cssText="flex:1;min-width:0";
     var nm=h("b",null,x.name);nm.style.fontSize="1.05rem";tx.appendChild(nm);
     var sub=[x.brand,(x.qty>1?x.qty+" × ":"")+(x.size||x.unit||""),x.store].filter(function(v){return v&&String(v).trim()}).join(" · ");if(sub)tx.appendChild(h("div","meta",sub));
-    tx.appendChild(h("div","meta","Bought "+stkDate(x.ts)+(x.by?" by "+(x.by===myId?"you":(memberName(x.by)||"")):"")+(x.price!=null?" · "+fxShow(x.price,x.cur,x.fx):"")));
+    tx.appendChild(h("div","meta","Bought "+stkDate(x.ts)+(x.by?" by "+(x.by===myId?"you":(memberName(x.by)||"")):"")+(x.price!=null&&!cloNoAmt(x)?" · "+fxShow(x.price,x.cur,x.fx):"")));
     row.appendChild(tx);c.appendChild(row);
     if(m){
       var bar=h("div");bar.style.cssText="height:12px;border-radius:6px;background:rgba(128,128,128,.22);overflow:hidden;margin-top:10px";
@@ -2166,6 +2166,9 @@ function stkAddDlg(opt){
 var CLO={open:{},showOut:false,editKid:false,cat:{}};
 var CLOCATS=["Tops","Bottoms","Dresses and one-pieces","Sleepwear","Underwear","Socks","Layers and outerwear","Shoes","Accessories"];
 var CLOICON={"Tops":"👕","Bottoms":"👖","Dresses and one-pieces":"👗","Sleepwear":"🌙","Underwear":"🩲","Socks":"🧦","Layers and outerwear":"🧥","Shoes":"👟","Accessories":"🎀"};
+/* Glory sees everything about the clothes except what they cost (unless she bought them herself) */
+function cloIsMum(){var m=mumM();return !!(m&&m.user_id===myId)}
+function cloNoAmt(x){return cloIsMum()&&!(x&&x.by===myId)}
 function cloList(){return (S.xo||[]).filter(function(x){return x.kind==="clothes"&&!x.removed})}
 function cloCatOf(c){return CLOCATS.indexOf(c)>=0?c:"Tops"}
 var CLOM=30.44*86400000;
@@ -2287,6 +2290,12 @@ function xtClothes(){
   var pcs=[],tot=0;live.forEach(function(x){var n=Math.max(1,x.pieces||x.qty||1);tot+=n;var m=cloFit(x);if(m)for(var i=0;i<n;i++)pcs.push(m.end)});
   pcs.sort(function(a,b){return a-b});
   top.appendChild(h("div","meta",tot+(tot===1?" piece":" pieces")+" in "+live.length+(live.length===1?" item":" items")+(gone.length?" · "+gone.length+" outgrown":"")));
+  var notRecv=live.filter(function(x){return !x.recvAt});
+  if(notRecv.length){
+    if(cloIsMum()&&canWrite){var ca=h("button","go","📦 Confirm I received all "+notRecv.length+(notRecv.length===1?" item":" items"));ca.type="button";ca.style.cssText="display:block;margin-top:8px;background:#1a7f45";
+      ca.onclick=async function(){if(!confirm("Confirm you received all "+notRecv.length+" items? You can still undo one by opening it."))return;var t=Date.now();for(var q=0;q<notRecv.length;q++)await xtDoc(notRecv[q].id,{recvAt:t,recvBy:myId});note("Thank you. Marked as received.");setTimeout(function(){note("")},2500)};top.appendChild(ca)}
+    else{var wt=h("div","meta","📦 "+notRecv.length+(notRecv.length===1?" item is":" items are")+" waiting for "+mFirst((mumM()||{}).name||"Mummy")+" to confirm she received "+(notRecv.length===1?"it":"them"));wt.style.cssText="color:#c07a00;font-weight:600";top.appendChild(wt)}
+  }
   if(pcs.length){
     var half=pcs[Math.floor((pcs.length-1)*0.5)],most=pcs[Math.floor((pcs.length-1)*0.75)],still=pcs.filter(function(e){return e>now}).length;
     var firstBuy=Math.min.apply(null,live.map(function(x){return x.ts||now})),span=Math.max(most-Math.min(firstBuy,now),1),pc=Math.max(0,Math.min(1,(most-now)/span));
@@ -2314,9 +2323,13 @@ function xtClothes(){
       var st=m.small?"Likely too small now":m.from?"Too big for now · fits from about "+cloMon(m.from):"Fits until about "+cloMon(m.end)+(m.how==="guess"?" (rough guess: no size)":m.how==="shoes"?" (shoes: about 4 months)":m.how==="set"?" (set by a parent)":"");
       var sm=h("div","meta",st);sm.style.cssText="font-weight:600;color:"+(m.small?"#d93025":m.from?"#8e8e93":stkCol(m.pc));tx.appendChild(sm)}
     else tx.appendChild(h("div","meta","Doesn’t get outgrown"));
+    /* delivery: Glory confirms she received it */
+    if(x.recvAt){var rv=h("div","meta","📦 Received"+(x.recvBy?" by "+(x.recvBy===myId?"you":mFirst(memberName(x.recvBy)||"")):"")+" on "+stkDate(x.recvAt));rv.style.cssText="color:#1a7f45;font-weight:600";tx.appendChild(rv)}
+    else if(cloIsMum()&&canWrite&&!x.outAt){var rb=xtBtn("✓ Confirm received",function(e){if(e)e.stopPropagation();xtDoc(x.id,{recvAt:Date.now(),recvBy:myId})});rb.onclick=function(e){e.stopPropagation();xtDoc(x.id,{recvAt:Date.now(),recvBy:myId})};tx.appendChild(rb)}
+    else if(!x.outAt){var wv=h("div","meta","📦 Waiting for "+mFirst((mumM()||{}).name||"Mummy")+" to confirm she received it");wv.style.color="#c07a00";tx.appendChild(wv)}
     r.appendChild(tx);r.onclick=function(){CLO.open[x.id]=!CLO.open[x.id];xtClothes()};c.appendChild(r);
     if(CLO.open[x.id]){
-      c.appendChild(h("div","meta","Bought "+stkDate(x.ts)+(x.by?" by "+(x.by===myId?"you":(memberName(x.by)||"")):"")+(x.price!=null?" · "+fxShow(x.price,x.cur,x.fx):"")+(x.store?" · "+x.store:"")));
+      c.appendChild(h("div","meta","Bought "+stkDate(x.ts)+(x.by?" by "+(x.by===myId?"you":(memberName(x.by)||"")):"")+(x.price!=null&&!cloNoAmt(x)?" · "+fxShow(x.price,x.cur,x.fx):"")+(x.store?" · "+x.store:"")));
       if(canWrite){
         var f=h("div");f.style.cssText="margin-top:6px;display:grid;gap:6px";
         function fld(lbl,val,type){var w=h("label",null,lbl),i=h("input");i.type=type||"text";i.value=val==null?"":val;w.appendChild(i);f.appendChild(w);return i}
@@ -2328,6 +2341,7 @@ function xtClothes(){
         sv.appendChild(xtBtn("Save",async function(){var patch={name:i1.value.trim()||x.name,cat:cs.value,size:i2.value.trim(),pieces:Math.max(1,parseInt(i3.value,10)||1),color:i4.value.trim(),fitM:i5.value===""?null:Math.max(0,parseFloat(i5.value)||0)};
           if(pf.files&&pf.files[0]){try{var d=await evThumb(pf.files[0]),bl=await (await fetch(d)).blob();patch.photoPath=await upload("docs",bl,"clothes.jpg");patch.photo=1}catch(e){note("Couldn’t add the photo.");setTimeout(function(){note("")},2200)}}
           CLO.open[x.id]=false;xtDoc(x.id,patch)}));
+        if(x.recvAt&&(x.recvBy===myId||isAdminAcct()))sv.appendChild(xtBtn("Not received yet",function(){xtDoc(x.id,{recvAt:null,recvBy:null})},"quiet"));
         sv.appendChild(xtBtn(x.outAt?"Still fits":"Outgrown",function(){xtDoc(x.id,x.outAt?{outAt:null,outBy:null}:{outAt:Date.now(),outBy:myId})},"quiet"));
         sv.appendChild(xtBtn("Remove",function(){if(confirm("Remove "+x.name+" from Clothes?"))xtDoc(x.id,{removed:Date.now(),removedBy:myId})},"quiet"));
         f.appendChild(sv);c.appendChild(f);
