@@ -909,7 +909,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 09:05</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 09:20</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1648,25 +1648,44 @@ function reimbBox(rec,payerId,save,what){
     return w}
   if(rec.reimbReqAt){var q2=h("div","meta","🔔 "+xtName(rec.reimbReqBy||payerId)+" asked you to reimburse this.");q2.style.fontWeight="600";w.appendChild(q2)}
   var amt=+rec.amount||0,st=h("div","meta");st.style.cssText="margin-top:6px;font-weight:600";
-  var lb=h("div","meta","To reimburse, attach the transfer receipt for exactly "+money(amt)+". Cordial checks the amount.");lb.style.marginTop="6px";
-  var fl=h("input");fl.type="file";fl.multiple=true;fl.accept="image/*,application/pdf";fl.style.marginTop="6px";
+  var lb=h("div","meta","To reimburse "+money(amt)+", attach the transfer receipt (more than one is fine). Cordial reads the amount, date and narration; a transfer sent with other money is fine.");lb.style.marginTop="6px";
+  var pk=rbPicker("x_"+(rec.id||rec.ts||""));
   var say=function(t){st.textContent=t;note(t)};
   var bt=xtBtn("↩️ Reimburse",async function(){
-    if(!fl.files||!fl.files[0])return say("Attach the transfer receipt first.");
-    bt.disabled=true;say("Uploading the receipt…");
+    var files=pk.files();if(!files.length)return say("Attach the transfer receipt first.");
+    bt.disabled=true;say("Cordial is reading the transfer receipt…");
     try{
-      var rcs=[];for(var i=0;i<fl.files.length;i++)rcs.push(await xtUp(fl.files[i]));
-      var chk=await aiVerifyMany(fl.files,{kind:"reimbursement",title:"Reimbursement of "+(what||"expense")+(rec.desc?" – "+rec.desc:""),amount:amt,date:key(new Date())});
-      var got=chk&&chk.read&&typeof chk.read.amount==="number"?chk.read.amount:null;
-      if(chk.status==="unchecked"||got===null){bt.disabled=false;return say("Cordial couldn’t read an amount on that receipt. Try a clearer photo or screenshot.")}
-      if(Math.round(got*100)!==Math.round(amt*100)){bt.disabled=false;return say("The receipt shows "+money(got)+" but this must be exactly "+money(amt)+", so it was not counted.")}
-      rcs.forEach(function(q){q.aicheck=chk});
-      await save({reimbAt:Date.now(),reimbBy:myId,reimbReceipts:rcs,reimbCheck:chk});
-      say("Reimbursed ✓")
+      var chk=await aiVerifyMany(files,{kind:"reimbursement",title:"Reimbursement of "+(what||"expense")+(rec.desc?" – "+rec.desc:""),amount:amt,date:key(new Date())});
+      var jg=rbJudge(chk,amt,rec.date);if(!jg.ok){bt.disabled=false;return say(jg.msg)}
+      say("Uploading…");var rcs=[];for(var i=0;i<files.length;i++){var u=await xtUp(files[i]);u.aicheck=chk;rcs.push(u)}
+      await save({reimbAt:Date.now(),reimbBy:myId,reimbReceipts:rcs,reimbCheck:chk,reimbRead:jg.read});pk.clear();
+      say(jg.msg)
     }catch(e){fail(e);say("Couldn’t save the reimbursement: "+String((e&&(e.message||e.code))||"unknown error").slice(0,140))}
     bt.disabled=false});
-  w.appendChild(lb);w.appendChild(fl);w.appendChild(bt);w.appendChild(st);
+  w.appendChild(lb);w.appendChild(pk.el);w.appendChild(bt);w.appendChild(st);
   return w;
+}
+/* Transfer-receipt picker that keeps the chosen files while the page refreshes; you can add several receipts, one at a time or together */
+var RBF={};
+function rbPicker(id){
+  var w=h("div");w.style.marginTop="6px";
+  var lst=h("div");lst.style.cssText="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0";
+  var fl=h("input");fl.type="file";fl.multiple=true;fl.accept="image/*,application/pdf";
+  function paint(){lst.textContent="";(RBF[id]||[]).forEach(function(f,i){var c=h("span",null,"🧾 "+(f.name||"receipt").slice(0,24)+" ");c.style.cssText="background:rgba(128,128,128,.15);border-radius:999px;padding:3px 10px;font-size:.85rem";var x=h("button",null,"×");x.type="button";x.style.cssText="border:0;background:none;font-weight:700;cursor:pointer;padding:0 2px";x.onclick=function(){RBF[id].splice(i,1);paint()};c.appendChild(x);lst.appendChild(c)});
+    lbl.textContent=(RBF[id]||[]).length?"Add another receipt":"Attach the transfer receipt(s)"}
+  var lbl=h("div","meta","");
+  fl.onchange=function(){RBF[id]=(RBF[id]||[]).concat(Array.prototype.slice.call(fl.files||[]));fl.value="";paint()};
+  w.appendChild(lbl);w.appendChild(fl);w.appendChild(lst);paint();
+  return {el:w,files:function(){return RBF[id]||[]},clear:function(){delete RBF[id];paint()}};
+}
+/* Not strict about the amount: a transfer is accepted when Cordial can read it and its date fits the bill (on or after it); the amount, date and narration are kept for both parents to see */
+function rbJudge(chk,amt,billDate){
+  var rd=(chk&&chk.read)||{},got=typeof rd.amount==="number"?rd.amount:null;
+  if(!chk||(got===null&&!rd.date&&!rd.narration))return {ok:false,msg:"Cordial couldn’t read that transfer receipt. Try a clearer photo or screenshot."};
+  var td=rcDateMs(rd.date),bd=billDate?new Date(billDate+"T00:00:00").getTime():0;
+  if(td&&bd&&td<bd-3*86400000)return {ok:false,msg:"The transfer is dated "+rd.date+", before this bill ("+billDate+"). Attach the transfer made for it."};
+  var diff=got!==null&&Math.round(got*100)!==Math.round(amt*100);
+  return {ok:true,read:{amount:got,date:rd.date||"",narration:rd.narration||"",payee:rd.payee||""},msg:"Reimbursed ✓"+(diff?" (the transfer was "+money(got)+(got>amt?", sent with other money":"")+")":"")};
 }
 function renderExp(){
   var pa=0,pb=0;S.exp.forEach(function(x){if(x.review&&x.review.state==="rejected")return;var pay=x.reimbAt?(x.by==="a"?"b":"a"):x.by;if(pay==="a")pa+=x.amount;else pb+=x.amount});
@@ -2555,17 +2574,17 @@ function medCard(rec){
         try{var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token,ou=medUid(other);if(tk&&ou)fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:"summary",to:[ou],title:"🩺 Reimbursement requested",body:(S.me||"")+" asked you to reimburse "+money(+rec.amount||0)+" for "+(rec.title||"a medical bill")+".",url:"/?tab=exp"})}).catch(function(){})}catch(e){}}catch(e){fail(e)}},"quiet"));
     }else{
       if(rec.reimbReqAt){var q=h("div","meta","🔔 "+xtName(rec.reimbReqBy||payer)+" asked you to reimburse this.");q.style.fontWeight="600";c.appendChild(q)}
-      var st=h("div","meta");var fl=h("input");fl.type="file";fl.multiple=true;fl.accept="image/*,application/pdf";fl.style.marginTop="6px";
-      c.appendChild(h("div","meta","To reimburse "+money(+rec.amount||0)+", attach the transfer receipt. Cordial reads its amount, date and narration (a transfer sent with other money is fine)."));c.appendChild(fl);
+      var st=h("div","meta"),pk=rbPicker("m_"+rec.id);
+      c.appendChild(h("div","meta","To reimburse "+money(+rec.amount||0)+", attach the transfer receipt (more than one is fine). Cordial reads the amount, date and narration; a transfer sent with other money is fine."));c.appendChild(pk.el);
       var bt=xtBtn("↩️ Reimburse",async function(){
-        if(!fl.files||!fl.files[0]){st.textContent="Attach the transfer receipt first.";return}
+        var files=pk.files();if(!files.length){st.textContent="Attach the transfer receipt first.";return}
         bt.disabled=true;st.textContent="Cordial is reading the transfer receipt…";
         try{
-          var chk=await aiVerifyMany(fl.files,{kind:"reimbursement",title:"Reimbursement of "+(rec.title||"medical bill"),amount:+rec.amount||0,date:key(new Date())});
-          var rd=(chk&&chk.read)||{};if(!chk||(chk.status==="unchecked"&&rd.amount==null&&!rd.date&&!rd.narration)){bt.disabled=false;st.textContent="Cordial couldn’t read that transfer receipt. Try a clearer photo or screenshot.";return}
-          var rcs=[];for(var i=0;i<fl.files.length;i++){var u=await xtUp(fl.files[i]);u.aicheck=chk;rcs.push(u)}
-          await save({reimbAt:Date.now(),reimbBy:myId,reimbReceipts:rcs,reimbCheck:chk,reimbRead:{amount:typeof rd.amount==="number"?rd.amount:null,date:rd.date||"",narration:rd.narration||"",payee:rd.payee||""}});
-          st.textContent="Reimbursed ✓";
+          var chk=await aiVerifyMany(files,{kind:"reimbursement",title:"Reimbursement of "+(rec.title||"medical bill"),amount:+rec.amount||0,date:key(new Date())});
+          var jg=rbJudge(chk,+rec.amount||0,rec.date);if(!jg.ok){bt.disabled=false;st.textContent=jg.msg;return}
+          var rcs=[];for(var i=0;i<files.length;i++){var u=await xtUp(files[i]);u.aicheck=chk;rcs.push(u)}
+          await save({reimbAt:Date.now(),reimbBy:myId,reimbReceipts:rcs,reimbCheck:chk,reimbRead:jg.read});pk.clear();
+          st.textContent=jg.msg;
         }catch(e){bt.disabled=false;st.textContent="Couldn’t save the reimbursement. Try again."}
       });c.appendChild(bt);c.appendChild(st);
     }
