@@ -909,7 +909,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 09:45</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 10:30</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -965,8 +965,8 @@ main{max-width:100%}
   <div id="xs-sup" hidden></div>
   <div id="xs-fee" hidden></div>
   <div id="xs-med" hidden></div>
-  <div id="xs-stock" hidden></div>
-  <div id="xs-clo" hidden></div>
+  <div id="xs-stockb" hidden></div>
+  <div id="xs-clob" hidden></div>
 </section>
 
 <section id="p-chats" hidden>
@@ -1027,6 +1027,8 @@ main{max-width:100%}
   <div id="todocard"></div>
   <div id="xs-shop" hidden></div>
   <div id="xs-chk" hidden></div>
+  <div id="xs-stock" hidden></div>
+  <div id="xs-clo" hidden></div>
 </section>
 <section id="p-meet" hidden>
   <div class="card" id="zoomcard"><button type="button" id="zoomhd" aria-expanded="false" style="display:flex;width:100%;align-items:center;justify-content:space-between;background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer"><span style="font-size:1.15rem;font-weight:700">Zoom connection</span><span><span id="zoomtick" style="font-size:1.2rem">…</span> <span id="zoomch" style="opacity:.6">›</span></span></button><div id="zoomdet" hidden style="margin-top:8px"><div id="zoomsts" class="meta">Checking…</div><button class="quiet" id="zoomchk" type="button" style="padding:4px 0;text-decoration:underline">Check again</button></div></div>
@@ -1594,7 +1596,7 @@ $("#xadd").onclick=async function(){
     var rdt=rcDateMs(chk&&chk.read&&chk.read.date),xdate=rdt?key(new Date(rdt)):($("#xt").value||key(new Date()));
     var xrec=withShare({ts:Date.now(),desc:d,amount:a,by:$("#xw").value,date:xdate,proof:ups[0],aicheck:chk},"exp");if(ups.length>1)xrec.proofs=ups;if(chk.status==="review")xrec.review={state:"pending"};
     if(xdate!==($("#xt").value||key(new Date()))){var dq2=moneyDup(a,xdate);if(dq2&&!confirm("The receipt is dated "+xdate+", and "+money(a)+" on that day is already recorded as "+dq2.what+". Add it again anyway?")){btn.disabled=false;btn.textContent="Add expense";return note("Not added: it was already recorded.")}}
-    var xcat=(chk&&chk.read&&chk.read.category)||"",rmsg="";
+    var xcat=(chk&&chk.read&&chk.read.category)||"",rmsg="";if(EXPCAT[xcat])xrec.cat=xcat;
     if((xcat==="medical"||xcat==="school")&&chk.status!=="review"){rmsg=await expRoute(xcat,xrec,fl)}
     if(!rmsg||(xcat!=="medical"&&xcat!=="school")){await db.collection("expenses").add(xrec);if(xcat==="supplies")rmsg=await expRoute("supplies",xrec,fl)}
     $("#xd").value="";$("#xa").value="";$("#xf").value="";note(rmsg||"");if(rmsg)setTimeout(function(){note("")},5000);
@@ -1702,6 +1704,43 @@ function moneyDup(amt,date,files){
     if(x.kind==="sup"&&x.paidAt&&Math.round(+x.amount)===amt&&dk(x.paidAt)===day){hit="a support payment";return true}});
   return hit?{what:hit,amt:amt,day:day}:null;
 }
+/* what an expense was for. New receipts are sorted by Cordial; older ones by their description, receipt items and what Cordial read */
+var EXPCAT={supplies:"Supplies",clothes:"Clothes",medical:"Medical",school:"School",other:"Other"};
+function expCat(x){
+  if(x.cat&&EXPCAT[x.cat])return x.cat;
+  var d=String(x.desc||"").toLowerCase();
+  if(/^supplies:/.test(d))return "supplies";if(/^clothes:/.test(d))return "clothes";if(/^medical:/.test(d))return "medical";
+  var rc=x.aicheck&&x.aicheck.read&&x.aicheck.read.category;if(rc&&EXPCAT[rc]&&rc!=="other")return rc;
+  var t=d+" "+(x.rcItems||[]).concat((x.aicheck&&x.aicheck.read&&x.aicheck.read.items)||[]).map(function(i){return i&&i.name||""}).join(" ").toLowerCase()+" "+String(x.rcShop||"").toLowerCase();
+  if(/hospital|clinic|medic|pharm|doctor|\blab\b|laborator|malaria|test|drug|syrup|tablet|vaccin|immuni|antibiot|paracetamol|nisa|consult/.test(t))return "medical";
+  if(/school|tuition|uniform|stationer|textbook|exercise book|crayon|school bus/.test(t))return "school";
+  if(/shirt|dress|gown|trouser|\bpants?\b|shorts|skirt|sock|shoe|sandal|slipper|pyjama|pajama|underwear|pant(y|ies)|jacket|sweater|hoodie|romper|onesie|\bcap\b|\bhat\b|cloth/.test(t))return "clothes";
+  if(/diaper|pamper|nappy|wipe|formula|milk|cereal|food|snack|yogh?urt|juice|soap|shampoo|lotion|cream|jelly|vaseline|oil|powder|tissue|toothpaste|toothbrush|toiletr|grocer|supermarket|baby|perfume|antiseptic|detergent/.test(t))return "supplies";
+  return "other";
+}
+function expFilterBar(){
+  var L=$("#xl");if(!L)return;var bar=$("#xefbar");
+  if(!bar){bar=h("div");bar.id="xefbar";bar.style.cssText="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px";L.parentNode.insertBefore(bar,L)}
+  bar.textContent="";var cur=XT.ef||"all",cnt={all:S.exp.length};S.exp.forEach(function(x){var c=expCat(x);cnt[c]=(cnt[c]||0)+1});
+  (S.xo||[]).forEach(function(x){if(x.kind==="medbill"&&!x.removed){cnt.all++;cnt.medical=(cnt.medical||0)+1}});
+  [["all","All"],["supplies","Supplies"],["clothes","Clothes"],["medical","Medical"],["school","School"],["other","Other"]].forEach(function(f){if(f[0]!=="all"&&!cnt[f[0]])return;
+    var b=h("button",cur===f[0]?"go":"quiet",f[1]+(cnt[f[0]]?" ("+cnt[f[0]]+")":""));b.type="button";b.style.cssText="padding:5px 12px;font-size:.85rem";b.onclick=function(){XT.ef=f[0];renderExp();expFilterBar()};bar.appendChild(b)});
+}
+/* Supplies and Clothes tabs: only the bills, receipts and reimbursements; the items themselves are in the Checklist */
+function xtBills(cat){
+  var box=$(cat==="supplies"?"#xs-stockb":"#xs-clob");if(!box)return;
+  var ae=document.activeElement;if(ae&&ae.closest&&ae.closest(cat==="supplies"?"#xs-stockb":"#xs-clob")&&ae.matches&&ae.matches("input,select,textarea"))return;
+  box.textContent="";
+  var top=h("div","card"),nmC=cat==="supplies"?"Supplies":"Clothes";top.appendChild(h("h2",null,(cat==="supplies"?"🧴 ":"👕 ")+nmC+" bills"));
+  top.appendChild(h("p","meta",cat==="supplies"?"Receipts and reimbursements for food, toiletries and general baby items. What was bought, with meters for when it runs out, is in the Checklist.":"Receipts and reimbursements for Janet’s clothes. The wardrobe, with when she’ll outgrow each item, is in the Checklist."));
+  if(canWrite){var ad=h("button","go",cat==="supplies"?"📸 Add from a receipt or photos":"📸 Add from a receipt or invoice");ad.type="button";ad.onclick=function(){stkAddDlg(cat==="clothes"?{clothes:true}:{})};top.appendChild(ad)}
+  var go=h("button","quiet","📋 See the "+(cat==="supplies"?"supplies":"clothes")+" in the Checklist →");go.type="button";go.style.cssText="display:block;margin-top:8px;text-decoration:underline;padding:0";
+  go.onclick=function(){showTab("todo");TDT="chk";tdTabs();setTimeout(function(){var e=$(cat==="supplies"?"#xs-stock":"#xs-clo");if(e)e.scrollIntoView({block:"start"})},250)};top.appendChild(go);
+  var list=S.exp.filter(function(x){return expCat(x)===cat}).sort(function(p,q){return String(q.date||"").localeCompare(String(p.date||""))||(q.ts||0)-(p.ts||0)});
+  var tot=list.reduce(function(q,x){return q+(+x.amount||0)},0);top.appendChild(h("div","meta",list.length+(list.length===1?" bill":" bills")+" · "+money(tot)));
+  box.appendChild(top);
+  var c=h("div","card");if(!list.length)c.appendChild(h("p","meta","No "+nmC.toLowerCase()+" bills yet."));list.forEach(function(x){c.appendChild(expRowEl(x))});box.appendChild(c);
+}
 function renderExp(){
   var pa=0,pb=0;S.exp.forEach(function(x){if(x.review&&x.review.state==="rejected")return;var pay=x.reimbAt?(x.by==="a"?"b":"a"):x.by;if(pay==="a")pa+=x.amount;else pb+=x.amount});
   (function(){var b=$("#bal");b.textContent="";if(!S.exp.length){b.textContent="No expenses yet";return}
@@ -1717,7 +1756,14 @@ function renderExp(){
   $("#bal2").textContent=S.exp.length?"Total spent "+money(pa+pb):"";
   var L=$("#xl");L.textContent="";
   if(!S.exp.length)L.appendChild(h("p","empty","No expenses yet. Add the first one above."));
-  S.exp.forEach(function(x){
+  var EF=XT.ef||"all",list=S.exp.filter(function(x){return EF==="all"||expCat(x)===EF});
+  if(EF==="all"||EF==="medical")(S.xo||[]).forEach(function(x){if(x.kind==="medbill"&&!x.removed)list.push(Object.assign({_med:1},x))});
+  list.sort(function(p,q){return String(q.date||"").localeCompare(String(p.date||""))||(q.ts||0)-(p.ts||0)});
+  if(S.exp.length&&!list.length)L.appendChild(h("p","empty","Nothing in this group yet."));
+  list.forEach(function(x){L.appendChild(x._med?medCard(x):expRowEl(x))});
+}
+/* one expense, as shown in Expenses and in the Supplies, Clothes and Medical tabs */
+function expRowEl(x){
     var r=h("div","item"),l=h("div");
     l.appendChild(h("div",null,x.desc));l.appendChild(h("div","meta",x.date+" – paid by "+nm(x.by)));
     var rcl0=xtRc(x.proofs&&x.proofs.length?x.proofs:(x.proof?[x.proof]:[]),"Receipt",x.aicheck&&x.aicheck.read);if(rcl0)l.appendChild(rcl0);
@@ -1738,7 +1784,8 @@ function renderExp(){
     l.appendChild(reimbBox(x,xpid,function(pt){return db.doc("expenses/"+x.id).update(pt)},"expense"));if(x.reimbAt)l.style.opacity=".7";
     var rt=h("div");rt.style.textAlign="right";if(x.origCur&&x.origAmount){rt.appendChild(h("div","amt",cloMoney(x.origAmount,x.origCur)));rt.appendChild(h("div","meta","(≈ "+money(x.amount)+")"))}else rt.appendChild(h("div","amt",money(x.amount)));
     var rm=h("button","quiet","Remove");rm.onclick=function(){db.doc("expenses/"+x.id).delete().catch(fail)};
-    if(canWrite&&canRemoveRec(x))rt.appendChild(rm);r.appendChild(l);r.appendChild(rt);L.appendChild(r)});
+    if(canWrite&&canRemoveRec(x))rt.appendChild(rm);r.appendChild(l);r.appendChild(rt);var cc=expCat(x);if(cc!=="other"){var cp=xtChip(EXPCAT[cc]||cc,cc==="medical"?"#c2185b":cc==="clothes"?"#7b1fa2":cc==="school"?"#ef6c00":"#1a7f45");cp.style.marginTop="4px";l.insertBefore(cp,l.children[2]||null)}
+  return r;
 }
 
 /* ---------- Shopping list, monthly support and school fees (saved in the expenses collection, each with a "kind") ---------- */
@@ -1749,7 +1796,7 @@ var TDT="tasks";
 function tdTabs(){
   var sg=$("#tdseg");if(!sg)return;
   Array.prototype.forEach.call(sg.children,function(b){b.className=b.dataset.p===TDT?"on":""});
-  var tc=$("#todocard"),sh=$("#xs-shop");if(tc)tc.hidden=TDT!=="tasks";if(sh)sh.hidden=TDT!=="shop";var ck=$("#xs-chk");if(ck){ck.hidden=TDT!=="chk";if(TDT==="chk")safe(xtChk)()}
+  var tc=$("#todocard"),sh=$("#xs-shop");if(tc)tc.hidden=TDT!=="tasks";if(sh)sh.hidden=TDT!=="shop";var ck=$("#xs-chk");if(ck){ck.hidden=TDT!=="chk";if(TDT==="chk")safe(xtChk)()}var sk=$("#xs-stock");if(sk){sk.hidden=TDT!=="chk";if(TDT==="chk")safe(xtStock)()}var cl=$("#xs-clo");if(cl){cl.hidden=TDT!=="chk";if(TDT==="chk")safe(xtClothes)()}
 }
 (function(){var sg=document.getElementById("tdseg");if(!sg)return;
   Array.prototype.forEach.call(sg.children,function(b){b.onclick=function(){TDT=b.dataset.p;tdTabs()}})})();
@@ -1842,6 +1889,13 @@ function chkHist(){
     var m=k.match(/^(\d+)_(\d+)$/),xm=k.match(/^x(\d+)_(\d+)$/),nm=d.t,sec="";
     if(m&&CHK[m[1]]){sec=CHK[m[1]][1];if(!nm&&CHK[m[1]][2][m[2]])nm=CHK[m[1]][2][m[2]][0]}else if(xm&&CHK[xm[1]]){sec=CHK[xm[1]][1];if(!nm)nm=((st.extra||{})[xm[1]]||[])[xm[2]]}
     out.push({id:"legacy_"+k,k:k,item:nm||"Item",section:sec,ts:d.ts,by:d.by,days:d.days,dad:d.dad,mum:d.mum})});
+  /* supplies and clothes bought from receipts are part of the purchase history too */
+  (S.xo||[]).forEach(function(x){
+    if(x.removed)return;
+    if(x.kind==="supply"){(x.hist||[]).forEach(function(hh,i){out.push({id:x.id+"_h"+i,k:"sup_"+x.id+"_"+i,item:x.name,section:x.section||"Supplies",ts:hh.ts,by:hh.by,brand:x.brand,qty:hh.qty,store:hh.store,days:hh.days})});
+      out.push({id:x.id,k:"sup_"+x.id,item:x.name,section:x.section||"Supplies",ts:x.ts,by:x.by,brand:x.brand,qty:x.qty,store:x.store,days:x.days})}
+    else if(x.kind==="clothes")out.push({id:x.id,k:"clo_"+x.id,item:x.name+(x.size?" (size "+x.size+")":""),section:"Clothing",ts:x.ts||x.added,by:x.by,brand:x.brand,qty:x.pieces,store:x.store});
+  });
   return out.sort(function(a,b){return (b.ts||0)-(a.ts||0)});
 }
 function chkNow(p,done){
@@ -1955,13 +2009,13 @@ function xtStock(){
   var L=stkList(),act=[],done=[],keep=[];
   L.forEach(function(x){var m=stkLeft(x);if(x.usedAt||(m&&m.left<=0))done.push(x);else if(m)act.push(x);else keep.push(x)});
   act.sort(function(a,b){return stkLeft(a).end-stkLeft(b).end});
-  var top=h("div","card");top.appendChild(h("h2",null,"Supplies"));
+  var top=h("div","card");top.appendChild(h("h2",null,"🧴 Supplies in use"));
   top.appendChild(h("p","meta","Snap a receipt or the items you bought. Cordial lists them, guesses how long each will last, and a meter counts down to when it runs out. Janet tells everyone when something is running low."));
   if(canWrite){var add=h("button","go","📸 Add from a receipt or photos");add.type="button";add.onclick=stkAddDlg;top.appendChild(add)}
   var low=act.filter(function(x){return stkLeft(x).pc<=0.3}).length;
   top.appendChild(h("div","meta",act.length+" in use"+(low?" · "+low+" running low":"")+(done.length?" · "+done.length+" used up":"")));
   box.appendChild(top);
-  if(!L.length){var e=h("div","card");e.appendChild(h("p","meta","Nothing here yet. Tap “Add from a receipt or photos” to add your first receipt."));box.appendChild(e);return}
+  if(!L.length){var e=h("div","card");e.appendChild(h("p","meta","Nothing here yet. Add a receipt under Expenses and Support → Supplies, or tap “Add from a receipt or photos”."));box.appendChild(e);return}
   function card(x){
     var m=stkLeft(x),c=h("div","card stk");
     var row=h("div");row.style.cssText="display:flex;gap:12px;align-items:flex-start";
@@ -2000,7 +2054,7 @@ function xtStock(){
   }
   if(act.length){box.appendChild(h("h3",null,"In use"));act.forEach(function(x){box.appendChild(card(x))})}
   if(keep.length){box.appendChild(h("h3",null,"Kept items"));keep.forEach(function(x){box.appendChild(card(x))})}
-  if(done.length){var dh=h("button","quiet","Used up ("+done.length+") "+(STK.showDone?"▲":"▼"));dh.type="button";dh.style.margin="10px 0";dh.onclick=function(){STK.showDone=!STK.showDone;xtStock()};box.appendChild(dh);
+  if(done.length){var dh=h("button","quiet","🗄️ Archive · used up ("+done.length+") "+(STK.showDone?"▲":"▼"));dh.type="button";dh.style.margin="10px 0";dh.onclick=function(){STK.showDone=!STK.showDone;xtStock()};box.appendChild(dh);
     if(STK.showDone)done.sort(function(a,b){return (b.usedAt||stkLeft(b).end)-(a.usedAt||stkLeft(a).end)}).forEach(function(x){box.appendChild(card(x))})}
 }
 /* the meter restarts; the earlier purchase is kept in the item's history */
@@ -2185,7 +2239,7 @@ function stkAddDlg(opt){
               var dupX=moneyDup(amt,key(new Date(base)));
               if(dupX)exMsg=" "+money(amt)+" on that day was already recorded as "+dupX.what+", so the money wasn’t added again.";
               else{
-                var pft=function(pp){return /\.pdf$/i.test(pp)?{path:pp,name:"receipt.pdf",type:"application/pdf"}:{path:pp,name:"receipt.jpg",type:"image/jpeg"}},pr=pft(paths[0]),xrec=withShare({ts:Date.now(),desc:desc,amount:amt,by:payer,date:key(new Date(base)),proof:pr,fromSupplies:1,addedBy:myId},"exp");if(foreign&&exOrig){xrec.origCur=cur;xrec.origAmount=exOrig;xrec.fxRate=fxR}
+                var pft=function(pp){return /\.pdf$/i.test(pp)?{path:pp,name:"receipt.pdf",type:"application/pdf"}:{path:pp,name:"receipt.jpg",type:"image/jpeg"}},pr=pft(paths[0]),xrec=withShare({cat:nSup?"supplies":"clothes",ts:Date.now(),desc:desc,amount:amt,by:payer,date:key(new Date(base)),proof:pr,fromSupplies:1,addedBy:myId},"exp");if(foreign&&exOrig){xrec.origCur=cur;xrec.origAmount=exOrig;xrec.fxRate=fxR}
                 if(paths.length>1)xrec.proofs=paths.map(pft);
                 if(exSel.value==="reimb"){xrec.reimbAt=Date.now();xrec.reimbBy=myId;xrec.reimbReceipts=rcs;xrec.reimbCheck=rchk;var rd2=(rchk&&rchk.read)||{};xrec.reimbRead={amount:typeof rd2.amount==="number"?rd2.amount:null,date:rd2.date||"",narration:rd2.narration||"",payee:rd2.payee||""}}
                 await db.collection("expenses").add(xrec);
@@ -2318,7 +2372,7 @@ async function cloFindPhotos(){
 function xtClothes(){
   var box=$("#xs-clo");if(!box)return;box.textContent="";
   var L=cloList(),now=Date.now(),live=L.filter(function(x){return !x.outAt}),gone=L.filter(function(x){return !!x.outAt});
-  var top=h("div","card");top.appendChild(h("h2",null,"Clothes"));
+  var top=h("div","card");top.appendChild(h("h2",null,"👕 Clothes"));
   top.appendChild(h("p","meta","Add the receipt, invoice or order confirmation. Cordial sorts the clothes by type with their sizes and how many pieces, and works out when Janet is likely to outgrow each one from her size chart and how fast toddlers grow."));
   if(canWrite){var add=h("button","go","📸 Add from a receipt or invoice");add.type="button";add.onclick=function(){stkAddDlg({clothes:true})};top.appendChild(add);
     var nph=live.filter(function(x){return !x.photoPath&&x.rcpt&&x.rcpt.length}).length;
@@ -2398,7 +2452,7 @@ function xtClothes(){
     hd.onclick=function(){CLO.cat[k]=!CLO.cat[k];xtClothes()};cc.appendChild(hd);
     if(opn)its.forEach(function(x){cc.appendChild(row(x))});box.appendChild(cc);
   });
-  if(gone.length){var dh=h("button","quiet","Outgrown ("+gone.length+") "+(CLO.showOut?"▲":"▼"));dh.type="button";dh.style.margin="10px 0";dh.onclick=function(){CLO.showOut=!CLO.showOut;xtClothes()};box.appendChild(dh);
+  if(gone.length){var dh=h("button","quiet","🗄️ Archive · outgrown ("+gone.length+") "+(CLO.showOut?"▲":"▼"));dh.type="button";dh.style.margin="10px 0";dh.onclick=function(){CLO.showOut=!CLO.showOut;xtClothes()};box.appendChild(dh);
     if(CLO.showOut){var oc=h("div","card");gone.sort(function(a,b){return b.outAt-a.outAt}).forEach(function(x){oc.appendChild(row(x))});box.appendChild(oc)}}
 }
 /* running-low list for Janet's posts and the feed */
@@ -2541,8 +2595,9 @@ function xtDoc(id,patch,base){var cur=(S.xo||[]).filter(function(x){return x.id=
 function xtTabs(){
   var t=$("#xsub");if(!t)return;t.textContent="";
   XTABS.forEach(function(x){var b=h("button",XT.tab===x[0]?"on":"",x[1]);b.type="button";b.style.cssText="flex:1 1 45%;margin-bottom:6px";b.onclick=function(){XT.tab=x[0];renderXtra()};t.appendChild(b)});
-  ["exp","sup","fee","med","stock","clo"].forEach(function(k){var e=$("#xs-"+k);if(e)e.hidden=XT.tab!==k});
-  if(XT.tab==="stock")safe(xtStock)();if(XT.tab==="clo")safe(xtClothes)();if(XT.tab==="med")safe(xtMed)();
+  ["exp","sup","fee","med","stockb","clob"].forEach(function(k){var e=$("#xs-"+k);if(e)e.hidden=XT.tab!==(k==="stockb"?"stock":k==="clob"?"clo":k)});
+  if(XT.tab==="stock")safe(xtBills)("supplies");if(XT.tab==="clo")safe(xtBills)("clothes");if(XT.tab==="med")safe(xtMed)();
+  var xf=$("#xs-exp");if(xf&&XT.tab==="exp")safe(expFilterBar)();
   tdTabs();
   var q=document.querySelector("#p-exp .cordq");if(q)q.hidden=XT.tab!=="exp";
 }
@@ -2564,8 +2619,10 @@ function xtMed(){
   var tot=L.reduce(function(q,x){return q+(+x.amount||0)},0);
   top.appendChild(h("div","meta",L.length+(L.length===1?" bill":" bills")+" · "+money(tot)+" in total"+(owe.a?" · "+money(owe.a)+" paid by "+medFirst("a")+" not yet reimbursed":"")+(owe.b?" · "+money(owe.b)+" paid by "+medFirst("b")+" not yet reimbursed":"")));
   box.appendChild(top);
-  if(!L.length){var e=h("div","card");e.appendChild(h("p","meta","No medical bills yet."));box.appendChild(e);return}
+  var ME=S.exp.filter(function(x){return expCat(x)==="medical"});
+  if(!L.length&&!ME.length){var e=h("div","card");e.appendChild(h("p","meta","No medical bills yet."));box.appendChild(e);return}
   L.forEach(function(x){box.appendChild(medCard(x))});
+  if(ME.length){var mc=h("div","card");mc.appendChild(h("h3",null,"Medical bills from Expenses"));ME.forEach(function(x){mc.appendChild(expRowEl(x))});box.appendChild(mc)}
 }
 function medCard(rec){
   var c=h("div","card"),save=function(p){return xtDoc(rec.id,p)};
