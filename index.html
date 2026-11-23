@@ -909,7 +909,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 08:25</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 09:05</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -964,6 +964,7 @@ main{max-width:100%}
   </div>
   <div id="xs-sup" hidden></div>
   <div id="xs-fee" hidden></div>
+  <div id="xs-med" hidden></div>
   <div id="xs-stock" hidden></div>
   <div id="xs-clo" hidden></div>
 </section>
@@ -1591,8 +1592,10 @@ $("#xadd").onclick=async function(){
     chk=await aiVerifyMany(fl,{slot:"exp",kind:"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
     var rdt=rcDateMs(chk&&chk.read&&chk.read.date),xdate=rdt?key(new Date(rdt)):($("#xt").value||key(new Date()));
     var xrec=withShare({ts:Date.now(),desc:d,amount:a,by:$("#xw").value,date:xdate,proof:ups[0],aicheck:chk},"exp");if(ups.length>1)xrec.proofs=ups;if(chk.status==="review")xrec.review={state:"pending"};
-    await db.collection("expenses").add(xrec);
-    $("#xd").value="";$("#xa").value="";$("#xf").value="";note("");
+    var xcat=(chk&&chk.read&&chk.read.category)||"",rmsg="";
+    if((xcat==="medical"||xcat==="school")&&chk.status!=="review"){rmsg=await expRoute(xcat,xrec,fl)}
+    if(!rmsg||(xcat!=="medical"&&xcat!=="school")){await db.collection("expenses").add(xrec);if(xcat==="supplies")rmsg=await expRoute("supplies",xrec,fl)}
+    $("#xd").value="";$("#xa").value="";$("#xf").value="";note(rmsg||"");if(rmsg)setTimeout(function(){note("")},5000);
   }catch(e){note(attachErr(e))}
   btn.disabled=false;btn.textContent="Add expense";
 };
@@ -1706,7 +1709,7 @@ function renderExp(){
 
 /* ---------- Shopping list, monthly support and school fees (saved in the expenses collection, each with a "kind") ---------- */
 var XT={edit:{},tab:"exp",open:{},openT:{}};S.xo=[];
-var XTABS=[["exp","Expenses"],["sup","Support"],["fee","School fees"],["stock","Supplies"],["clo","Clothes"]];
+var XTABS=[["exp","Expenses"],["sup","Support"],["fee","School fees"],["med","Medical"],["stock","Supplies"],["clo","Clothes"]];
 /* the shopping list now lives on the To-do and Shopping List page */
 var TDT="tasks";
 function tdTabs(){
@@ -2504,11 +2507,145 @@ function xtDoc(id,patch,base){var cur=(S.xo||[]).filter(function(x){return x.id=
 function xtTabs(){
   var t=$("#xsub");if(!t)return;t.textContent="";
   XTABS.forEach(function(x){var b=h("button",XT.tab===x[0]?"on":"",x[1]);b.type="button";b.style.cssText="flex:1 1 45%;margin-bottom:6px";b.onclick=function(){XT.tab=x[0];renderXtra()};t.appendChild(b)});
-  ["exp","sup","fee","stock","clo"].forEach(function(k){var e=$("#xs-"+k);if(e)e.hidden=XT.tab!==k});
-  if(XT.tab==="stock")safe(xtStock)();if(XT.tab==="clo")safe(xtClothes)();
+  ["exp","sup","fee","med","stock","clo"].forEach(function(k){var e=$("#xs-"+k);if(e)e.hidden=XT.tab!==k});
+  if(XT.tab==="stock")safe(xtStock)();if(XT.tab==="clo")safe(xtClothes)();if(XT.tab==="med")safe(xtMed)();
   tdTabs();
   var q=document.querySelector("#p-exp .cordq");if(q)q.hidden=XT.tab!=="exp";
 }
+/* ---------- Medical: hospital, clinic, lab and pharmacy bills, with reimbursement between the parents ---------- */
+var MED={open:{},showAll:false};
+function medList(){return (S.xo||[]).filter(function(x){return x.kind==="medbill"&&!x.removed}).sort(function(a,b){return (b.date||"").localeCompare(a.date||"")||(b.ts||0)-(a.ts||0)})}
+function medSide(uid){return uid&&(ownerM()||{}).user_id===uid?"a":uid&&(mumM()||{}).user_id===uid?"b":""}
+function medUid(w){return w==="a"?(ownerM()||{}).user_id:w==="b"?(mumM()||{}).user_id:""}
+function medFirst(w){return String(nm(w)||"").split(" ")[0]}
+function medProofs(rec){var L=(rec.proofs||[]).slice();if(!L.length&&rec.proof)L.push(rec.proof);return L}
+function xtMed(){
+  var box=$("#xs-med");if(!box)return;
+  var ae=document.activeElement;if(ae&&ae.closest&&ae.closest("#xs-med")&&ae.matches&&ae.matches("input,select,textarea"))return;
+  box.textContent="";
+  var L=medList(),top=h("div","card");top.appendChild(h("h2",null,"Medical"));
+  top.appendChild(h("p","meta","Hospital, clinic, lab and pharmacy bills for Janet. Upload the bill or receipt, Cordial reads it, and the other parent can reimburse it here. Medical receipts added in Expenses come here automatically."));
+  if(canWrite){var ad=h("button","go","🩺 Add a medical bill");ad.type="button";ad.onclick=medAddDlg;top.appendChild(ad)}
+  var owe={a:0,b:0};L.forEach(function(x){if(!x.reimbAt&&x.by)owe[x.by]+=+x.amount||0});
+  var tot=L.reduce(function(q,x){return q+(+x.amount||0)},0);
+  top.appendChild(h("div","meta",L.length+(L.length===1?" bill":" bills")+" · "+money(tot)+" in total"+(owe.a?" · "+money(owe.a)+" paid by "+medFirst("a")+" not yet reimbursed":"")+(owe.b?" · "+money(owe.b)+" paid by "+medFirst("b")+" not yet reimbursed":"")));
+  box.appendChild(top);
+  if(!L.length){var e=h("div","card");e.appendChild(h("p","meta","No medical bills yet."));box.appendChild(e);return}
+  L.forEach(function(x){box.appendChild(medCard(x))});
+}
+function medCard(rec){
+  var c=h("div","card"),save=function(p){return xtDoc(rec.id,p)};
+  var hd=h("div");hd.style.cssText="display:flex;justify-content:space-between;gap:10px;align-items:flex-start";
+  var l=h("div");l.style.flex="1";l.appendChild(h("b",null,rec.title||"Medical bill"));
+  l.appendChild(h("div","meta",[rec.place,rec.date?new Date(rec.date+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short",year:"numeric"}):"","Paid by "+(medUid(rec.by)===myId?"you":medFirst(rec.by))].filter(Boolean).join(" · ")));
+  hd.appendChild(l);var am=h("div",null,money(+rec.amount||0));am.style.cssText="font-weight:800;font-size:1.1rem;white-space:nowrap";hd.appendChild(am);c.appendChild(hd);
+  if(rec.items&&rec.items.length){var il=h("div","meta",rec.items.slice(0,12).map(function(it){return (it.qty>1?it.qty+" × ":"")+it.name+(it.total!=null?" "+money(it.total):"")}).join(" · "));il.style.marginTop="4px";c.appendChild(il)}
+  if(rec.fromExp)c.appendChild(h("div","meta","Moved here from Expenses by Cordial"));
+  var pr=medProofs(rec);if(pr.length){var rl=xtRc(pr,"Bill / receipt");if(rl)c.appendChild(rl)}
+  var payer=medUid(rec.by),iAmPayer=payer===myId,other=rec.by==="a"?"b":"a";
+  if(rec.reimbAt){
+    c.appendChild(h("div","meta","↩️ Reimbursed on "+new Date(rec.reimbAt).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+(rec.reimbBy?" by "+xtName(rec.reimbBy):"")+" · "+money(+rec.amount||0)));
+    if(rec.reimbRead&&(rec.reimbRead.amount!=null||rec.reimbRead.narration))c.appendChild(h("div","meta","Transfer: "+(rec.reimbRead.amount!=null?money(rec.reimbRead.amount):"")+(rec.reimbRead.date?" on "+rec.reimbRead.date:"")+(rec.reimbRead.narration?" · “"+rec.reimbRead.narration+"”":"")));
+    var rr=xtRc(rec.reimbReceipts||[],"Reimbursement receipt");if(rr)c.appendChild(rr);
+    if(canWrite&&(isAdminAcct()||rec.reimbBy===myId))c.appendChild(xtBtn("Undo reimbursed",function(){if(confirm("Undo this reimbursement?"))save({reimbAt:null,reimbBy:null,reimbReceipts:[],reimbRead:null})},"quiet"));
+  }else if(canWrite){
+    if(iAmPayer){
+      if(rec.reimbReqAt)c.appendChild(h("div","meta","↩️ You asked "+medFirst(other)+" for reimbursement on "+new Date(rec.reimbReqAt).toLocaleDateString(undefined,{day:"numeric",month:"short"})+"."));
+      else c.appendChild(xtBtn("↩️ Ask "+medFirst(other)+" to reimburse",async function(){try{await save({reimbReqAt:Date.now(),reimbReqBy:myId});note("Reimbursement requested ✓");setTimeout(function(){note("")},2200);
+        try{var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token,ou=medUid(other);if(tk&&ou)fetch("/api/push",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({kind:"summary",to:[ou],title:"🩺 Reimbursement requested",body:(S.me||"")+" asked you to reimburse "+money(+rec.amount||0)+" for "+(rec.title||"a medical bill")+".",url:"/?tab=exp"})}).catch(function(){})}catch(e){}}catch(e){fail(e)}},"quiet"));
+    }else{
+      if(rec.reimbReqAt){var q=h("div","meta","🔔 "+xtName(rec.reimbReqBy||payer)+" asked you to reimburse this.");q.style.fontWeight="600";c.appendChild(q)}
+      var st=h("div","meta");var fl=h("input");fl.type="file";fl.multiple=true;fl.accept="image/*,application/pdf";fl.style.marginTop="6px";
+      c.appendChild(h("div","meta","To reimburse "+money(+rec.amount||0)+", attach the transfer receipt. Cordial reads its amount, date and narration (a transfer sent with other money is fine)."));c.appendChild(fl);
+      var bt=xtBtn("↩️ Reimburse",async function(){
+        if(!fl.files||!fl.files[0]){st.textContent="Attach the transfer receipt first.";return}
+        bt.disabled=true;st.textContent="Cordial is reading the transfer receipt…";
+        try{
+          var chk=await aiVerifyMany(fl.files,{kind:"reimbursement",title:"Reimbursement of "+(rec.title||"medical bill"),amount:+rec.amount||0,date:key(new Date())});
+          var rd=(chk&&chk.read)||{};if(!chk||(chk.status==="unchecked"&&rd.amount==null&&!rd.date&&!rd.narration)){bt.disabled=false;st.textContent="Cordial couldn’t read that transfer receipt. Try a clearer photo or screenshot.";return}
+          var rcs=[];for(var i=0;i<fl.files.length;i++){var u=await xtUp(fl.files[i]);u.aicheck=chk;rcs.push(u)}
+          await save({reimbAt:Date.now(),reimbBy:myId,reimbReceipts:rcs,reimbCheck:chk,reimbRead:{amount:typeof rd.amount==="number"?rd.amount:null,date:rd.date||"",narration:rd.narration||"",payee:rd.payee||""}});
+          st.textContent="Reimbursed ✓";
+        }catch(e){bt.disabled=false;st.textContent="Couldn’t save the reimbursement. Try again."}
+      });c.appendChild(bt);c.appendChild(st);
+    }
+  }
+  if(canWrite&&(rec.addedBy===myId||isAdminAcct()))c.appendChild(xtBtn("Remove",function(){if(confirm("Remove this medical bill?"))save({removed:Date.now(),removedBy:myId})},"quiet"));
+  return c;
+}
+function medAddDlg(){
+  var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px";
+  var c=h("div","card");c.style.cssText="width:min(94vw,460px);max-height:90vh;overflow:auto;box-sizing:border-box";
+  c.appendChild(h("h2",null,"Add a medical bill 🩺"));
+  c.appendChild(h("p","meta","Add the bill, invoice or receipt (photos, screenshots or PDF). Cordial reads the place, date, items and total."));
+  var fi=h("input");fi.type="file";fi.multiple=true;fi.accept="image/*,application/pdf";c.appendChild(fi);
+  function fld(lbl,el){var w=h("label",null,lbl);w.appendChild(el);c.appendChild(w);return el}
+  var ti=fld("What was it for?",h("input"));ti.placeholder="e.g. Doctor’s visit, malaria test, cough syrup";
+  var pl=fld("Hospital, clinic or pharmacy",h("input"));
+  var ai=fld("Amount (₦)",h("input"));ai.type="number";ai.step="any";ai.min="0";
+  var di=fld("Date",h("input"));di.type="date";di.value=key(new Date());
+  var ws=fld("Paid by",h("select"));["a","b"].forEach(function(w){var o=h("option",null,nm(w));o.value=w;ws.appendChild(o)});ws.value=medSide(myId)||"a";
+  var msg=h("div","meta");c.appendChild(msg);
+  var items=[],chk=null;
+  fi.onchange=async function(){
+    if(!fi.files||!fi.files[0])return;msg.textContent="Cordial is reading the bill…";
+    try{chk=await aiVerifyMany(fi.files,{kind:"medical",title:"Medical bill",amount:0,date:key(new Date())})}catch(e){chk=null}
+    var rd=(chk&&chk.read)||{};
+    if(typeof rd.amount==="number"&&!ai.value)ai.value=rd.amount;
+    var dt=rcDateMs(rd.date);if(dt)di.value=key(new Date(dt));
+    if(rd.payee&&!pl.value)pl.value=rd.payee;
+    items=(rd.items||[]).map(function(it){return {name:it.name,qty:it.qty,total:it.total!=null?it.total:it.unit}});
+    if(!ti.value&&items.length)ti.value=items.slice(0,3).map(function(it){return it.name}).join(", ");
+    msg.textContent=rd.amount!=null||items.length?"Cordial read "+(rd.amount!=null?money(rd.amount):"no total")+(items.length?" · "+items.length+(items.length===1?" item":" items"):"")+". Check and save.":"Cordial couldn’t read it clearly. Fill in the details yourself.";
+  };
+  var bar=h("div");bar.style.cssText="display:flex;gap:8px;margin-top:10px";var go=h("button","go","Save");go.type="button";var cx=h("button","quiet","Close");cx.type="button";cx.onclick=function(){ov.remove()};bar.appendChild(go);bar.appendChild(cx);c.appendChild(bar);
+  go.onclick=async function(){
+    var amt=parseFloat(ai.value);if(!fi.files||!fi.files[0]){msg.textContent="Attach the bill or receipt first.";return}
+    if(!(amt>0)){msg.textContent="Add the amount.";return}
+    var dup=medList().filter(function(x){return x.date===di.value&&Math.round(+x.amount)===Math.round(amt)})[0];
+    if(dup&&!confirm("A medical bill for "+money(amt)+" on that day is already here. Add it again?"))return;
+    go.disabled=true;go.textContent="Saving…";
+    try{
+      var ups=[];for(var i=0;i<fi.files.length;i++)ups.push(await xtUp(fi.files[i]));
+      await xtDoc("med_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),{kind:"medbill",date:di.value||key(new Date()),ts:Date.now(),title:ti.value.trim()||"Medical bill",place:pl.value.trim(),amount:amt,by:ws.value,addedBy:myId,proofs:ups,aicheck:chk,items:items});
+      ov.remove();note("Medical bill saved ✓");setTimeout(function(){note("")},2200);
+    }catch(e){go.disabled=false;go.textContent="Save";msg.textContent="Couldn’t save. Try again."}
+  };
+  ov.appendChild(c);document.body.appendChild(ov);
+}
+/* Expenses: Cordial sorts a new receipt. Medical goes to Medical, school to School fees, food and toiletries also fill Supplies. */
+function schoolTermOf(d){var t=new Date((d||key(new Date()))+"T12:00:00"),m=t.getMonth(),y=t.getFullYear();return m>=8?{y:y,term:1}:m<=3?{y:y-1,term:2}:{y:y-1,term:3}}
+async function expRoute(cat,x,files){
+  try{
+    if(cat==="medical"){
+      var pr=[x.proof].concat(x.proofs||[]).filter(Boolean).filter(function(p,i,a){return a.findIndex(function(q){return q.path===p.path})===i});
+      var rd=(x.aicheck&&x.aicheck.read)||{};
+      await xtDoc("med_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),{kind:"medbill",date:x.date,ts:Date.now(),title:x.desc,place:rd.payee||"",amount:x.amount,by:x.by,addedBy:myId,proofs:pr,aicheck:x.aicheck||null,items:(rd.items||[]).map(function(it){return {name:it.name,qty:it.qty,total:it.total!=null?it.total:it.unit}}),fromExp:true});
+      return "This looks medical, so Cordial put it in Medical.";
+    }
+    if(cat==="school"){
+      var st=schoolTermOf(x.date),rc=[x.proof].concat(x.proofs||[]).filter(Boolean);
+      await xtDoc("fx_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),{kind:"feex",year:st.y,term:st.term,what:x.desc,amount:x.amount,ts:Date.now(),by:myId,receipts:rc,aicheck:x.aicheck||null,paid:true,paidBy:medUid(x.by)||myId,paidOn:Date.now(),fromExp:true});
+      return "This looks like a school expense, so Cordial put it in School fees.";
+    }
+    if(cat==="supplies"){stkFromFiles(files,x.date);return "Cordial is also adding the items to Supplies."}
+  }catch(e){}
+  return "";
+}
+/* add the items on an expense receipt to Supplies (just the items and meters; the money stays in Expenses) */
+async function stkFromFiles(files,date){
+  try{
+    var imgs=[];for(var i=0;i<files.length&&imgs.length<8;i++){if(!/^image\//.test(files[i].type||""))continue;var d=await evThumb(files[i]);imgs.push({media:"image/jpeg",data:d.slice(d.indexOf(",")+1)})}
+    if(!imgs.length)return;
+    var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)return;
+    var r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({stock:{text:"",images:imgs}})});if(!r.ok)return;
+    var j=await r.json(),base=Math.min(Date.now(),new Date((j.date||date||key(new Date()))+"T12:00:00").getTime()),n=0;
+    for(var k=0;k<(j.items||[]).length;k++){var it=j.items[k];if(it.clothing)continue;if(stkDupOf(it.name,base,it.price,j.store||""))continue;
+      await xtDoc("sup_"+Date.now().toString(36)+k+Math.random().toString(36).slice(2,5),{kind:"supply",date:key(new Date(base)),name:it.name,brand:it.brand||"",qty:it.qty||1,unit:it.unit||"",size:it.size||"",price:it.price,store:j.store||"",section:it.section||"",days:it.lasts_days||0,ts:base,by:myId,rcpt:[],photo:0,added:Date.now(),fromExp:true});n++}
+    if(n){note("Added "+n+(n===1?" item":" items")+" from the receipt to Supplies.");setTimeout(function(){note("")},3000)}
+  }catch(e){}
+}
+
 function renderXtra(){
   xtTabs();
   var ae=document.activeElement;if(ae&&ae.matches&&ae.matches("input,select,textarea")&&ae.closest&&ae.closest("#xs-shop,#xs-sup,#xs-fee,#xs-chk"))return;
@@ -4085,6 +4222,7 @@ function spdItems(){
   (S.xo||[]).forEach(function(x){
     if(x.kind==="sup"&&x.paidAt){var ws=who(x.paidBy);out.push({w:ws,t:x.paidAt,amt:+x.amount||0,c:"Support",r:x.reimbAt||0});if(x.reimbAt)out.push({w:ws==="a"?"b":"a",t:x.reimbAt,amt:+x.amount||0,c:"Support",r:0})}
     else if(x.kind==="feex"&&x.paid)out.push({w:who(x.paidBy||x.by),t:x.paidOn||x.ts||0,amt:+x.amount||0,c:"School fees"});
+    else if(x.kind==="medbill"&&!x.removed){var wm=x.by==="b"?"b":"a",tm=(function(d){var p=String(d||"").split("-");return p.length>2?new Date(+p[0],+p[1]-1,+p[2]).getTime():0})(x.date)||x.ts||0;out.push({w:wm,t:tm,amt:+x.amount||0,c:"Medical",r:x.reimbAt||0});if(x.reimbAt)out.push({w:wm==="a"?"b":"a",t:x.reimbAt,amt:+x.amount||0,c:"Medical",r:0})}
     else if(x.kind==="fee")(x.payments||[]).forEach(function(p){out.push({w:who(p.by),t:p.ts||0,amt:+p.amount||0,c:"School fees"})});
   });
   return out;
@@ -4114,7 +4252,7 @@ function renderSpend(){
   var who=admin?["a","b"]:(mine?[mine]:[]);
   var L=$("#spend");L.textContent="";
   if(!who.length){L.appendChild(h("p","empty","Nothing to show for this account."));return}
-  var cats=["Expenses","Support","School fees"],grand=0;
+  var cats=["Expenses","Support","School fees","Medical"],grand=0;
   who.forEach(function(w){
     var mine_=items.filter(function(i){return i.w===w}),tot=mine_.reduce(function(q,i){return q+i.amt},0);grand+=tot;
     var row=h("div","item"),c=h("div");c.style.flex="1";
