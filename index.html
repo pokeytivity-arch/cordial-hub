@@ -469,6 +469,7 @@ html[data-look=wa] #chfab{display:flex;position:fixed;right:18px;bottom:calc(78p
 .seg{display:flex;gap:6px}
 .seg button{flex:1;background:var(--bgrey);border:0;border-radius:999px;padding:8px 0;font:inherit;font-weight:600;color:var(--muted);cursor:pointer}
 .seg button.on{background:var(--a-bg);color:var(--a)}
+#tdseg{flex-wrap:wrap}#tdseg button{flex:1 1 28%;padding:8px 6px}
 .mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
 .mgrid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;cursor:pointer;background:rgba(127,127,127,.2);display:block}
 .nrow{display:flex;gap:12px;align-items:flex-start;width:100%;background:none;border:0;border-radius:8px;padding:10px 12px;text-align:left;font:inherit;color:var(--ink);cursor:pointer}
@@ -908,7 +909,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">22 Nov 2026 · 18:45</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 02:30</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1019,11 +1020,12 @@ main{max-width:100%}
 </section>
 
 <section id="p-todo" hidden>
-  <div class="card" style="padding:10px"><div class="seg" id="tdseg"><button type="button" class="on" data-p="tasks">To-do <span id="tdn1"></span></button><button type="button" data-p="shop">Shopping list <span id="tdn2"></span></button><button type="button" data-p="chk">Checklist</button><button type="button" data-p="stock">Supplies</button></div></div>
+  <div class="card" style="padding:10px"><div class="seg" id="tdseg"><button type="button" class="on" data-p="tasks">To-do <span id="tdn1"></span></button><button type="button" data-p="shop">Shopping list <span id="tdn2"></span></button><button type="button" data-p="chk">Checklist</button><button type="button" data-p="stock">Supplies</button><button type="button" data-p="clo">Clothes</button></div></div>
   <div id="todocard"></div>
   <div id="xs-shop" hidden></div>
   <div id="xs-chk" hidden></div>
   <div id="xs-stock" hidden></div>
+  <div id="xs-clo" hidden></div>
 </section>
 <section id="p-meet" hidden>
   <div class="card" id="zoomcard"><button type="button" id="zoomhd" aria-expanded="false" style="display:flex;width:100%;align-items:center;justify-content:space-between;background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer"><span style="font-size:1.15rem;font-weight:700">Zoom connection</span><span><span id="zoomtick" style="font-size:1.2rem">…</span> <span id="zoomch" style="opacity:.6">›</span></span></button><div id="zoomdet" hidden style="margin-top:8px"><div id="zoomsts" class="meta">Checking…</div><button class="quiet" id="zoomchk" type="button" style="padding:4px 0;text-decoration:underline">Check again</button></div></div>
@@ -1710,7 +1712,7 @@ var TDT="tasks";
 function tdTabs(){
   var sg=$("#tdseg");if(!sg)return;
   Array.prototype.forEach.call(sg.children,function(b){b.className=b.dataset.p===TDT?"on":""});
-  var tc=$("#todocard"),sh=$("#xs-shop");if(tc)tc.hidden=TDT!=="tasks";if(sh)sh.hidden=TDT!=="shop";var ck=$("#xs-chk");if(ck){ck.hidden=TDT!=="chk";if(TDT==="chk")safe(xtChk)()}var sk=$("#xs-stock");if(sk){sk.hidden=TDT!=="stock";if(TDT==="stock")safe(xtStock)()}
+  var tc=$("#todocard"),sh=$("#xs-shop");if(tc)tc.hidden=TDT!=="tasks";if(sh)sh.hidden=TDT!=="shop";var ck=$("#xs-chk");if(ck){ck.hidden=TDT!=="chk";if(TDT==="chk")safe(xtChk)()}var sk=$("#xs-stock");if(sk){sk.hidden=TDT!=="stock";if(TDT==="stock")safe(xtStock)()}var cl=$("#xs-clo");if(cl){cl.hidden=TDT!=="clo";if(TDT==="clo")safe(xtClothes)()}
 }
 (function(){var sg=document.getElementById("tdseg");if(!sg)return;
   Array.prototype.forEach.call(sg.children,function(b){b.onclick=function(){TDT=b.dataset.p;tdTabs()}})})();
@@ -1907,9 +1909,9 @@ function stkClean(){
 }
 function stkLeft(x){if(!x.days)return null;var tot=x.days*86400000,left=Math.max(0,tot-(Date.now()-(x.ts||0)));if(x.usedAt)left=0;return {tot:tot,left:left,pc:left/tot,dl:Math.ceil(left/86400000),end:(x.ts||0)+tot}}
 function stkCol(pc){return pc>0.5?"#1fa855":pc>0.3?"#e0a100":"#d93025"}
-function stkMoney(n){return n==null||n===""?"":"₦"+Number(n).toLocaleString("en-NG",{maximumFractionDigits:0})}
+function stkMoney(n,c){return n==null||n===""?"":c&&c!=="NGN"?cloMoney(n,c):"₦"+Number(n).toLocaleString("en-NG",{maximumFractionDigits:0})}
 function stkDate(ts){return new Date(ts).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}
-function stkThumb(el,path){if(!path)return;signed(path).then(function(u){el.style.backgroundImage="url('"+u+"')";el.onclick=function(e){e.stopPropagation();openViewer(u)}}).catch(function(){})}
+function stkThumb(el,path){if(!path)return;if(/\.pdf$/i.test(path)){el.textContent="📄";el.onclick=function(e){e.stopPropagation();signed(path).then(function(u){preview({title:"Receipt",name:"receipt.pdf",type:"application/pdf",path:path,url:u,viewOnly:true})})};return}signed(path).then(function(u){el.style.backgroundImage="url('"+u+"')";el.onclick=function(e){e.stopPropagation();openViewer(u)}}).catch(function(){})}
 function xtStock(){
   var box=$("#xs-stock");if(!box)return;box.textContent="";
   try{stkClean()}catch(e){}
@@ -1931,7 +1933,7 @@ function xtStock(){
     var tx=h("div");tx.style.cssText="flex:1;min-width:0";
     var nm=h("b",null,x.name);nm.style.fontSize="1.05rem";tx.appendChild(nm);
     var sub=[x.brand,(x.qty>1?x.qty+" × ":"")+(x.size||x.unit||""),x.store].filter(function(v){return v&&String(v).trim()}).join(" · ");if(sub)tx.appendChild(h("div","meta",sub));
-    tx.appendChild(h("div","meta","Bought "+stkDate(x.ts)+(x.by?" by "+(x.by===myId?"you":(memberName(x.by)||"")):"")+(x.price!=null?" · "+stkMoney(x.price):"")));
+    tx.appendChild(h("div","meta","Bought "+stkDate(x.ts)+(x.by?" by "+(x.by===myId?"you":(memberName(x.by)||"")):"")+(x.price!=null?" · "+stkMoney(x.price,x.cur):"")));
     row.appendChild(tx);c.appendChild(row);
     if(m){
       var bar=h("div");bar.style.cssText="height:12px;border-radius:6px;background:rgba(128,128,128,.22);overflow:hidden;margin-top:10px";
@@ -1973,12 +1975,12 @@ function stkAddDlg(opt){
   opt=opt||{};
   var ov=h("div");ov.style.cssText="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px";
   var c=h("div","card");c.style.cssText="width:min(94vw,460px);max-height:90vh;overflow:auto;box-sizing:border-box";
-  c.appendChild(h("h2",null,opt.again?"Bought more "+opt.again.name:"Add supplies ✨"));
-  c.appendChild(h("p","meta",opt.again?"Add the new receipt if you have one. The meter starts again from today.":"Add photos of the receipts, as many as you like. Cordial adds only the items printed on the receipts; photos of the items just help it get brands and sizes right."));
-  var lf=h("label",null,"Receipt and item photos");var fi=h("input");fi.type="file";fi.accept="image/*";fi.multiple=true;fi.style.maxWidth="100%";lf.appendChild(fi);c.appendChild(lf);
+  c.appendChild(h("h2",null,opt.again?"Bought more "+opt.again.name:opt.clothes?"Add clothes 👕":"Add supplies ✨"));
+  c.appendChild(h("p","meta",opt.again?"Add the new receipt if you have one. The meter starts again from today.":opt.clothes?"Add the receipt, invoice or order confirmation: photos, screenshots or a PDF. Cordial sorts the clothes by type with sizes and pieces. A cart screenshot works too if you write “ordered” in the box. Anything that isn’t clothing goes to Supplies.":"Add photos of the receipts, as many as you like. Cordial adds only the items printed on the receipts; photos of the items just help it get brands and sizes right. Clothes go to the Clothes tab."));
+  var lf=h("label",null,opt.again?"Receipt and item photos":"Receipt, invoice or order (photos, screenshots or PDF)");var fi=h("input");fi.type="file";fi.accept=opt.again?"image/*":"image/*,application/pdf";fi.multiple=true;fi.style.maxWidth="100%";lf.appendChild(fi);c.appendChild(lf);
   var th=h("div");th.style.cssText="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0";c.appendChild(th);
-  fi.onchange=function(){th.textContent="";Array.prototype.slice.call(fi.files).forEach(function(f){var im=h("img");im.src=URL.createObjectURL(f);im.style.cssText="width:64px;height:64px;object-fit:cover;border-radius:8px";th.appendChild(im)})};
-  var ta=null;if(!opt.again){ta=h("textarea");ta.rows=2;ta.maxLength=1000;ta.placeholder="Anything to add? e.g. “2 packs of Pampers size 4, 40 each” (optional)";ta.style.cssText="width:100%;box-sizing:border-box;margin-top:6px";c.appendChild(ta)}
+  fi.onchange=function(){th.textContent="";Array.prototype.slice.call(fi.files).forEach(function(f){if(/pdf/i.test(f.type)){var pd=h("div",null,"📄 "+String(f.name||"PDF").slice(0,18));pd.style.cssText="padding:8px;border-radius:8px;background:rgba(128,128,128,.15);font-size:.8rem";th.appendChild(pd);return}var im=h("img");im.src=URL.createObjectURL(f);im.style.cssText="width:64px;height:64px;object-fit:cover;border-radius:8px";th.appendChild(im)})};
+  var ta=null;if(!opt.again){ta=h("textarea");ta.rows=2;ta.maxLength=1000;ta.placeholder=opt.clothes?"Anything to add? e.g. “ordered”, or “the leggings are 4T” (optional)":"Anything to add? e.g. “2 packs of Pampers size 4, 40 each” (optional)";ta.style.cssText="width:100%;box-sizing:border-box;margin-top:6px";c.appendChild(ta)}
   var er=h("div","meta");er.style.color="#b3261e";er.hidden=true;c.appendChild(er);
   var res=h("div");c.appendChild(res);
   var bar=h("div");bar.style.cssText="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap";
@@ -2000,36 +2002,50 @@ function stkAddDlg(opt){
     if(!files.length&&!txt){er.textContent="Add a photo of the receipt or items first.";er.hidden=false;return}
     go.disabled=true;go.textContent="Cordial is reading…";
     try{
-      var imgs=[],thumbs=[];for(var i=0;i<files.length;i++){var d=await evThumb(files[i]);thumbs.push(d);imgs.push({media:"image/jpeg",data:d.slice(d.indexOf(",")+1)})}
+      var imgs=[],thumbs=[];for(var i=0;i<files.length;i++){if(/pdf/i.test(files[i].type)){if(files[i].size>2200000)throw {pdfbig:1};var pd=await readDataUrl(files[i]);thumbs.push(files[i]);imgs.push({media:"application/pdf",data:pd.slice(pd.indexOf(",")+1)});continue}var d=await evThumb(files[i]);thumbs.push(d);imgs.push({media:"image/jpeg",data:d.slice(d.indexOf(",")+1)})}
       var ss=await sb.auth.getSession(),tk=ss&&ss.data&&ss.data.session&&ss.data.session.access_token;if(!tk)throw 0;
       /* any number of photos: Cordial reads them in groups of 8 and the lists are joined */
       var j={items:[],store:"",date:"",total:null},r={ok:true,status:200},G=8,ng=Math.max(1,Math.ceil(imgs.length/G));
       for(var gi=0;gi<ng;gi++){
         if(ng>1)go.textContent="Cordial is reading… ("+(gi+1)+" of "+ng+")";
         var part=imgs.slice(gi*G,gi*G+G);
-        r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({stock:{text:gi===0?txt:"",images:part}})});
+        r=await fetch("/api/cordial",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk},body:JSON.stringify({stock:{text:gi===0?txt:"",images:part,clothes:!!opt.clothes}})});
         var jj={};try{jj=await r.json()}catch(x){}
         if(!r.ok){j=jj;break}
-        j.items=j.items.concat(jj.items||[]);if(!j.store&&jj.store)j.store=jj.store;if(!j.date&&jj.date)j.date=jj.date;
+        j.items=j.items.concat(jj.items||[]);if(!j.store&&jj.store)j.store=jj.store;if(!j.date&&jj.date)j.date=jj.date;if(!j.currency&&jj.currency)j.currency=jj.currency;
         if(jj.total!=null)j.total=(j.total||0)+jj.total;
       }
       if(!r.ok){er.textContent="Cordial couldn’t read that ("+r.status+(j.detail?": "+j.detail:"")+"). Try again, or use a clearer photo.";er.hidden=false;go.disabled=false;go.textContent="Read it";return}
-      var items=[],mg={};(j.items||[]).forEach(function(it){var g=stkNorm(it.name)+"|"+stkNorm(it.brand)+"|"+(it.price==null?"":it.price);if(mg[g]){mg[g].qty=(mg[g].qty||1)+(it.qty||1);mg[g].merged=1}else{mg[g]=Object.assign({},it);items.push(mg[g])}});
+      var items=[],mg={},cur=j.currency||"NGN",foreign=cur!=="NGN";(j.items||[]).forEach(function(it){var g=stkNorm(it.name)+"|"+stkNorm(it.brand)+"|"+(it.price==null?"":it.price)+(it.clothing?"|"+stkNorm(it.size)+"|"+stkNorm(it.color):"");if(mg[g]){mg[g].qty=(mg[g].qty||1)+(it.qty||1);if(it.clothing)mg[g].pieces=(mg[g].pieces||1)+(it.pieces||it.qty||1);mg[g].merged=1}else{mg[g]=Object.assign({},it);items.push(mg[g])}});
       if(!items.length){er.textContent="Cordial didn’t find any items. Try a clearer photo of the receipt, or type what you bought in the box.";er.hidden=false;go.disabled=false;go.textContent="Read it";return}
-      res.appendChild(h("b",null,"Found "+items.length+(items.length===1?" item":" items")+(j.store?" from "+j.store:"")+(j.total!=null?" · total "+stkMoney(j.total):"")+". Check the days each lasts, untick anything you don’t want."));
+      res.appendChild(h("b",null,"Found "+items.length+(items.length===1?" item":" items")+(j.store?" from "+j.store:"")+(j.total!=null?" · total "+stkMoney(j.total,cur):"")+". "+(items.some(function(it){return it.clothing})?"Check the type, size and pieces of the clothes":"Check the days each lasts")+", untick anything you don’t want."));
       var when=h("label",null,"Bought on");var wd=h("input");wd.type="date";wd.value=j.date||key(new Date());when.appendChild(wd);res.appendChild(when);
       var rows=[];
       items.forEach(function(it){
         var rw=h("div");rw.style.cssText="border:1px solid rgba(128,128,128,.25);border-radius:12px;padding:8px 10px;margin:8px 0";
         var hd=h("label");hd.style.cssText="display:flex;gap:8px;align-items:center;font-weight:600";var cb=h("input");cb.type="checkbox";cb.checked=true;cb.style.width="auto";hd.appendChild(cb);
-        var dts=j.date?new Date(j.date+"T12:00:00").getTime():Date.now(),dup=stkDupOf(it.name,dts,it.price,j.store||"");
-        if(dup){cb.checked=false;var dn=h("div","meta","Already in Supplies from this purchase, so it’s left out. Tick it if you really bought it twice.");dn.style.cssText="color:#c07a00;font-weight:600"}
+        var dts=j.date?new Date(j.date+"T12:00:00").getTime():Date.now(),isClo=!!it.clothing,dup=isClo?cloDupOf(it.name,dts,it.price,j.store||"",it.size,it.color):stkDupOf(it.name,dts,it.price,j.store||"");
+        if(dup){cb.checked=false;var dn=h("div","meta","Already in "+(isClo?"Clothes":"Supplies")+" from this purchase, so it’s left out. Tick it if you really bought it twice.");dn.style.cssText="color:#c07a00;font-weight:600"}
         var nm=h("input");nm.value=it.name;nm.style.cssText="flex:1;font-weight:600";hd.appendChild(nm);rw.appendChild(hd);
-        rw.appendChild(h("div","meta",[it.brand,(it.qty>1?it.qty+" × ":"")+(it.size||it.unit||""),it.price!=null?stkMoney(it.price):""].filter(function(v){return v&&String(v).trim()}).join(" · ")));
-        var dl=h("label");dl.style.cssText="display:flex;gap:8px;align-items:center;margin-top:4px";dl.appendChild(document.createTextNode("Lasts about"));
-        var di=h("input");di.type="number";di.min="0";di.value=it.lasts_days||0;di.style.cssText="width:80px";dl.appendChild(di);dl.appendChild(document.createTextNode("days (0 = doesn’t get used up)"));rw.appendChild(dl);
+        rw.appendChild(h("div","meta",[it.brand,isClo?"":(it.qty>1?it.qty+" × ":"")+(it.size||it.unit||""),it.price!=null?stkMoney(it.price,cur):""].filter(function(v){return v&&String(v).trim()}).join(" · ")));
+        var di=null,ccs=null,csz=null,cpc=null,ccol=null;
+        if(isClo){
+          var tag=h("div","meta","👕 Goes to Clothes");tag.style.cssText="font-weight:600;color:#1a7f45";rw.appendChild(tag);
+          var g2=h("div");g2.style.cssText="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px";
+          var l1=h("label",null,"Type");ccs=h("select");CLOCATS.forEach(function(k){var o=h("option",null,CLOICON[k]+" "+k);o.value=k;if(k===cloCatOf(it.category))o.selected=true;ccs.appendChild(o)});l1.appendChild(ccs);g2.appendChild(l1);
+          var l2=h("label",null,"Size");csz=h("input");csz.value=it.size||"";csz.placeholder="e.g. 4T";l2.appendChild(csz);g2.appendChild(l2);
+          var l3=h("label",null,"Pieces");cpc=h("input");cpc.type="number";cpc.min="1";cpc.value=it.pieces||it.qty||1;l3.appendChild(cpc);g2.appendChild(l3);
+          var l4=h("label",null,"Colour");ccol=h("input");ccol.value=it.color||"";l4.appendChild(ccol);g2.appendChild(l4);rw.appendChild(g2);
+          var pv=h("div","meta");pv.style.fontWeight="600";rw.appendChild(pv);
+          var upv=function(){var m=cloFit({size:csz.value,cat:ccs.value,ts:dts});pv.textContent=!m?"Doesn’t get outgrown":m.small?"⚠️ Likely too small for her already":m.from?"⚠️ Too big for now; fits from about "+cloMon(m.from):"Fits until about "+cloMon(m.end);pv.style.color=!m?"":m.small||m.from?"#c07a00":"#1a7f45"};
+          csz.oninput=upv;ccs.onchange=upv;upv();
+        }else{
+          if(opt.clothes){var tg=h("div","meta","Not clothing, so it goes to Supplies");tg.style.color="#c07a00";rw.appendChild(tg)}
+          var dl=h("label");dl.style.cssText="display:flex;gap:8px;align-items:center;margin-top:4px";dl.appendChild(document.createTextNode("Lasts about"));
+          di=h("input");di.type="number";di.min="0";di.value=it.lasts_days||0;di.style.cssText="width:80px";dl.appendChild(di);dl.appendChild(document.createTextNode("days (0 = doesn’t get used up)"));rw.appendChild(dl);
+        }
         if(dup)rw.appendChild(dn);if(it.merged)rw.appendChild(h("div","meta","Listed more than once on the receipt, so the quantities were added together."));
-        res.appendChild(rw);rows.push({it:it,cb:cb,nm:nm,di:di,dup:!!dup});
+        res.appendChild(rw);rows.push({it:it,cb:cb,nm:nm,di:di,dup:!!dup,clo:isClo,ccs:ccs,csz:csz,cpc:cpc,ccol:ccol});
       });
       var nDup=rows.filter(function(r){return r.dup}).length;
       if(nDup&&nDup===rows.length){var aw=h("div","meta","This receipt looks like it was already added. Nothing new to add.");aw.style.cssText="color:#c07a00;font-weight:700";res.insertBefore(aw,res.firstChild)}
@@ -2046,11 +2062,13 @@ function stkAddDlg(opt){
       function selTotal(){var t=0,all=0,any=false,allOn=true;rows.forEach(function(r){var p=r.it.price;if(p!=null)all+=p;if(r.cb.checked){if(p!=null){t+=p;any=true}}else if(!r.dup)allOn=false});
         if(j.total>0){if(allOn)return Math.round(j.total*100)/100;if(any&&all>0)return Math.round(t*j.total/all*100)/100}
         return any?t:(j.total||"")}
-      rows.forEach(function(r){r.cb.addEventListener("change",function(){if(!exSel.value)return;ai.value=selTotal()})});
-      exSel.onchange=function(){var v=exSel.value;aw2.hidden=!v;rw2.hidden=v!=="reimb";if(v&&!ai.value)ai.value=selTotal();
-        exHelp.textContent=v==="mine"?"Saved in Expenses as paid by you. It counts only towards your spending and doesn’t show on "+othN+"’s side.":v==="reimb"?"Saved in Expenses as bought by "+othN+" and reimbursed by you. It shows as a reimbursement and counts towards your spending, not "+othN+"’s. Attach the transfer receipt: Cordial reads its amount, date and narration and shows you what it found. A transfer for a different amount (for example sent with other money) is fine.":""};
+      rows.forEach(function(r){r.cb.addEventListener("change",function(){if(!exSel.value||foreign)return;ai.value=selTotal()})});
+      if(foreign)exHelp.dataset.fx="The receipt is in "+cur+". Enter what it cost in naira.";
+      exSel.onchange=function(){var v=exSel.value;aw2.hidden=!v;rw2.hidden=v!=="reimb";if(v&&!ai.value&&!foreign)ai.value=selTotal();
+        exHelp.textContent=v==="mine"?"Saved in Expenses as paid by you. It counts only towards your spending and doesn’t show on "+othN+"’s side.":v==="reimb"?"Saved in Expenses as bought by "+othN+" and reimbursed by you. It shows as a reimbursement and counts towards your spending, not "+othN+"’s. Attach the transfer receipt: Cordial reads its amount, date and narration and shows you what it found. A transfer for a different amount (for example sent with other money) is fine.":"";if(v&&foreign)exHelp.textContent=exHelp.dataset.fx+" "+exHelp.textContent};
       res.appendChild(exBox);
-      go.textContent="Add to Supplies";go.disabled=false;
+      var goTxt=rows.every(function(r){return r.clo})?"Add to Clothes":rows.some(function(r){return r.clo})?"Add to Clothes and Supplies":"Add to Supplies";
+      go.textContent=goTxt;go.disabled=false;
       go.onclick=async function(){
         var pick=rows.filter(function(r){return r.cb.checked&&r.nm.value.trim()});if(!pick.length){er.textContent="Tick at least one item.";er.hidden=false;return}
         /* recording money needs proof: the purchase receipt, and for a reimbursement the transfer receipt for exactly the amount */
@@ -2067,40 +2085,187 @@ function stkAddDlg(opt){
             else{try{rchk=await aiVerifyMany(rfi.files,{kind:"reimbursement",title:"Reimbursement of supplies"+(j.store?" from "+j.store:""),amount:exAmt,date:key(new Date())})}catch(e){rchk=null}window.__stkRC={k:rkey,c:rchk};window.__stkRAck=null}
             /* not strict on the amount: a reimbursement is often sent together with other money. Cordial's reading (amount, date, narration) is saved with it for both parents to see */
             var rd=(rchk&&rchk.read)||{},got=typeof rd.amount==="number"?rd.amount:null;
-            if(!rchk||(rchk.status==="unchecked"&&got===null&&!rd.date&&!rd.narration)){go.disabled=false;go.textContent="Add to Supplies";er.textContent="Cordial couldn’t read that transfer receipt. Try a clearer photo or screenshot.";er.hidden=false;return}
+            if(!rchk||(rchk.status==="unchecked"&&got===null&&!rd.date&&!rd.narration)){go.disabled=false;go.textContent=goTxt;er.textContent="Cordial couldn’t read that transfer receipt. Try a clearer photo or screenshot.";er.hidden=false;return}
             var rnote=[got!=null?"Transfer of "+money(got)+(Math.round(got*100)!==Math.round(exAmt*100)?(got>exAmt?" (more than "+money(exAmt)+"; sent with other money)":" (less than "+money(exAmt)+")"):""):"",rd.date?"on "+rd.date:"",rd.narration?"· narration: “"+rd.narration+"”":""].filter(Boolean).join(" ");
-            if(window.__stkRAck!==rkey){window.__stkRAck=rkey;go.disabled=false;go.textContent="Looks right, add to Supplies";er.style.color="#1a7f45";er.textContent="Cordial read: "+(rnote||"no amount, date or narration")+". Tap the button again to save.";er.hidden=false;return}
+            if(window.__stkRAck!==rkey){window.__stkRAck=rkey;go.disabled=false;go.textContent="Looks right, save";er.style.color="#1a7f45";er.textContent="Cordial read: "+(rnote||"no amount, date or narration")+". Tap the button again to save.";er.hidden=false;return}
             window.__stkRAck=null;window.__stkRC=null;er.style.color="#b3261e";
             for(var q=0;q<rf.length;q++){var u0=await xtUp(rf[q]);u0.aicheck=rchk;rcs.push(u0)}
           }
         }
         go.disabled=true;go.textContent="Saving…";
         try{
-          var paths=[];for(var k=0;k<thumbs.length;k++){var bl=await (await fetch(thumbs[k])).blob();paths.push(await upload("docs",bl,"receipt.jpg"))}
+          var paths=[];for(var k=0;k<thumbs.length;k++){var tk0=thumbs[k],isPdf=typeof tk0!=="string",bl=isPdf?tk0:await (await fetch(tk0)).blob();paths.push(await upload("docs",bl,isPdf?"receipt.pdf":"receipt.jpg"))}
           var d0=wd.value?new Date(wd.value+"T12:00:00").getTime():Date.now(),base=Math.min(Date.now(),d0);
-          for(var n=0;n<pick.length;n++){var p=pick[n],it=p.it,id="sup_"+Date.now().toString(36)+n+Math.random().toString(36).slice(2,5);
-            await xtDoc(id,{kind:"supply",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",qty:it.qty||1,unit:it.unit||"",size:it.size||"",price:it.price,store:j.store||"",section:it.section||"",days:parseInt(p.di.value,10)||0,ts:base,by:myId,rcpt:paths,photo:0,added:Date.now()})}
+          var nClo=0,nSup=0;
+          for(var n=0;n<pick.length;n++){var p=pick[n],it=p.it,id=(p.clo?"clo_":"sup_")+Date.now().toString(36)+n+Math.random().toString(36).slice(2,5);
+            if(p.clo){nClo++;await xtDoc(id,{kind:"clothes",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",cat:p.ccs.value,size:p.csz.value.trim(),pieces:Math.max(1,parseInt(p.cpc.value,10)||1),color:p.ccol.value.trim(),qty:it.qty||1,price:it.price,cur:cur,store:j.store||"",ts:base,by:myId,rcpt:paths,added:Date.now()});continue}
+            nSup++;await xtDoc(id,{kind:"supply",date:key(new Date(base)),name:p.nm.value.trim(),brand:it.brand||"",qty:it.qty||1,unit:it.unit||"",size:it.size||"",price:it.price,store:j.store||"",cur:cur,section:it.section||"",days:parseInt(p.di.value,10)||0,ts:base,by:myId,rcpt:paths,photo:0,added:Date.now()})}
           var exMsg="";
           if(exSel.value&&me){
             var amt=exAmt;
             {
-              var payer=exSel.value==="reimb"?oth:me,desc="Supplies: "+pick.map(function(p){return p.nm.value.trim()}).slice(0,6).join(", ")+(pick.length>6?" and more":"")+(j.store?" ("+j.store+")":"");
+              var payer=exSel.value==="reimb"?oth:me,desc=(nSup?"Supplies":"Clothes")+": "+pick.map(function(p){return p.nm.value.trim()}).slice(0,6).join(", ")+(pick.length>6?" and more":"")+(j.store?" ("+j.store+")":"");
               var dupX=(S.exp||[]).filter(function(x){return x.date===key(new Date(base))&&Math.round(+x.amount)===Math.round(amt)&&x.by===payer})[0];
               if(dupX)exMsg=" An expense for "+money(amt)+" on that day was already in Expenses, so it wasn’t added again.";
               else{
-                var pr={path:paths[0],name:"receipt.jpg",type:"image/jpeg"},xrec=withShare({ts:Date.now(),desc:desc,amount:amt,by:payer,date:key(new Date(base)),proof:pr,fromSupplies:1,addedBy:myId},"exp");
-                if(paths.length>1)xrec.proofs=paths.map(function(pp){return {path:pp,name:"receipt.jpg",type:"image/jpeg"}});
+                var pft=function(pp){return /\.pdf$/i.test(pp)?{path:pp,name:"receipt.pdf",type:"application/pdf"}:{path:pp,name:"receipt.jpg",type:"image/jpeg"}},pr=pft(paths[0]),xrec=withShare({ts:Date.now(),desc:desc,amount:amt,by:payer,date:key(new Date(base)),proof:pr,fromSupplies:1,addedBy:myId},"exp");
+                if(paths.length>1)xrec.proofs=paths.map(pft);
                 if(exSel.value==="reimb"){xrec.reimbAt=Date.now();xrec.reimbBy=myId;xrec.reimbReceipts=rcs;xrec.reimbCheck=rchk;var rd2=(rchk&&rchk.read)||{};xrec.reimbRead={amount:typeof rd2.amount==="number"?rd2.amount:null,date:rd2.date||"",narration:rd2.narration||"",payee:rd2.payee||""}}
                 await db.collection("expenses").add(xrec);
                 exMsg=exSel.value==="reimb"?" Saved in Expenses as a reimbursement to "+othN+".":" Saved in Expenses as your contribution.";
               }
             }
           }
-          ov.remove();note("Added "+pick.length+(pick.length===1?" item":" items")+" to Supplies."+exMsg);setTimeout(function(){note("")},exMsg?6000:2500);
-        }catch(e){go.disabled=false;go.textContent="Add to Supplies";er.textContent="Couldn’t save. "+(e&&e.message==="toolarge"?"A photo is too large.":"Try again. ("+String((e&&(e.message||e.code||e.error))||e||"").slice(0,120)+")");er.hidden=false}
+          ov.remove();note("Added "+[nClo?nClo+(nClo===1?" item":" items")+" to Clothes":"",nSup?nSup+(nSup===1?" item":" items")+" to Supplies":""].filter(Boolean).join(" and ")+"."+exMsg);if(nClo&&!opt.clothes){TDT="clo";tdTabs()}setTimeout(function(){note("")},exMsg?6000:2500);
+        }catch(e){go.disabled=false;go.textContent=goTxt;er.textContent="Couldn’t save. "+(e&&e.message==="toolarge"?"A photo is too large.":"Try again. ("+String((e&&(e.message||e.code||e.error))||e||"").slice(0,120)+")");er.hidden=false}
       };
-    }catch(e){er.textContent="Something went wrong. Try again.";er.hidden=false;go.disabled=false;go.textContent="Read it"}
+    }catch(e){er.textContent=e&&e.pdfbig?"That PDF is too big (over 2 MB). Try a screenshot of it instead.":"Something went wrong. Try again.";er.hidden=false;go.disabled=false;go.textContent="Read it"}
   };
+}
+/* ---------- Clothes: items from receipts or invoices, sorted by type, each with a meter for when Janet is likely to outgrow it ---------- */
+var CLO={open:{},showOut:false,editKid:false};
+var CLOCATS=["Tops","Bottoms","Dresses and one-pieces","Sleepwear","Underwear","Socks","Layers and outerwear","Shoes","Accessories"];
+var CLOICON={"Tops":"👕","Bottoms":"👖","Dresses and one-pieces":"👗","Sleepwear":"🌙","Underwear":"🩲","Socks":"🧦","Layers and outerwear":"🧥","Shoes":"👟","Accessories":"🎀"};
+function cloList(){return (S.xo||[]).filter(function(x){return x.kind==="clothes"&&!x.removed})}
+function cloCatOf(c){return CLOCATS.indexOf(c)>=0?c:"Tops"}
+var CLOM=30.44*86400000;
+/* US size chart (Carter's style): [lightest lb, heaviest lb, tallest cm] for each size */
+var CLOSZ={"3M":[0,12.5,61],"6M":[12.5,16.5,67],"9M":[16.5,20.5,72],"12M":[20.5,22.5,76],"18M":[22.5,25.5,81],"24M":[25.5,29,86],"2T":[27,31,91],"3T":[31,34,98],"4T":[34,38,105],"5T":[38,42,110],"6":[42,51,122],"7":[51,58,130],"8":[58,66,137],"10":[66,76,142],"12":[76,87,150],"14":[87,100,157]};
+var CLOORDER=["3M","6M","9M","12M","18M","24M","2T","3T","4T","5T","6","7","8","10","12","14"];
+function cloKidKey(n){var ks=[6,7,8,10,12,14];for(var i=0;i<ks.length;i++)if(n<=ks[i])return String(ks[i]);return "14"}
+function cloKey(n,u){
+  if(u==="M"){var ms=[3,6,9,12,18,24];for(var i=0;i<ms.length;i++)if(n<=ms[i])return ms[i]+"M";return "24M"}
+  if(u==="T"||(u==="Y"&&n<=5)){if(n<=1)return "18M";if(n>5)return cloKidKey(n);return n+"T"}
+  return cloKidKey(n);
+}
+/* read a size label such as 4T, 4-5T, 2-4T, 18-24M, 7-8 Years, Size 4, Ages 3-10 */
+function cloSize(s){
+  var t=String(s||"").toUpperCase().replace(/YEARS?|YRS?/g,"Y").replace(/MONTHS?|MOS?/g,"M").replace(/\s+/g,"");
+  if(!t||/ONESIZE|^OS$|FREESIZE/.test(t))return null;
+  var m=t.match(/(\d+)(?:[TYM])?-(\d+)([TYM]?)/);
+  if(m){var u=m[3]||(+m[2]>5?"Y":"T");return {lo:cloKey(+m[1],u),hi:cloKey(+m[2],u)}}
+  m=t.match(/(\d+)([TYM])/);if(m){var k=cloKey(+m[1],m[2]);return {lo:k,hi:k}}
+  m=t.match(/^(?:SIZE)?(\d+)$/);if(m){var k2=+m[1]<=5?cloKey(+m[1],"T"):cloKey(+m[1],"Y");return {lo:k2,hi:k2}}
+  return null;
+}
+/* Janet's size: the last weight (and height) a parent saved; 16 kg on 23 Nov 2026 until one is saved */
+var CLOKID0={wt:16,wtAt:new Date("2026-11-23T12:00:00").getTime(),dflt:1};
+function cloMe(){var c=(S.xo||[]).filter(function(x){return x.id==="clo_kid"})[0];return c&&c.wt?c:CLOKID0}
+function cloAgeM(t){var d=new Date(BABY.dob+"T00:00:00").getTime();return (t-d)/CLOM}
+/* typical growth: about 2 kg (0.4 lb a month) and 9 cm a year under 3; a little slower after */
+function cloRate(am,isH){return isH?(am<36?0.75:am<60?0.6:0.5):(am<36?0.4:am<72?0.37:0.5)}
+function cloProj(t,isH){var k=cloMe(),t0=isH?k.htAt:k.wtAt,v=isH?k.ht:k.wt*2.20462;if(!v||!t0)return null;
+  var dir=t>=t0?1:-1,cur=t0;while(dir*(t-cur)>CLOM){v+=dir*cloRate(cloAgeM(cur),isH);cur+=dir*CLOM}return v+(t-cur)/CLOM*cloRate(cloAgeM(cur),isH)}
+function cloWhen(limit,isH){var k=cloMe(),t=isH?k.htAt:k.wtAt,v=isH?k.ht:k.wt*2.20462;if(!v||!t)return null;
+  if(v>=limit)return t-(v-limit)/cloRate(cloAgeM(t),isH)*CLOM;
+  for(var i=0;i<240;i++){var r=cloRate(cloAgeM(t),isH);if(v+r>=limit)return t+(limit-v)/r*CLOM;v+=r;t+=CLOM}return null}
+function cloSizeNow(t){var w=cloProj(t||Date.now(),false);if(w==null)return "";for(var i=0;i<CLOORDER.length;i++){var z=CLOSZ[CLOORDER[i]];if(w<z[1])return CLOORDER[i]}return "14"}
+function cloKept(x){return x.fitM===0||(x.fitM==null&&cloCatOf(x.cat)==="Accessories"&&!cloSize(x.size))}
+/* when she is likely to outgrow it: the parent's months if set, else the size chart and her growth */
+function cloFit(x){
+  if(cloKept(x))return null;
+  var now=Date.now(),start=x.ts||now,end,from=null,how="size",z=cloSize(x.size);
+  if(x.fitM>0){end=start+x.fitM*CLOM;how="set"}
+  else if(cloCatOf(x.cat)==="Shoes"&&!x.fitM){end=start+4*CLOM;how="shoes"}
+  else if(z){var hi=CLOSZ[z.hi],lo=CLOSZ[z.lo],e1=cloWhen(hi[1],false),e2=cloWhen(hi[2],true);
+    end=[e1,e2].filter(function(v){return v!=null}).reduce(function(a,b){return Math.min(a,b)},Infinity);if(!isFinite(end)){end=start+9*CLOM;how="guess"}
+    var wn=cloProj(now,false);if(wn!=null&&wn<lo[0]-3){from=cloWhen(lo[0]-3,false)}}
+  else{end=start+9*CLOM;how="guess"}
+  var tot=Math.max(end-Math.min(start,now),1),left=Math.max(0,end-now);
+  return {end:end,left:left,pc:Math.max(0,Math.min(1,left/tot)),small:end<=now,from:from&&from>now?from:null,how:how,z:z};
+}
+function cloMon(ts){return new Date(ts).toLocaleDateString("en-GB",{month:"short",year:"numeric"})}
+function cloCur(c){return ({USD:"$",GBP:"£",EUR:"€",NGN:"₦",CAD:"CA$"})[c||"NGN"]||((c||"")+" ")}
+function cloMoney(n,c){var f=c&&c!=="NGN"?2:0;return n==null||n===""?"":cloCur(c)+Number(n).toLocaleString("en-NG",{minimumFractionDigits:f,maximumFractionDigits:f})}
+function cloDupOf(name,ts,price,store,size,color){var g=stkSig(name+" "+(size||"")+" "+(color||""),ts,price,store);return cloList().filter(function(x){return stkSig(x.name+" "+(x.size||"")+" "+(x.color||""),x.ts,x.price,x.store)===g})[0]||null}
+function cloThumb(el,x){
+  var p=(x.photo&&x.photoPath)||(x.rcpt||[])[0];if(!p){el.textContent=CLOICON[cloCatOf(x.cat)]||"👕";return}
+  if(/\.pdf$/i.test(p)){el.textContent="📄";el.onclick=function(e){e.stopPropagation();signed(p).then(function(u){preview({title:"Receipt",name:"receipt.pdf",type:"application/pdf",path:p,url:u,viewOnly:true})})};return}
+  signed(p).then(function(u){el.style.backgroundImage="url('"+u+"')";el.onclick=function(e){e.stopPropagation();openViewer(u)}}).catch(function(){el.textContent=CLOICON[cloCatOf(x.cat)]||"👕"})}
+function cloKidCard(){
+  var k=cloMe(),c=h("div","card");
+  var now=Date.now(),sz=cloSizeNow(now);
+  c.appendChild(h("b",null,"Janet’s size now"));
+  c.appendChild(h("div","meta",(Math.round(k.wt*10)/10)+" kg"+(k.ht?" · "+k.ht+" cm":"")+" · measured "+stkDate(k.wtAt)+(k.dflt?" (update it when you next weigh her)":"")+(sz?" · about "+sz+" today":"")));
+  if(canWrite){c.appendChild(xtBtn(CLO.editKid?"Close":"Update her weight or height",function(){CLO.editKid=!CLO.editKid;xtClothes()},"quiet"));
+    if(CLO.editKid){var f=h("div");f.style.cssText="display:grid;gap:6px;margin-top:8px";
+      function fld(l,v,t){var w=h("label",null,l),i=h("input");i.type=t||"number";i.step="any";i.value=v==null?"":v;w.appendChild(i);f.appendChild(w);return i}
+      var w1=fld("Weight (kg)",k.dflt?"":k.wt),h1=fld("Height (cm, optional)",k.ht||""),d1=fld("Measured on",key(new Date()),"date");
+      f.appendChild(xtBtn("Save",function(){var wv=parseFloat(w1.value),hv=parseFloat(h1.value),dt=d1.value?new Date(d1.value+"T12:00:00").getTime():Date.now();
+        if(!(wv>3&&wv<80)){note("Add her weight in kg.");setTimeout(function(){note("")},2200);return}
+        CLO.editKid=false;xtDoc("clo_kid",{kind:"clocfg",date:key(new Date()),wt:wv,wtAt:dt,ht:hv>40&&hv<200?hv:null,htAt:hv>40&&hv<200?dt:null,by:myId})}));
+      c.appendChild(f)}}
+  return c;
+}
+function xtClothes(){
+  var box=$("#xs-clo");if(!box)return;box.textContent="";
+  var L=cloList(),now=Date.now(),live=L.filter(function(x){return !x.outAt}),gone=L.filter(function(x){return !!x.outAt});
+  var top=h("div","card");top.appendChild(h("h2",null,"Clothes"));
+  top.appendChild(h("p","meta","Add the receipt, invoice or order confirmation. Cordial sorts the clothes by type with their sizes and how many pieces, and works out when Janet is likely to outgrow each one from her size chart and how fast toddlers grow."));
+  if(canWrite){var add=h("button","go","📸 Add from a receipt or invoice");add.type="button";add.onclick=function(){stkAddDlg({clothes:true})};top.appendChild(add)}
+  /* the whole wardrobe: when half and most of the pieces will be too small */
+  var pcs=[],tot=0;live.forEach(function(x){var n=Math.max(1,x.pieces||x.qty||1);tot+=n;var m=cloFit(x);if(m)for(var i=0;i<n;i++)pcs.push(m.end)});
+  pcs.sort(function(a,b){return a-b});
+  top.appendChild(h("div","meta",tot+(tot===1?" piece":" pieces")+" in "+live.length+(live.length===1?" item":" items")+(gone.length?" · "+gone.length+" outgrown":"")));
+  if(pcs.length){
+    var half=pcs[Math.floor((pcs.length-1)*0.5)],most=pcs[Math.floor((pcs.length-1)*0.75)],still=pcs.filter(function(e){return e>now}).length;
+    var firstBuy=Math.min.apply(null,live.map(function(x){return x.ts||now})),span=Math.max(most-Math.min(firstBuy,now),1),pc=Math.max(0,Math.min(1,(most-now)/span));
+    var bar=h("div");bar.style.cssText="height:14px;border-radius:7px;background:rgba(128,128,128,.22);overflow:hidden;margin-top:10px";
+    var fi=h("i");fi.style.cssText="display:block;height:100%;border-radius:7px;background:"+stkCol(pc)+";width:"+Math.round(pc*100)+"%";bar.appendChild(fi);top.appendChild(bar);
+    var mo=Math.max(0,Math.round((most-now)/CLOM));
+    var s1=h("div","meta",still+" of "+pcs.length+" pieces still fit · most of her clothes (3 in 4) will be too small around "+cloMon(most)+(mo?", in about "+mo+(mo===1?" month":" months"):""));s1.style.cssText="font-weight:600;color:"+stkCol(pc);top.appendChild(s1);
+    var nx=cloSizeNow(most+CLOM);top.appendChild(h("div","meta","Half of them by "+cloMon(half)+". Plan the next size"+(nx?" ("+nx+")":"")+" for around "+cloMon(Math.max(now,half-CLOM))+"."));
+  }
+  box.appendChild(top);
+  box.appendChild(cloKidCard());
+  /* items that need a look: too small already, or too big for now */
+  var warn=[];live.forEach(function(x){var m=cloFit(x);if(!m)return;if(m.small)warn.push(x.name+" ("+(x.size||"no size")+") is likely too small already.");else if(m.from)warn.push(x.name+" ("+x.size+") is too big for now; it should fit from about "+cloMon(m.from)+".")});
+  if(warn.length){var wc=h("div","card");wc.style.cssText="border-left:4px solid #e0a100";wc.appendChild(h("b",null,"Check these sizes"));warn.forEach(function(t){wc.appendChild(h("div","meta","• "+t))});box.appendChild(wc)}
+  if(!L.length){var e=h("div","card");e.appendChild(h("p","meta","No clothes yet. Tap “Add from a receipt or invoice” to add the first order."));box.appendChild(e);return}
+  function row(x){
+    var m=cloFit(x),c=h("div");c.style.cssText="border-top:1px solid rgba(128,128,128,.18);padding:10px 0";
+    var r=h("div");r.style.cssText="display:flex;gap:10px;align-items:flex-start;cursor:pointer";
+    var th=h("div");th.style.cssText="width:52px;height:52px;border-radius:10px;flex:none;background:#e9e9ee center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:1.5rem";cloThumb(th,x);r.appendChild(th);
+    var tx=h("div");tx.style.cssText="flex:1;min-width:0";var nm=h("b",null,x.name);tx.appendChild(nm);
+    var n=Math.max(1,x.pieces||x.qty||1);
+    tx.appendChild(h("div","meta",[x.size?"Size "+x.size:"",n+(n===1?" piece":" pieces"),x.color,x.brand].filter(function(v){return v&&String(v).trim()}).join(" · ")));
+    if(m){var bar=h("div");bar.style.cssText="height:8px;border-radius:4px;background:rgba(128,128,128,.22);overflow:hidden;margin-top:6px";
+      var fi=h("i");fi.style.cssText="display:block;height:100%;border-radius:4px;background:"+(m.from?"#8e8e93":stkCol(m.pc))+";width:"+(m.from?100:Math.round(m.pc*100))+"%";bar.appendChild(fi);tx.appendChild(bar);
+      var st=m.small?"Likely too small now":m.from?"Too big for now · fits from about "+cloMon(m.from):"Fits until about "+cloMon(m.end)+(m.how==="guess"?" (rough guess: no size)":m.how==="shoes"?" (shoes: about 4 months)":m.how==="set"?" (set by a parent)":"");
+      var sm=h("div","meta",st);sm.style.cssText="font-weight:600;color:"+(m.small?"#d93025":m.from?"#8e8e93":stkCol(m.pc));tx.appendChild(sm)}
+    else tx.appendChild(h("div","meta","Doesn’t get outgrown"));
+    r.appendChild(tx);r.onclick=function(){CLO.open[x.id]=!CLO.open[x.id];xtClothes()};c.appendChild(r);
+    if(CLO.open[x.id]){
+      c.appendChild(h("div","meta","Bought "+stkDate(x.ts)+(x.by?" by "+(x.by===myId?"you":(memberName(x.by)||"")):"")+(x.price!=null?" · "+cloMoney(x.price,x.cur):"")+(x.store?" · "+x.store:"")));
+      if(canWrite){
+        var f=h("div");f.style.cssText="margin-top:6px;display:grid;gap:6px";
+        function fld(lbl,val,type){var w=h("label",null,lbl),i=h("input");i.type=type||"text";i.value=val==null?"":val;w.appendChild(i);f.appendChild(w);return i}
+        var i1=fld("Item",x.name),cw=h("label",null,"Type"),cs=h("select");CLOCATS.forEach(function(k){var o=h("option",null,CLOICON[k]+" "+k);o.value=k;if(k===cloCatOf(x.cat))o.selected=true;cs.appendChild(o)});cw.appendChild(cs);f.appendChild(cw);
+        var i2=fld("Size (e.g. 4T, 4-5T, 2-4T)",x.size),i3=fld("Pieces",n,"number"),i4=fld("Colour",x.color);
+        var i5=fld("Fits for how many months? (empty = Cordial’s estimate, 0 = doesn’t get outgrown)",x.fitM==null?"":x.fitM,"number");
+        var pw=h("label",null,"Photo of the item (optional)"),pf=h("input");pf.type="file";pf.accept="image/*";pw.appendChild(pf);f.appendChild(pw);
+        var sv=h("div");
+        sv.appendChild(xtBtn("Save",async function(){var patch={name:i1.value.trim()||x.name,cat:cs.value,size:i2.value.trim(),pieces:Math.max(1,parseInt(i3.value,10)||1),color:i4.value.trim(),fitM:i5.value===""?null:Math.max(0,parseFloat(i5.value)||0)};
+          if(pf.files&&pf.files[0]){try{var d=await evThumb(pf.files[0]),bl=await (await fetch(d)).blob();patch.photoPath=await upload("docs",bl,"clothes.jpg");patch.photo=1}catch(e){note("Couldn’t add the photo.");setTimeout(function(){note("")},2200)}}
+          CLO.open[x.id]=false;xtDoc(x.id,patch)}));
+        sv.appendChild(xtBtn(x.outAt?"Still fits":"Outgrown",function(){xtDoc(x.id,x.outAt?{outAt:null,outBy:null}:{outAt:Date.now(),outBy:myId})},"quiet"));
+        sv.appendChild(xtBtn("Remove",function(){if(confirm("Remove "+x.name+" from Clothes?"))xtDoc(x.id,{removed:Date.now(),removedBy:myId})},"quiet"));
+        f.appendChild(sv);c.appendChild(f);
+      }
+    }
+    return c;
+  }
+  CLOCATS.forEach(function(k){
+    var its=live.filter(function(x){return cloCatOf(x.cat)===k});if(!its.length)return;
+    its.sort(function(a,b){var ma=cloFit(a),mb=cloFit(b);return (ma?ma.end:Infinity)-(mb?mb.end:Infinity)});
+    var cc=h("div","card"),n=its.reduce(function(s,x){return s+Math.max(1,x.pieces||x.qty||1)},0);
+    var hd=h("div");hd.style.cssText="display:flex;justify-content:space-between;align-items:baseline;gap:8px";hd.appendChild(h("b",null,(CLOICON[k]||"")+" "+k));
+    var first=its.map(cloFit).filter(function(m){return m&&!m.from})[0];
+    hd.appendChild(h("span","meta",n+(n===1?" piece":" pieces")+(first?" · first too small "+(first.small?"now":cloMon(first.end)):"")));cc.appendChild(hd);
+    its.forEach(function(x){cc.appendChild(row(x))});box.appendChild(cc);
+  });
+  if(gone.length){var dh=h("button","quiet","Outgrown ("+gone.length+") "+(CLO.showOut?"▲":"▼"));dh.type="button";dh.style.margin="10px 0";dh.onclick=function(){CLO.showOut=!CLO.showOut;xtClothes()};box.appendChild(dh);
+    if(CLO.showOut){var oc=h("div","card");gone.sort(function(a,b){return b.outAt-a.outAt}).forEach(function(x){oc.appendChild(row(x))});box.appendChild(oc)}}
 }
 /* running-low list for Janet's posts and the feed */
 function stkLow(){var out=[];stkList().forEach(function(x){var m=stkLeft(x);if(!m||x.usedAt)return;if(m.pc<=0.3)out.push({id:x.id,t:x.name,left:m.left,dl:m.dl,ts:x.ts+m.tot*0.7,x:x})});return out}
