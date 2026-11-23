@@ -909,7 +909,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 09:20</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 09:45</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1581,6 +1581,7 @@ $("#xadd").onclick=async function(){
   var d=$("#xd").value.trim(),a=parseFloat($("#xa").value),fl=Array.prototype.slice.call($("#xf").files||[]),f=fl[0];
   if(!db||!d||!(a>0))return note("Add a description and an amount above zero.");
   if(!f)return note("Attach the receipt or document for this expense first.");
+  var dq=moneyDup(a,$("#xt").value||key(new Date()));if(dq&&!confirm(money(a)+" on "+dq.day+" is already recorded as "+dq.what+". Add it again anyway?"))return note("Not added: it was already recorded.");
   var btn=$("#xadd");btn.disabled=true;btn.textContent="Adding…";
   try{
     var ups=[],chk=null;
@@ -1592,6 +1593,7 @@ $("#xadd").onclick=async function(){
     chk=await aiVerifyMany(fl,{slot:"exp",kind:"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
     var rdt=rcDateMs(chk&&chk.read&&chk.read.date),xdate=rdt?key(new Date(rdt)):($("#xt").value||key(new Date()));
     var xrec=withShare({ts:Date.now(),desc:d,amount:a,by:$("#xw").value,date:xdate,proof:ups[0],aicheck:chk},"exp");if(ups.length>1)xrec.proofs=ups;if(chk.status==="review")xrec.review={state:"pending"};
+    if(xdate!==($("#xt").value||key(new Date()))){var dq2=moneyDup(a,xdate);if(dq2&&!confirm("The receipt is dated "+xdate+", and "+money(a)+" on that day is already recorded as "+dq2.what+". Add it again anyway?")){btn.disabled=false;btn.textContent="Add expense";return note("Not added: it was already recorded.")}}
     var xcat=(chk&&chk.read&&chk.read.category)||"",rmsg="";
     if((xcat==="medical"||xcat==="school")&&chk.status!=="review"){rmsg=await expRoute(xcat,xrec,fl)}
     if(!rmsg||(xcat!=="medical"&&xcat!=="school")){await db.collection("expenses").add(xrec);if(xcat==="supplies")rmsg=await expRoute("supplies",xrec,fl)}
@@ -1686,6 +1688,19 @@ function rbJudge(chk,amt,billDate){
   if(td&&bd&&td<bd-3*86400000)return {ok:false,msg:"The transfer is dated "+rd.date+", before this bill ("+billDate+"). Attach the transfer made for it."};
   var diff=got!==null&&Math.round(got*100)!==Math.round(amt*100);
   return {ok:true,read:{amount:got,date:rd.date||"",narration:rd.narration||"",payee:rd.payee||""},msg:"Reimbursed ✓"+(diff?" (the transfer was "+money(got)+(got>amt?", sent with other money":"")+")":"")};
+}
+/* One duplicate check for all money: Expenses, Medical, School fees and Support. The same amount on the same day (or a receipt file already used) counts as a duplicate. */
+function moneyDup(amt,date,files){
+  amt=Math.round(+amt||0);if(!amt)return null;
+  var day=date||key(new Date()),dk=function(ms){return ms?key(new Date(ms)):""};
+  var names={};(files||[]).forEach(function(f){if(f&&f.name&&f.size)names[f.name+":"+f.size]=1});
+  var hit=null;
+  (S.exp||[]).some(function(x){if(x.review&&x.review.state==="rejected")return false;if(Math.round(+x.amount)===amt&&x.date===day){hit="an expense in Expenses ("+(x.desc||"")+")";return true}});
+  if(!hit)(S.xo||[]).some(function(x){if(x.removed)return false;
+    if(x.kind==="medbill"&&Math.round(+x.amount)===amt&&x.date===day){hit="a medical bill ("+(x.title||"")+")";return true}
+    if(x.kind==="feex"&&Math.round(+x.amount)===amt&&(dk(x.paidOn)===day||dk(x.ts)===day)){hit="a school expense ("+(x.what||"")+")";return true}
+    if(x.kind==="sup"&&x.paidAt&&Math.round(+x.amount)===amt&&dk(x.paidAt)===day){hit="a support payment";return true}});
+  return hit?{what:hit,amt:amt,day:day}:null;
 }
 function renderExp(){
   var pa=0,pb=0;S.exp.forEach(function(x){if(x.review&&x.review.state==="rejected")return;var pay=x.reimbAt?(x.by==="a"?"b":"a"):x.by;if(pay==="a")pa+=x.amount;else pb+=x.amount});
@@ -2167,8 +2182,8 @@ function stkAddDlg(opt){
             var amt=exAmt;
             {
               var payer=exSel.value==="reimb"?oth:me,desc=(nSup?"Supplies":"Clothes")+": "+pick.map(function(p){return p.nm.value.trim()}).slice(0,6).join(", ")+(pick.length>6?" and more":"")+(j.store?" ("+j.store+")":"");
-              var dupX=(S.exp||[]).filter(function(x){return x.date===key(new Date(base))&&Math.round(+x.amount)===Math.round(amt)&&x.by===payer})[0];
-              if(dupX)exMsg=" An expense for "+money(amt)+" on that day was already in Expenses, so it wasn’t added again.";
+              var dupX=moneyDup(amt,key(new Date(base)));
+              if(dupX)exMsg=" "+money(amt)+" on that day was already recorded as "+dupX.what+", so the money wasn’t added again.";
               else{
                 var pft=function(pp){return /\.pdf$/i.test(pp)?{path:pp,name:"receipt.pdf",type:"application/pdf"}:{path:pp,name:"receipt.jpg",type:"image/jpeg"}},pr=pft(paths[0]),xrec=withShare({ts:Date.now(),desc:desc,amount:amt,by:payer,date:key(new Date(base)),proof:pr,fromSupplies:1,addedBy:myId},"exp");if(foreign&&exOrig){xrec.origCur=cur;xrec.origAmount=exOrig;xrec.fxRate=fxR}
                 if(paths.length>1)xrec.proofs=paths.map(pft);
@@ -2621,8 +2636,8 @@ function medAddDlg(){
   go.onclick=async function(){
     var amt=parseFloat(ai.value);if(!fi.files||!fi.files[0]){msg.textContent="Attach the bill or receipt first.";return}
     if(!(amt>0)){msg.textContent="Add the amount.";return}
-    var dup=medList().filter(function(x){return x.date===di.value&&Math.round(+x.amount)===Math.round(amt)})[0];
-    if(dup&&!confirm("A medical bill for "+money(amt)+" on that day is already here. Add it again?"))return;
+    var dup=moneyDup(amt,di.value);
+    if(dup&&!confirm(money(amt)+" on "+dup.day+" is already recorded as "+dup.what+". Add it again anyway?"))return;
     go.disabled=true;go.textContent="Saving…";
     try{
       var ups=[];for(var i=0;i<fi.files.length;i++)ups.push(await xtUp(fi.files[i]));
@@ -2636,6 +2651,7 @@ function medAddDlg(){
 function schoolTermOf(d){var t=new Date((d||key(new Date()))+"T12:00:00"),m=t.getMonth(),y=t.getFullYear();return m>=8?{y:y,term:1}:m<=3?{y:y-1,term:2}:{y:y-1,term:3}}
 async function expRoute(cat,x,files){
   try{
+    if(cat==="medical"||cat==="school"){var rq=(S.xo||[]).filter(function(y){return !y.removed&&(cat==="medical"?y.kind==="medbill"&&y.date===x.date:y.kind==="feex"&&key(new Date(y.paidOn||y.ts||0))===x.date)&&Math.round(+y.amount)===Math.round(+x.amount)})[0];if(rq)return "Already recorded in "+(cat==="medical"?"Medical":"School fees")+", so it wasn’t added again."}
     if(cat==="medical"){
       var pr=[x.proof].concat(x.proofs||[]).filter(Boolean).filter(function(p,i,a){return a.findIndex(function(q){return q.path===p.path})===i});
       var rd=(x.aicheck&&x.aicheck.read)||{};
@@ -3164,6 +3180,7 @@ function xtOther(card,y){
   card.appendChild(wrap);
 }
 async function xtSubmitOther(y,term,what,amt,files){
+  var sdq=moneyDup(amt,key(new Date()));if(sdq&&!confirm(money(amt)+" today is already recorded as "+sdq.what+". Add it again anyway?"))throw new Error("Not added: it was already recorded.");
   var add=[];for(var i=0;i<files.length;i++)add.push(await xtUp(files[i]));
   var fck=await aiVerifyMany(files,{kind:"fee",title:"School expense "+y+"/"+(y+1)+" term "+term+" – "+what,amount:amt,date:key(new Date())});
   add.forEach(function(q){q.aicheck=fck});
@@ -9040,6 +9057,7 @@ async function aiRun(a){
     var ef=AILAST.file,eb=ef,en=ef.name,et=ef.type||"application/octet-stream";
     if(/^image\//.test(et)){try{var esh=await shrinkBlob(ef);eb=esh.blob;et="image/jpeg";en=(ef.name||"receipt").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
     var epath=await upload("docs",eb,en);
+    var cdq=moneyDup(a.amount,a.date||key(new Date()));if(cdq)return "Not added: "+money(a.amount)+" on "+cdq.day+" is already recorded as "+cdq.what+". Add it from the Expenses form if it really was paid twice.";
     await db.collection("expenses").add({desc:a.desc,amount:a.amount,by:a.by||$("#xw").value||"a",date:a.date||key(new Date()),proof:{path:epath,name:en,type:et,size:eb.size||ef.size}});
     return "Expense added with its receipt.";
   }
