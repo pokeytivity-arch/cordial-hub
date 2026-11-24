@@ -863,6 +863,17 @@ main{max-width:100%}
 #nfmenu{position:fixed;z-index:9999;background:var(--card,#fff);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.22);padding:6px;min-width:230px}
 #nfmenu button{display:block;width:100%;text-align:left;background:none;border:0;padding:11px 12px;font:inherit;font-weight:600;color:var(--ink);border-radius:8px}#nfmenu button:active{background:rgba(127,127,127,.15)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #nfl .nrow.un{background:#1d3a63}:root:not([data-theme="light"]) #nfl .ntm{color:#b0b3b8}}:root[data-theme="dark"] #nfl .nrow.un{background:#1d3a63}:root[data-theme="dark"] #nfl .ntm{color:#b0b3b8}
+#wpeek{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.28);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:calc(env(safe-area-inset-top) + 56px) 14px calc(env(safe-area-inset-bottom) + 14px);gap:10px;opacity:0;transition:opacity .16s}
+#wpeek.on{opacity:1}#wpeek .pk{border-radius:22px;overflow:hidden;background:#efeae2;display:flex;flex-direction:column;max-height:58vh;flex:none;transform:scale(.94);transition:transform .18s;box-shadow:0 10px 40px rgba(0,0,0,.25)}#wpeek.on .pk{transform:none}
+#wpeek .pkh{background:#f6f5f3;text-align:center;padding:14px 12px;font-size:1.05rem;color:#111b21;border-bottom:1px solid rgba(0,0,0,.08)}
+#wpeek .pkl{overflow:auto;padding:10px 12px 14px;display:flex;flex-direction:column;gap:4px}
+#wpeek .pkb{align-self:flex-start;max-width:82%;background:#fff;color:#111b21;border-radius:14px;padding:7px 10px 6px;font-size:.98rem;line-height:1.3;box-shadow:0 1px .5px rgba(0,0,0,.13);word-wrap:break-word}
+#wpeek .pkb.me{align-self:flex-end;background:#d9fdd3}#wpeek .pkn{font-size:.8rem;font-weight:700;color:#1fa855;margin-bottom:2px}
+#wpeek .pkm{float:right;margin:6px 0 -3px 10px;font-size:.7rem;color:#667781;white-space:nowrap}
+#wpeek .pkun{align-self:stretch;text-align:center;background:rgba(255,255,255,.7);margin:6px -12px;padding:6px;font-weight:600;font-size:.9rem;color:#54656f}
+#wpeek .pkmenu{align-self:flex-start;min-width:62%;background:rgba(242,242,247,.92);border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+#wpeek .pkmenu button{display:flex;align-items:center;gap:14px;width:100%;background:none;border:0;padding:13px 18px;font:inherit;font-size:1.02rem;color:#111b21;text-align:left;border-bottom:1px solid rgba(0,0,0,.07)}#wpeek .pkmenu button:last-child{border-bottom:0}#wpeek .pkmenu button:active{background:rgba(0,0,0,.08)}
+.wrow{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -924,7 +935,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 10:15</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 11:10</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -9647,12 +9658,54 @@ function rowEl(c,lp){
     }else ST.drag=false;
   }
   row.addEventListener("pointerup",up);row.addEventListener("pointercancel",up);
+  /* long press: peek at the chat without marking it read */
+  var lpT=null;
+  row.addEventListener("pointerdown",function(){clearTimeout(lpT);row._lp=false;lpT=setTimeout(function(){if(down&&lock===null&&!moved){row._lp=true;down=false;try{navigator.vibrate&&navigator.vibrate(12)}catch(e){}peekChat(c)}},480)});
+  ["pointerup","pointercancel","pointerleave"].forEach(function(ev){row.addEventListener(ev,function(){clearTimeout(lpT)})});
+  row.addEventListener("pointermove",function(e){if(Math.abs(e.clientX-x0)>8||Math.abs(e.clientY-y0)>8)clearTimeout(lpT)});
+  row.addEventListener("contextmenu",function(e){e.preventDefault()});
   row.addEventListener("click",function(){
+    if(row._lp){row._lp=false;return}
     if(moved){moved=false;return}
     if(row._dx){row._dx=0;setDx(row,0,true);ST.openRow=null;return}
     openChat(c.id);
   });
   return wr;
+}
+/* peek: a read-only look at the latest messages; nothing is marked read and no blue ticks are sent */
+function peekChat(c){
+  var old=document.getElementById("wpeek");if(old)old.remove();
+  var lp=LPf(),ms=msgsOf(c.id).filter(function(m){return m.kind!=="sys"||!/^📞/.test(m.text||"")}).slice(-25),rd=lp.read[c.id]||0;
+  var ov=E("div");ov.id="wpeek";
+  var card=E("div","pk"),hd=E("div","pkh"),hb=E("b");if(c.type==="bot")hb.appendChild(botName());else hb.textContent=c.name;hd.appendChild(hb);card.appendChild(hd);
+  var L=E("div","pkl");var nun=0,divAt=-1;
+  ms.forEach(function(m,i){if(m.by!==myId&&m.ts>rd&&!(c.mark)){nun++;if(divAt<0)divAt=i}});
+  if(!ms.length)L.appendChild(T("div","wsys","No messages yet."));
+  ms.forEach(function(m,i){
+    if(i===divAt)L.appendChild(T("div","pkun",nun+(nun===1?" unread message":" unread messages")));
+    if(m.kind==="sys"){L.appendChild(T("div","wsys",m.text||""));return}
+    var me=m.by===myId&&(c.type!=="bot"||m.kind!=="announce");
+    var b=E("div","pkb"+(me?" me":""));
+    if(!me&&c.type==="group"){var nm=T("div","pkn",mname(m.by));b.appendChild(nm)}
+    var tx=T("span","pkt",m.kind==="text"||!m.kind?(m.text||""):pv(m));b.appendChild(tx);
+    var tm=T("span","pkm",new Date(m.ts).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}));
+    if(me&&c.type!=="bot"){var tk=E("span",null,ic("tick2",16,1.7));tk.style.cssText="display:inline-flex;vertical-align:-3px;margin-left:3px;color:"+(isRead(m,c)?"#34b7f1":"inherit");tm.appendChild(tk)}
+    b.appendChild(tm);L.appendChild(b);
+  });
+  card.appendChild(L);ov.appendChild(card);
+  var mn=E("div","pkmenu");
+  function it(icn,lbl,fn,red){var b=E("button",red?"red":null,ic(icn,22,1.7)+"<span>"+lbl+"</span>");b.type="button";b.onclick=function(e){e.stopPropagation();close();fn()};mn.appendChild(b)}
+  it("chat","Open chat",function(){openChat(c.id)});
+  it("unread",(c.unread||c.mark)?"Mark as read":"Mark as unread",function(){togUnread(c)});
+  it("pin",lp.pin.indexOf(c.id)>=0?"Unpin chat":"Pin chat",function(){togPin(c.id)});
+  it("archive",lp.arch.indexOf(c.id)>=0?"Unarchive":"Archive",function(){togArch(c.id)});
+  if(c.type!=="bot")it("bell",muted(c.id)?"Unmute":"Mute",function(){togMute(c.id)});
+  it("info",c.type==="group"?"Group info":"Chat info",function(){info(c)});
+  ov.appendChild(mn);
+  function close(){ov.classList.remove("on");setTimeout(function(){ov.remove()},160)}
+  ov.addEventListener("click",function(e){if(e.target===ov)close()});
+  card.addEventListener("click",function(e){e.stopPropagation();close();openChat(c.id)});
+  document.body.appendChild(ov);requestAnimationFrame(function(){ov.classList.add("on");L.scrollTop=L.scrollHeight});
 }
 function togPin(id){
   var lp=LPf(),i=lp.pin.indexOf(id);
