@@ -924,7 +924,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 09:55</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 10:00</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -8748,7 +8748,8 @@ async function start(session){
   function nfKey(e){return [e.k,e.ts,e.by||e.lead||"",e.post||e.task||e.chat||""].join("|")}
   function nfGet(k){try{return JSON.parse(localStorage.getItem(k)||"{}")||{}}catch(x){return {}}}
   function nfPut(k,o){try{var ks=Object.keys(o);if(ks.length>800){ks.sort(function(a,b){return o[a]-o[b]});ks.slice(0,ks.length-800).forEach(function(x){delete o[x]})}localStorage.setItem(k,JSON.stringify(o))}catch(x){}}
-  function nfBase(){var b=0;try{b=Number(localStorage.getItem("hubNBase"))||0;if(!b){b=lget(SEEN_N)||Date.now();localStorage.setItem("hubNBase",String(b))}}catch(x){}return b}
+  /* one-time reset (v2): the old page marked everything seen on opening, so bring every listed notification back as unseen */
+  function nfBase(){var b=1;try{if(localStorage.getItem("hubNBaseV")!=="2"){localStorage.setItem("hubNBaseV","2");localStorage.setItem("hubNBase","1");localStorage.removeItem("hubNRead")}b=Number(localStorage.getItem("hubNBase"))||1}catch(x){}return b}
   function nfUn(e){if(e.by&&e.by===myId)return false;var R=nfGet("hubNRead"),k=nfKey(e);if(R[k]===-1)return true;return !R[k]&&e.ts>nfBase()}
   function nfMark(e,read){var R=nfGet("hubNRead");R[nfKey(e)]=read?Date.now():-1;nfPut("hubNRead",R);NFV++}
   function nfMenu(e,anchor){
