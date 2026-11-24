@@ -935,7 +935,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 11:10</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 11:20</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -9402,6 +9402,7 @@ function canMsg(u){
 }
 function getChats(){
   var out={},msgs=allMsgs(),by={};
+  var RXBY={};(S.react||[]).forEach(function(r){if(r&&r.msg&&r.emoji&&r.ts)(RXBY[r.msg]=RXBY[r.msg]||[]).push(r)});
   msgs.forEach(function(m){var c=chatOf(m);(by[c]=by[c]||[]).push(m)});
   if(S.profLoaded)out[BOT_ID]={id:BOT_ID,type:"bot",name:BOT_NAME,members:[myId]};
   Object.keys(S.prof||{}).forEach(function(k){
@@ -9416,6 +9417,9 @@ function getChats(){
     var c=out[k],arr=by[k]||[],last=arr[arr.length-1],base=Math.max(lp.read[k]||0,lp.since||0);
     if(c.type==="dm"){var o=c.members.filter(function(x){return x!==myId})[0];c.name=mname(o||myId)}
     c.last=last;c.ts=last?last.ts:(c.ts||0);
+    /* the newest reaction in this chat shows in the list when it is newer than the last message */
+    c.rx=null;if(arr.length&&RXBY){var rr=null;for(var ai=arr.length-1,lim=Math.max(0,arr.length-200);ai>=lim;ai--){var rl=RXBY[arr[ai].id];if(rl)rl.forEach(function(r){if(!rr||r.ts>rr.ts)rr=Object.assign({m:arr[ai]},r)})}
+      if(rr&&rr.ts>c.ts){c.rx=rr;c.ts=rr.ts}}
     c.unread=arr.filter(function(m){return m.by!==myId&&m.ts>base&&m.kind!=="sys"}).length;
     c.mark=lp.unr.indexOf(k)>=0;c.atme=arr.some(function(m){return m.by!==myId&&m.ts>base&&m.tags&&m.tags.indexOf(myId)>=0});
     return c;
@@ -9604,7 +9608,7 @@ function renderRows(){
   var lp=LPf(),q=ST.q.trim().toLowerCase(),all=getChats();
   var vis=all.filter(function(c){var a=lp.arch.indexOf(c.id)>=0;return ST.arch?a:!a}).filter(function(c){return !q||c.name.toLowerCase().indexOf(q)>=0||pv(c.last).toLowerCase().indexOf(q)>=0});
   vis=sorted(vis);
-  var sg=JSON.stringify([ST.arch,q,vis.map(function(c){return [c.id,c.ts,c.unread,c.mark,c.name,lp.pin.indexOf(c.id),c.last&&c.last.id,c.last&&c.last.by===myId&&isRead(c.last,c)]}),Object.keys(S.prof||{}).length]);
+  var sg=JSON.stringify([ST.arch,q,vis.map(function(c){return [c.id,c.ts,c.unread,c.mark,c.name,lp.pin.indexOf(c.id),c.last&&c.last.id,c.last&&c.last.by===myId&&isRead(c.last,c),c.rx&&(c.rx.ts+c.rx.emoji)]}),Object.keys(S.prof||{}).length]);
   if(sg===rowSig&&ST.tab==="chats")return;rowSig=sg;
   var R=listEls.rows;R.textContent="";ST.openRow=null;
   var na=all.filter(function(c){return lp.arch.indexOf(c.id)>=0}).length;
@@ -9626,7 +9630,8 @@ function rowEl(c,lp){
   var bd=E("div","wbd"),l1=E("div","wl1"),l2=E("div","wl2");
   if(c.type==="bot"){var bb=E("b");bb.appendChild(botName());l1.appendChild(bb)}else{var cb=T("b",null,c.name);if(c.type==="dm"){var ou2=(c.members||[]).filter(function(x){return x!==myId})[0]||myId,vbl=vbadge(ou2,true);if(vbl)cb.appendChild(vbl)}l1.appendChild(cb)}l1.appendChild(T("span",c.unread||c.mark?"un":"",wTime(c.ts)));
   var last=c.last,tx=E("span","tx");
-  if(last){
+  if(c.rx){var rq=pv(c.rx.m)||"";if(rq.length>40)rq=rq.slice(0,40)+"…";tx.textContent=(c.rx.by===myId?"You":mname(c.rx.by))+" reacted "+c.rx.emoji+" to \u201C"+rq+"\u201D"}
+  else if(last){
     var mine=last.by===myId;
     if(mine&&last.kind!=="sys"&&c.type!=="bot")tx.innerHTML="<span style='display:inline-flex;vertical-align:-3px;margin-right:4px;color:"+(isRead(last,c)?"#34b7f1":"inherit")+"'>"+ic("tick2",18,1.7)+"</span>";
     var who=(!mine&&c.type!=="dm"&&c.type!=="bot"&&last.kind!=="sys")?mname(last.by)+": ":"";
