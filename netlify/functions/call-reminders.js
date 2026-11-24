@@ -98,7 +98,7 @@ exports.handler = async () => {
     const when = new Date(t.callAt + WAT).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
     const payload = t.ev
       ? { kind: "reminder", title: "Reminder: " + t.ev, body: `${t.ev} ${t.hasT ? "starts" : "is"} in ${t.label} (${new Date(t.callAt + WAT).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}${t.hasT ? ", " + when : ""}).`, tag: "evrem-" + t.k, url: "/?goto=sched" }
-      : { kind: "reminder", title: "Family call reminder", body: `Your weekly call is in ${t.label} (${when}).`, tag: "callrem-" + t.k, url: "/?goto=call" };
+      : { kind: "reminder", title: "Call reminder", body: `Your weekly call is in ${t.label} (${when}).`, tag: "callrem-" + t.k, url: "/?goto=call" };
     for (const m of members) {
       const key = `profiles/cp_${m.user_id}`;
       const d = (await readDoc(key)) || {};
