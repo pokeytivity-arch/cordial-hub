@@ -911,7 +911,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">23 Nov 2026 · 10:55</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 07:20</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -10920,6 +10920,16 @@ setInterval(function(){if(WA.open&&!document.hidden)render();try{if(!document.hi
 (function(){
   try{
     if(!/netlify\.app$/i.test(location.hostname))return;
+    /* after midnight on Monday 23 Nov 2026 (Nigerian time) the old address stops working: a full screen sends people to the new one */
+    if(Date.now()>=Date.UTC(2026,10,23,23,0)){
+      var lk=function(){var o=document.createElement("div");o.setAttribute("role","alertdialog");
+        o.style.cssText="position:fixed;inset:0;z-index:2147483600;background:#0b3d2e;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;font:500 17px/1.45 system-ui,-apple-system,sans-serif";
+        o.innerHTML="<div style='font-size:2.4rem'>🏡</div><div style='font-size:1.35rem;font-weight:800'>Cordial Coparent has moved</div><div style='max-width:420px'>This old app stopped working at midnight on Monday, 23 November 2026. Everything is waiting for you at the new address.</div><a href='https://cordialcoparent.com' style='background:#fff;color:#0b3d2e;font-weight:800;padding:14px 22px;border-radius:999px;text-decoration:none'>Open cordialcoparent.com</a><div style='max-width:420px;font-size:.95rem;opacity:.85'>iPhone: open it in Safari, tap Share, then “Add to Home Screen”. Sign in with your usual email and password, then delete this old icon.</div>";
+        (document.body||document.documentElement).appendChild(o)};
+      if(document.body)lk();else document.addEventListener("DOMContentLoaded",lk);
+      try{if(navigator.serviceWorker)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(x){x.unregister()})})}catch(e){}
+      return;
+    }
     var b=document.createElement("div");b.setAttribute("role","alert");
     b.style.cssText="position:fixed;left:10px;right:10px;top:calc(env(safe-area-inset-top,0px) + 10px);z-index:2147483000;background:#b3261e;color:#fff;border-radius:14px;padding:12px 14px;font:600 15px/1.35 system-ui,-apple-system,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35);text-align:center";
     b.innerHTML="Cordial Coparent has moved to a new address.<br>This app stops working at 12 midnight on Monday, 23 November 2026.<br><a href='https://cordialcoparent.com' style='color:#fff;text-decoration:underline'>Open cordialcoparent.com</a> and add it to your Home Screen.";
