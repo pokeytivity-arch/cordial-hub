@@ -850,6 +850,7 @@ main{max-width:100%}
 #ringui button.on{background:#fff;color:#111}
 #ringui .rno{background:#d70029;width:68px;height:68px}#ringui .rno svg{transform:rotate(135deg)}
 #ringui .ryes{background:#1fa855;width:68px;height:68px}
+#apptitle .wm1{color:#1877F2}#apptitle .wm2{color:#25D366}#apptitle .wmc{font-size:1.4em;font-weight:900;-webkit-text-stroke:1.2px currentColor;line-height:0;letter-spacing:-.02em;vertical-align:-.04em}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -911,7 +912,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 08:05</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 08:10</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -8660,7 +8661,7 @@ async function start(session){
     root.setAttribute("data-cur",cur);
     var isRoot=look==="fb"?cur==="feed":(look!=="classic"&&ROOTS[look].indexOf(cur)>=0);
     root.setAttribute("data-root",isRoot?"1":"0");
-    if(look!=="classic"){var t=TITLES[look][cur];if(t)document.getElementById("apptitle").textContent=t}
+    if(look!=="classic"){var t=TITLES[look][cur],at=document.getElementById("apptitle");if(t){if(look==="fb"&&cur==="feed")at.innerHTML='<span class="wm1"><b class="wmc">c</b>ordial</span> <span class="wm2"><b class="wmc">c</b>oparent</span>';else at.textContent=t}}
     setIcons();mark();renderExtras();
   }
 
