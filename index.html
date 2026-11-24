@@ -924,7 +924,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 10:10</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 10:15</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -9446,7 +9446,7 @@ function muted(id){var m=LPf().mute;return !!(m&&m.indexOf(id)>=0)}
 function starred(id){var m=LPf().star;return !!(m&&m.indexOf(id)>=0)}
 function togMute(id){var lp=LPf();lp.mute=lp.mute||[];var i=lp.mute.indexOf(id);if(i>=0)lp.mute.splice(i,1);else lp.mute.push(id);saveLP();rowSig="";try{renderRows()}catch(e){}try{if(window.__badgeNow)__badgeNow()}catch(e){}}
 function togStar(id){var lp=LPf();lp.star=lp.star||[];var i=lp.star.indexOf(id);if(i>=0)lp.star.splice(i,1);else lp.star.push(id);saveLP();lastSig="";try{renderChat(true)}catch(e){}}
-window.__totalUnread=function(){return totalUnread()};
+window.__totalUnread=function(){return unreadChats()};
 /* ---------- WhatsApp-style photo viewer: sender and date on top, the chat's photos in a strip at the bottom, share / star / delete, reply and react ---------- */
 var MVURL={};
 function mvSrc(m){if(MVURL[m.id])return Promise.resolve(MVURL[m.id]);var p=m.path?signed(m.path):getMedia(m.mid).then(function(d){return d&&d.data});return p.then(function(u){if(u)MVURL[m.id]=u;return u})}
@@ -9530,6 +9530,8 @@ window.waOpenMedia=function(m0){
   show(idx);
 };
 
+/* number of chats (not messages) with something unread, like WhatsApp and Messenger */
+function unreadChats(){return getChats().filter(function(c){return LPf().arch.indexOf(c.id)<0&&!muted(c.id)&&c.unread>0}).length}
 function totalUnread(){return getChats().filter(function(c){return LPf().arch.indexOf(c.id)<0&&!muted(c.id)}).reduce(function(n,c){return n+c.unread},0)}
 
 /* ---------- shell ---------- */
@@ -9540,7 +9542,7 @@ var menuEl=null;
 root.appendChild(main);root.appendChild(nav);root.appendChild(chatEl);
 function buildNav(){
   nav.textContent="";
-  var tot=totalUnread();
+  var tot=unreadChats();
   [["upd","Updates","updates"],["phone","Calls","calls"],["chat","Chats","chats"],["user","You","you"]].forEach(function(t){
     var b=E("button",ST.tab===t[2]?"on":"",ic(t[0],26,1.7)+"<span>"+t[1]+"</span>");b.type="button";
     if(t[2]==="chats"&&tot){var bg=T("span","bg",tot>99?"99+":String(tot));b.appendChild(bg)}
