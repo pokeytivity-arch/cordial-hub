@@ -924,7 +924,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 10:00</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 10:05</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -8718,7 +8718,7 @@ async function start(session){
     S.pcom.forEach(function(c){var p=posts[c.post];if(p&&myId&&p.by===myId&&c.by!==myId)E.push({ts:c.ts,k:"comment",by:c.by,post:c.post,text:c.text||"📷 Photo"});
       else if(p&&myId&&c.parent&&c.by!==myId){var pc=S.pcom.filter(function(y){return y.id===c.parent})[0];if(pc&&pc.by===myId)E.push({ts:c.ts,k:"comment",by:c.by,post:c.post,text:"↩ replied to your comment: "+(c.text||"📷 Photo")})}});
     S.posts.forEach(function(p){if(p.by===myId)return;if(p.tags&&p.tags.indexOf(myId)>=0)E.push({ts:p.ts,k:"tag",by:p.by,post:p.id,text:p.text||"a post"});else E.push({ts:p.ts,k:"post",by:p.by,post:p.id,text:p.text||(p.ev?"an event: "+p.ev.title:p.doc?"shared a document":"shared a photo")})});
-    S.msgs.filter(function(m){return m.by!==myId}).slice(-6).forEach(function(m){E.push({ts:m.ts,k:"msg",by:m.by,chat:m.chat||"",text:previewText(m)})});
+    S.msgs.filter(function(m){return m.by!==myId}).slice(-40).forEach(function(m){E.push({ts:m.ts,k:"msg",by:m.by,chat:m.chat||"",text:previewText(m)})});
     var c=S.call;if(c&&c.room&&c.by!==myId&&Date.now()-c.ts<6*3600*1000)E.push({ts:c.ts,k:"call",by:c.by,text:c.audio?"audio call":"video call"});
     var now=Date.now();
     S.msgs.filter(function(m){return m.kind==="reminder"}).forEach(function(m){
@@ -8741,7 +8741,7 @@ async function start(session){
     try{chkLow().forEach(function(l){E.push({ts:Math.min(Date.now(),l.ts),k:"reminder",go:"chk",lead:l.left<=0?"Finished":"Running low",text:": "+l.t+(l.left<=0?" has run out. Time to restock (Checklist).":" – about "+l.dl+(l.dl===1?" day":" days")+" left (Checklist).")})})}catch(e){}
     (S.mnotes||[]).forEach(function(m){E.push({ts:m.ts||m.start||0,k:"meeting",lead:"Meeting summary",text:": "+(m.topic||"Meeting")+" is ready"})});
     S.hl.forEach(function(x){if(x.by&&x.by!==myId)E.push({ts:x.ts,k:"highlight",by:x.by,text:" added a highlight: "+(x.title||"")})});
-    E.sort(function(a,b){return b.ts-a.ts});return E.slice(0,60);
+    E.sort(function(a,b){return b.ts-a.ts});return E.slice(0,400);
   }
   /* each notification is read on its own: opening the page clears the badge, but a row stays highlighted until you tap it */
   var NFV=0,nfNewHd=0,nfOldHd=0;
@@ -8749,7 +8749,7 @@ async function start(session){
   function nfGet(k){try{return JSON.parse(localStorage.getItem(k)||"{}")||{}}catch(x){return {}}}
   function nfPut(k,o){try{var ks=Object.keys(o);if(ks.length>800){ks.sort(function(a,b){return o[a]-o[b]});ks.slice(0,ks.length-800).forEach(function(x){delete o[x]})}localStorage.setItem(k,JSON.stringify(o))}catch(x){}}
   /* one-time reset (v2): the old page marked everything seen on opening, so bring every listed notification back as unseen */
-  function nfBase(){var b=1;try{if(localStorage.getItem("hubNBaseV")!=="2"){localStorage.setItem("hubNBaseV","2");localStorage.setItem("hubNBase","1");localStorage.removeItem("hubNRead")}b=Number(localStorage.getItem("hubNBase"))||1}catch(x){}return b}
+  function nfBase(){var b=1;try{if(localStorage.getItem("hubNBaseV")!=="3"){localStorage.setItem("hubNBaseV","3");localStorage.setItem("hubNBase","1");localStorage.removeItem("hubNRead")}b=Number(localStorage.getItem("hubNBase"))||1}catch(x){}return b}
   function nfUn(e){if(e.by&&e.by===myId)return false;var R=nfGet("hubNRead"),k=nfKey(e);if(R[k]===-1)return true;return !R[k]&&e.ts>nfBase()}
   function nfMark(e,read){var R=nfGet("hubNRead");R[nfKey(e)]=read?Date.now():-1;nfPut("hubNRead",R);NFV++}
   function nfMenu(e,anchor){
