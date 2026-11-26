@@ -969,7 +969,7 @@ window.hubUnboot=function(){document.body.classList.remove("booting")};</script>
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 22:00</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 22:10</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -8618,7 +8618,7 @@ async function start(session){
     hd.appendChild(g);hd.appendChild(t);sec.appendChild(hd);sec.appendChild(bd);return sec;
   }
   function menuIds(){
-    var ord=lsGet("hubTileOrder",[]),ids=TILES.map(function(t){return t[0]});
+    var ord=lsGet("hubTileOrder",["msg","sched","todo","exp","spend","notes"]),ids=TILES.map(function(t){return t[0]});
     return ord.filter(function(i){return ids.indexOf(i)>=0}).concat(ids.filter(function(i){return ord.indexOf(i)<0}));
   }
   function refreshMenuList(){
@@ -8676,7 +8676,7 @@ async function start(session){
   var MENUSAVED=[],RESTORE=null,WAMENU=[];
   function openSecKeys(){var o=[];if(DS)Array.prototype.forEach.call(DS.wrap.children,function(sec){var b=sec.querySelector(".db");if(!sec.dataset.fixed&&b&&!b.hidden)o.push(sec.dataset.k)});return o}
   function restoreSecs(){if(!RESTORE||!DS)return;var keys=RESTORE;RESTORE=null;Array.prototype.forEach.call(DS.wrap.children,function(sec){if(keys.indexOf(sec.dataset.k)>=0){var b=sec.querySelector(".db");if(b)b.hidden=false;sec.classList.add("open")}})}
-  function collapseAll(){if(!DS)return;Array.prototype.forEach.call(DS.wrap.children,function(sec){var b=sec.querySelector(".db");if(b)b.hidden=true;sec.classList.remove("open")})}
+  function collapseAll(){if(!DS)return;Array.prototype.forEach.call(DS.wrap.children,function(sec){var op=sec.dataset.k==="menu";var b=sec.querySelector(".db");if(b)b.hidden=!op;sec.classList.toggle("open",op)})}
   function placeAcct(){
     var home=document.getElementById("home");if(!home)return;
     buildDrawer();refreshMenuList();
