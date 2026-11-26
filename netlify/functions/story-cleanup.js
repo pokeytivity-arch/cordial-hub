@@ -1,10 +1,10 @@
-// Removes stories (status updates) older than 7 days: the video file in storage, the photo data, and the story itself.
+// Removes stories (status updates) older than 30 days: the video file in storage, the photo data, and the story itself.
 // Stories are separate from feed posts, so feed posts are never touched here (only docs with wa = 1).
 // Runs once a day (schedule in netlify.toml). Uses SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const H = { apikey: KEY, Authorization: `Bearer ${KEY}` };
-const WEEK = 7 * 24 * 3600e3;
+const WEEK = 30 * 24 * 3600e3; // stories last 30 days
 
 exports.handler = async () => {
   if (!URL_ || !KEY) return { statusCode: 501, body: "not_configured" };

@@ -958,7 +958,7 @@ window.hubUnboot=function(){document.body.classList.remove("booting")};</script>
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 14:40</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 17:00</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -1338,13 +1338,13 @@ var SKINS=["","🏻","🏼","🏽","🏾","🏿"],SKINC=["#ffcc22","#f7d7c4","#e
 var TONABLE=Array.from("👍👎👏🙌🙏💪👋🤞👌✋👊✊👶👧👦👨👩");
 function skinGet(){try{return localStorage.getItem("hubSkin")||""}catch(e){return ""}}
 function tone(e){var k=skinGet();return k&&TONABLE.indexOf(e)>=0?e+k:e}
-/* videos are not accepted anywhere in the hub, except on stories (inputs marked data-story-video); stories are deleted after 7 days */
+/* videos are not accepted anywhere in the hub, except on stories (inputs marked data-story-video); stories are deleted after 30 days */
 document.addEventListener("change",function(e){
   var t=e.target;if(!t||t.tagName!=="INPUT"||t.type!=="file"||!t.files)return;if(t.hasAttribute&&t.hasAttribute("data-story-video"))return;
   var bad=false;Array.prototype.forEach.call(t.files,function(f){if(/^video\//i.test(f.type||"")||/\.(mp4|mov|m4v|avi|mkv|webm|3gp|wmv|flv|mpg|mpeg)$/i.test(f.name||""))bad=true});
   if(!bad)return;
   e.stopImmediatePropagation();e.preventDefault();try{t.value=""}catch(x){}
-  var m="Videos can only be added to stories (they disappear after 7 days). Use Add to story, or use photos or documents here.";
+  var m="Videos can only be added to stories (they disappear after 30 days). Use Add to story, or use photos or documents here.";
   try{if(typeof toast==="function")toast(m);else if(typeof note==="function")note(m);else alert(m)}catch(x){}
 },true);
 function soundOn(){try{return localStorage.getItem("hubSound")!=="0"}catch(e){return true}}
@@ -4851,7 +4851,7 @@ function openAskJanet(){
   var r1=h("div");r1.style.cssText="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap";
   function sel(lbl,opts){var l=h("label","meta",lbl);l.style.flex="1 1 140px";var s=h("select");s.style.width="100%";opts.forEach(function(o){var x=h("option",null,o[1]);x.value=o[0];s.appendChild(x)});l.appendChild(s);r1.appendChild(l);return s}
   var tg=sel("Tag",[["both","Daddy and Mummy"],["daddy","Daddy"],["mummy","Mummy"]]);
-  var tn=sel("Style",[["","Sweet"],["funny","Funny"]]);ds=sel("Post to",[["feed","Janet’s feed"],["story","Janet’s story (7 days)"],["avatar","Janet’s profile photo"],["cover","Janet’s cover photo"]]);bx.appendChild(r1);
+  var tn=sel("Style",[["","Sweet"],["funny","Funny"]]);ds=sel("Post to",[["feed","Janet’s feed"],["story","Janet’s story (30 days)"],["avatar","Janet’s profile photo"],["cover","Janet’s cover photo"]]);bx.appendChild(r1);
   var out=h("div");out.hidden=true;out.style.marginTop="12px";
   out.appendChild(h("label","meta","Cordial’s post (you can edit it)"));
   var dr=h("textarea");dr.rows=4;dr.maxLength=600;dr.style.width="100%";out.appendChild(dr);bx.appendChild(out);
@@ -4904,7 +4904,7 @@ function openAskJanet(){
           for(var si=0;si<shrunk.length;si++){var sx=shrunk[si],sr=db.collection("media").doc();await sr.set({data:sx.data,w:sx.w,h:sx.h,ts:Date.now(),by:myId||""});MEDIA[sr.id]=Promise.resolve({data:sx.data});
             var spx=Object.assign({},sp0,{ts:Date.now()+si,mid:sr.id,w:sx.w,h:sx.h});if(si>0)spx.text="";await db.collection("posts").add(spx)}
         }else{sp0.bg=1+Math.floor(Math.random()*7);await db.collection("posts").add(sp0)}
-        ov.remove();note("Added to Janet’s story. It stays for 7 days.");setTimeout(function(){note("")},2500);return;
+        ov.remove();note("Added to Janet’s story. It stays for 30 days.");setTimeout(function(){note("")},2500);return;
       }
       var ph2=[];for(var i=0;i<(shrunk||[]).length;i++){var s0=shrunk[i],rf=db.collection("media").doc();await rf.set({data:s0.data,w:s0.w,h:s0.h,ts:Date.now(),by:myId||""});MEDIA[rf.id]=Promise.resolve({data:s0.data});ph2.push({mid:rf.id,w:s0.w,h:s0.h})}
       var o2=ownerM(),m2=mumM(),tags=[];if((tg.value==="daddy"||tg.value==="both")&&o2)tags.push(o2.user_id);if((tg.value==="mummy"||tg.value==="both")&&m2)tags.push(m2.user_id);
@@ -7251,8 +7251,8 @@ function vidThumbFor(vpath,start){
     v.src=u;var pr=v.play();if(pr&&pr.catch)pr.catch(function(){});
   })}).catch(function(){return null});
 }
-/* stories: a person's photos from the last 7 days */
-var STORY_MS=7*24*3600*1000,STV=null;
+/* stories: a person's photos from the last 30 days */
+var STORY_MS=30*24*3600*1000,STV=null;
 /* spinner while a story loads, and warm-up of the next items so a tap shows the story straight away */
 window.svSpin=function(stage,on){
   if(!stage)return;var sp=stage._sp;
@@ -7288,7 +7288,7 @@ window.svBurst=function(root,btn,em){
   })(i);
 };
 window.svWarm=function(items){(items||[]).forEach(function(x){try{if(x.vpath)signed(x.vpath).catch(function(){});if(x.mid)getMedia(x.mid);if(x.tmid)getMedia(x.tmid)}catch(e){}})};
-/* each account can keep SV_WEEK videos on stories at a time; a new one is possible when the oldest passes 7 days */
+/* each account can keep SV_WEEK videos on stories at a time; a new one is possible when the oldest passes 30 days */
 var SV_WEEK=2;
 window.svQuota=function(){
   var now=Date.now(),mine=(S.wstat||[]).filter(function(p){return p.vpath&&(p.up||p.by)===myId&&now-(p.ts||0)<=STORY_MS}).sort(function(a,b){return a.ts-b.ts});
@@ -7320,7 +7320,7 @@ window.hubStoryViewBtn=function(id,onOpen,onClose){
   return b;
 };
 function storyItems(uid){
-  /* stories are their own thing: statuses (photo, video, text) kept 7 days, shared with the WhatsApp-look. Feed posts never appear here. */
+  /* stories are their own thing: statuses (photo, video, text) kept 30 days, shared with the WhatsApp-look. Feed posts never appear here. */
   var now=Date.now();
   return (S.wstat||[]).filter(function(p){return p.by===uid&&(p.mid||p.vpath||p.text||p.bg)&&now-(p.ts||0)<=STORY_MS}).map(function(p){
     return {id:p.id,mid:p.mid||null,tmid:p.tmid||null,vpath:p.vpath||null,vdur:p.vdur||0,vstart:p.vstart||0,vend:p.vend||0,bg:p.bg||0,ts:p.ts,text:p.text||"",st:p};
@@ -9107,18 +9107,18 @@ async function start(session){
     {t:"Reaction skin tone",d:"Pick the skin tone your hand reactions use, such as 👍 and 🙏, in Account and Settings. It applies to reactions on posts, comments, stories and chats.",sel:function(){return "#tonebar"},go:function(){setMenu(true)}},
     {t:"Tone check",d:"Tone check warns you before you send a heated message. The slider sets how sensitive it is: 0 never warns, 10 warns about almost anything. Messages can’t be edited after sending, so the warning helps keep the record calm.",sel:function(){return "#tonesl"},go:function(){setMenu(true)},ok:function(){return !OBS&&tabOk("msg")}},
     {t:"Account and Settings",d:function(){return "Alerts turn on phone notifications. Sound turns message sounds on or off. Call ringtone lets you pick a tone. Log out is at the bottom."+(isOwner?" Switch account moves you between your accounts.":"")},sel:function(){return "#acctcard"},go:function(){setMenu(true)}},
-    {t:"Home: the timeline",d:function(){return "Everything the family shares, newest first."+(tabEdit("feed")?" Tap What’s on your mind to post text (pick a coloured background if you like), photos, a document, an event or a reminder. Videos are not posted here: they go on stories and disappear after 7 days. Use Filters to narrow the list.":" You can read it but not post.")+" Use the back arrow (<) on any page to return to where you were. Tap any name or photo to open that person’s profile."},sel:function(){return look==="classic"?"#grid":"#fbnav [data-t=feed]"},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){return tabOk("feed")}},
-    {t:"Stories",d:"Tap Create story to share a photo, a video or a text status. A story stays for 7 days, then it disappears and a video’s file is deleted from the hub too. Each account can have 2 videos on stories at a time, up to 45 MB each. On iPhone, Settings > Camera > Record Video > 720p HD keeps a 30-second clip near 20 MB. If a video is longer than 30 seconds, slide to choose the 30 seconds to share. The Social look and WhatsApp’s Updates tab show the very same stories; posting in one shows in the other.",sel:function(){return look==="fb"?"#stories":null},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){return look!=="classic"}},
+    {t:"Home: the timeline",d:function(){return "Everything the family shares, newest first."+(tabEdit("feed")?" Tap What’s on your mind to post text (pick a coloured background if you like), photos, a document, an event or a reminder. Videos are not posted here: they go on stories and disappear after 30 days. Use Filters to narrow the list.":" You can read it but not post.")+" Use the back arrow (<) on any page to return to where you were. Tap any name or photo to open that person’s profile."},sel:function(){return look==="classic"?"#grid":"#fbnav [data-t=feed]"},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){return tabOk("feed")}},
+    {t:"Stories",d:"Tap Create story to share a photo, a video or a text status. A story stays for 30 days, then it disappears and a video’s file is deleted from the hub too. Each account can have 2 videos on stories at a time, up to 45 MB each. On iPhone, Settings > Camera > Record Video > 720p HD keeps a 30-second clip near 20 MB. If a video is longer than 30 seconds, slide to choose the 30 seconds to share. The Social look and WhatsApp’s Updates tab show the very same stories; posting in one shows in the other.",sel:function(){return look==="fb"?"#stories":null},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){return look!=="classic"}},
     {t:"Story rings and the story row",d:"A coloured ring around a photo means there is a story you have not watched. Once you have watched everything it goes grey, and a new story brings the colour back. Tap a ringed photo to choose View story or See profile picture. The row mixes people and YouTube channel cards: one person, then one channel, then the next person. Janet’s stories appear in the row too. Tap a channel card to watch its latest video.",sel:function(){return look==="fb"?"#stories":null},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){return look!=="classic"}},
     {t:"Live YouTube channels",d:"When a YouTube channel in the hub goes live, your phone gets an alert with the channel’s name and the title of the stream, and another when the live ends. Tap it to watch: if the replay is still on YouTube it plays, and if it has been removed the hub says it is no longer available. A live channel shows a red LIVE tag on its card.",sel:function(){return look==="fb"?"#stories":null},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){return look!=="classic"}},
     {t:"Watching and replying to a story",d:"Tap the right side to go to the next story and the left side to go back. Videos show their thumbnail and a spinner while they load, then play with a progress bar that matches the clip. At the bottom, type a reply or tap an emoji to react: it goes to that person as a private message. Tap the person’s photo or name to open their profile. On your own story you see an eye with the number of views; tap it to see who watched and when, and use the bin to delete the story.",sel:function(){return null},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){return look!=="classic"}},
     {t:"Likes, reactions and comments",d:"Tap Like on a post, or press and hold it for six reactions. Every tap adds to the count, and tapping the count shows who reacted. Tap Comment to read and write comments, with a photo if you like. On each comment you can Like (hold for the other reactions) and Reply: your reply sits under that comment like a thread, starts with the person’s name, and notifies them. Deleting your comment also removes the replies under it.",sel:function(){return null},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){return tabOk("feed")}},
     {t:"Tagging people",d:"In a post, comment or chat type @ and pick a name from the list; everyone is on it, including Janet and the Cordial Coparent account. The box shows the person’s full name, and once you post it appears in bold; tap it to open their profile. The person you tag is notified.",sel:function(){return null},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){return tabEdit("feed")}},
-    {t:"Janet’s account and Ask Cordial",d:function(){return "Janet has her own account, run by Cordial, with her photo, cover and birthday on her profile. "+(tgrp()==="parent"?"Under What’s on your mind, tap Ask Cordial to post for Janet. Add up to three photos or one video and say what to share; Cordial writes the post and you can edit it. Under Post to choose Janet’s feed, Janet’s story for 7 days, Janet’s profile photo or Janet’s cover photo (you can move and zoom those before saving). Cordial also posts for her on its own, at most twice a week. ":"Her posts and stories show on the timeline and in the story row. ")+"Daddy and Mummy see Janet say Good morning, afternoon, evening or night the first time they open the hub in each part of the day."},sel:function(){return tgrp()==="parent"?"#askjanet":null},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){return tabOk("feed")}},
+    {t:"Janet’s account and Ask Cordial",d:function(){return "Janet has her own account, run by Cordial, with her photo, cover and birthday on her profile. "+(tgrp()==="parent"?"Under What’s on your mind, tap Ask Cordial to post for Janet. Add up to three photos or one video and say what to share; Cordial writes the post and you can edit it. Under Post to choose Janet’s feed, Janet’s story for 30 days, Janet’s profile photo or Janet’s cover photo (you can move and zoom those before saving). Cordial also posts for her on its own, at most twice a week. ":"Her posts and stories show on the timeline and in the story row. ")+"Daddy and Mummy see Janet say Good morning, afternoon, evening or night the first time they open the hub in each part of the day."},sel:function(){return tgrp()==="parent"?"#askjanet":null},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){return tabOk("feed")}},
     {t:"Notifications",d:"Comments, replies, reactions, tags, reminders, calendar events and meeting summaries land here, and your phone can alert you too. Turn alerts on in Account and Settings. Unread chat messages remind you every 6 hours until you open them.",sel:function(){return look==="classic"?"#grid":"#fbnav [data-t=notif]"},go:function(){if(look!=="classic")showTab("notif")},ok:function(){return tabOk("notif")}},
     {t:"Your profile",d:"Your photo, cover, name, bio and posts. Tap the camera on your photo or cover to change it: you can move and zoom the picture first. A blue tick means the account is verified. Add highlights to show what matters to you. Tap anyone’s name to open their profile, then the < button to go back.",sel:function(){return look==="classic"?"#grid":"#fbnav [data-t=profile]"},go:function(){if(look!=="classic")showTab("profile")},ok:function(){return tabOk("profile")}},
     {t:"Media: Photos",d:"The Photos tab collects every photo shared in the hub. Tap one to open it full screen and use the back arrow to return.",sel:function(){return "#mdt button:nth-child(1)"},go:ck("media","#mdt button:nth-child(1)"),ok:function(){return tabOk("media")}},
-    {t:"Media: Videos",d:"The Videos tab holds videos saved earlier. New videos are only shared through stories, and they are removed after 7 days.",sel:function(){return "#mdt button:nth-child(2)"},go:ck("media","#mdt button:nth-child(2)"),ok:function(){return tabOk("media")}},
+    {t:"Media: Videos",d:"The Videos tab holds videos saved earlier. New videos are only shared through stories, and they are removed after 30 days.",sel:function(){return "#mdt button:nth-child(2)"},go:ck("media","#mdt button:nth-child(2)"),ok:function(){return tabOk("media")}},
     {t:"Messages and the unseen count",d:"The speech bubble at the top shows how many messages you have not seen, and the same count is on Chats in the WhatsApp-style section. Messages can’t be edited, but you can delete your own: press and hold it and choose Delete for everyone. In a chat, swipe a message to the right to reply (a small arrow appears and the phone buzzes at the right point), or press and hold it to react, copy, pin or star. Swiping works on photos and voice notes too. A tone check can warn you before you send something heated.",sel:function(){return look==="fb"?"#fbicons [data-k=chat]":"#fbnav [data-t=chats]"},go:function(){showTab(look==="classic"?"home":"feed")},ok:function(){return !OBS&&tabOk("msg")}},
     {t:"Chats and groups",d:function(){return "Family chat"+(tabEdit("chats")?", private chats with one person and groups":"")+". In the WhatsApp-style section, Chats lists every conversation, Updates holds the stories, and Calls holds the call log. Tap a name at the top of a chat to open that person’s profile. Photos, voice notes, replies and pins all work in both looks."},sel:function(){return look==="classic"?"#grid":"#fbnav [data-t=chats]"},go:function(){showTab("msg")},ok:function(){return !OBS&&tabOk("msg")}},
     {t:"Calls and Zoom",d:function(){return "Start a voice or video call from a chat"+(tabEdit("call")?" or the Calls page":"")+". The call log is permanent and can’t be edited. Scheduled Zoom meetings show on the calendar, with a summary, the key points, what was agreed, the to-dos and the full transcript afterwards. You can pick your own call ringtone in Account and Settings."},sel:function(){return look==="classic"?"#grid":"#fbnav [data-t=call]"},go:function(){showTab("msg")},ok:function(){return !OBS&&tabOk("call")}},
@@ -10476,8 +10476,8 @@ function head(title,right){
   var g2=E("div","g");(right||[]).forEach(function(x){g2.appendChild(x)});top.appendChild(g2);main.appendChild(top);
   main.appendChild(T("div","wbig",title));
 }
-/* ---------- WhatsApp-style status updates (separate from the Facebook timeline, last 7 days) ---------- */
-var WS_MS=7*24*3600*1000,WSV=null,WSBG=["#1fa855","#0b84a5","#7b2ff7","#d6336c","#e8833a","#2d3a8c","#1c2631","#8a6a14"];
+/* ---------- WhatsApp-style status updates (separate from the Facebook timeline, last 30 days) ---------- */
+var WS_MS=30*24*3600*1000,WSV=null,WSBG=["#1fa855","#0b84a5","#7b2ff7","#d6336c","#e8833a","#2d3a8c","#1c2631","#8a6a14"];
 function wsSeenGet(){try{return JSON.parse(localStorage.getItem("hubWsSeen")||"{}")}catch(e){return {}}}
 function wsSeenSet(uid,ts){try{var m=wsSeenGet();m[uid]=Math.max(m[uid]||0,ts);localStorage.setItem("hubWsSeen",JSON.stringify(m))}catch(e){}}
 function wsItems(uid){var now=Date.now();return (S.wstat||[]).filter(function(p){return p.by===uid&&now-(p.ts||0)<=WS_MS}).sort(function(a,b){return a.ts-b.ts})}
@@ -10494,7 +10494,7 @@ window.waStatusSweep=function(){
   /* remove my own updates after a week (and their pictures) */
   var now=Date.now();(S.wstat||[]).forEach(function(p){if(p.by===myId&&now-(p.ts||0)>WS_MS&&!p._gone){p._gone=1;try{svRemove(p);if(p.mid)db.doc("media/"+p.mid).delete().catch(function(){});if(p.tmid)db.doc("media/"+p.tmid).delete().catch(function(){});db.doc("posts/"+p.id).delete().catch(function(){})}catch(e){}}});
 };
-/* story videos: stored in the files bucket under chat/ (no database change), listed as a status post with vpath, deleted after 7 days */
+/* story videos: stored in the files bucket under chat/ (no database change), listed as a status post with vpath, deleted after 30 days */
 var SV_MAX_MB=45,SV_MAX_S=30;
 function svVideoEl(){var v=document.createElement("video");v.playsInline=true;v.setAttribute("playsinline","");v.setAttribute("webkit-playsinline","");v.preload="auto";v.style.cssText="max-width:100%;max-height:100%;object-fit:contain;display:none;background:#000";return v}
 function svPlay(vid,it,onend){
@@ -10656,7 +10656,7 @@ function wsCompose(mode){
       if(vfile){var q2=svQuota();if(!q2.ok){post.disabled=false;post.textContent="Post";return ctoast(q2.msg)}post.textContent="Uploading video…";try{var fr0=vidFrame(vprev,360);if(fr0){var tr0=db.collection("media").doc();await tr0.set({data:fr0,w:vprev.videoWidth,h:vprev.videoHeight,ts:Date.now(),by:myId||""});MEDIA[tr0.id]=Promise.resolve({data:fr0});p.tmid=tr0.id}}catch(e){}var vp=await upload("chat",vfile,"story-"+(vfile.name||"video.mp4"));p.vpath=vp;p.vtype=vfile.type||"video/mp4";p.vdur=(vend>vstart)?Math.round(vend-vstart):((vmeta&&vmeta.dur)||0);if(vend>vstart){p.vstart=vstart;p.vend=vend}}
       else if(photo){var ref=db.collection("media").doc();await ref.set({data:photo.data,w:photo.w,h:photo.h,ts:Date.now(),by:myId||""});MEDIA[ref.id]=Promise.resolve({data:photo.data});p.mid=ref.id;p.w=photo.w;p.h=photo.h}
       else p.bg=bgi+1;
-      await db.collection("posts").add(p);try{wsSeenSet(myId,p.ts)}catch(e){}ov.remove();toast("Added to your story. It stays for 7 days.");
+      await db.collection("posts").add(p);try{wsSeenSet(myId,p.ts)}catch(e){}ov.remove();toast("Added to your story. It stays for 30 days.");
     }catch(e){post.disabled=false;post.textContent="Post";var em=String((e&&(e.message||e.error_description||e.error))||"");ctoast(em==="toolarge"||/exceeded|too large|maximum/i.test(em)?"That file is too big. Keep videos under 45 MB.":"That didn’t post"+(em?" ("+em.slice(0,90)+")":"")+". Check your connection and try again.")}
   };
   bot.appendChild(pick);bot.appendChild(tx);bot.appendChild(bgb);bot.appendChild(cap);bot.appendChild(post);
@@ -10680,7 +10680,7 @@ function renderUpdates(){
   main.appendChild(me);
   var others=wsUsers().filter(function(u){return u!==myId}),seen=wsSeenGet();
   main.appendChild(T("div","wsec","Recent updates"));
-  if(!others.length)main.appendChild(T("div","wempty","No updates yet. Status updates disappear after 7 days."));
+  if(!others.length)main.appendChild(T("div","wempty","No updates yet. Status updates disappear after 30 days."));
   var yts=[];try{yts=ytStoryList()}catch(e){}
   if(yts.length&&!others.length){var ne=main.querySelector(".wempty");if(ne)ne.remove()}
   var wents=others.map(function(u){return {ts:wsItems(u).slice(-1)[0].ts,u:u}}).concat(yts.map(function(x){return {ts:x.ts,y:x}}));
@@ -10698,7 +10698,7 @@ function renderUpdates(){
     var th0=storyThumbEl({mid:last.mid,tmid:last.tmid,vpath:last.vpath,vstart:last.vstart});if(th0){th0.style.marginLeft="auto";b.appendChild(th0)}
     b.onclick=function(){wsOpen(u)};main.appendChild(b);
   });
-  var note0=T("div",null,"Updates here are separate from the timeline. They disappear after 7 days.");note0.style.cssText="font-size:.8rem;opacity:.6;padding:14px 16px";main.appendChild(note0);
+  var note0=T("div",null,"Updates here are separate from the timeline. They disappear after 30 days.");note0.style.cssText="font-size:.8rem;opacity:.6;padding:14px 16px";main.appendChild(note0);
   buildNav();
 }
 var CLF="all";
