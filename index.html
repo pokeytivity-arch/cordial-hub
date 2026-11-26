@@ -1758,22 +1758,31 @@ function expFilterBar(){
 }
 /* Supplies and Clothes tabs: only the bills, receipts and reimbursements; the items themselves are in the Checklist */
 /* Medical, Supplies and Clothes bills fold into year → quarter → month, closed by default (what you open stays open) */
-function ymqFold(parent,items,keyp,render){
+function ymqFold(parent,items,keyp,render,noun){
   var MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
-  function grp(par,k,label,sub){var d=h("details","supg");supKeep(d,k);var sm=h("summary");sm.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 2px;cursor:pointer;font-weight:700;list-style:none;border-bottom:1px solid rgba(128,128,128,.2)";
+  noun=noun||["bill","bills"];
+  /* the newest year, quarter, month and week start open; after that each group remembers whether you opened or closed it */
+  function grp(par,k,label,sub,first){var d=h("details","supg");if(first&&SUPOPEN[k]===undefined)SUPOPEN[k]=true;supKeep(d,k);var sm=h("summary");sm.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 2px;cursor:pointer;font-weight:700;list-style:none;border-bottom:1px solid rgba(128,128,128,.2)";
     var t=h("span",null,(d.open?"▾ ":"▸ ")+label),c=h("span","meta",sub);c.style.whiteSpace="nowrap";sm.appendChild(t);sm.appendChild(c);d.appendChild(sm);var body=h("div");body.style.paddingLeft="10px";d.appendChild(body);par.appendChild(d);
     d.addEventListener("toggle",function(){t.textContent=(d.open?"▾ ":"▸ ")+label});return body}
-  function sub(L){var n=L.length,t=L.reduce(function(q,i){return q+(+i.amt||0)},0);return n+(n===1?" bill":" bills")+" · "+money(t)}
-  var Y={};items.forEach(function(i){var d=String(i.date||"");var y=+d.slice(0,4)||0,m=(+d.slice(5,7)||1)-1;i._y=y;i._m=m;(Y[y]=Y[y]||[]).push(i)});
-  Object.keys(Y).sort(function(a,b){return b-a}).forEach(function(y){
-    var yb=grp(parent,keyp+y,y==="0"?"No date":y,sub(Y[y])),Q={};
+  function sub(L){var n=L.length,t=L.reduce(function(q,i){return q+(+i.amt||0)},0);return n+" "+(n===1?noun[0]:noun[1])+" · "+money(t)}
+  /* weeks run Monday to Sunday and are kept inside their month */
+  function wkStart(d){var t=new Date(d+"T12:00:00");if(isNaN(t))return "";var mo=t.getMonth(),dw=(t.getDay()+6)%7;t.setDate(t.getDate()-dw);if(t.getMonth()!==mo){t=new Date(d+"T12:00:00");t.setDate(1)}return key(t)}
+  var Y={};items.forEach(function(i){var d=String(i.date||"");var y=+d.slice(0,4)||0,m=(+d.slice(5,7)||1)-1;i._y=y;i._m=m;i._w=/^\d{4}-\d{2}-\d{2}/.test(d)?wkStart(d.slice(0,10)):"";(Y[y]=Y[y]||[]).push(i)});
+  Object.keys(Y).sort(function(a,b){return b-a}).forEach(function(y,yi){
+    var yb=grp(parent,keyp+y,y==="0"?"No date":y,sub(Y[y]),yi===0),Q={};
     Y[y].forEach(function(i){var q=Math.floor(i._m/3)+1;(Q[q]=Q[q]||[]).push(i)});
-    Object.keys(Q).sort(function(a,b){return b-a}).forEach(function(q){
-      var qb=grp(yb,keyp+y+"q"+q,"Q"+q+" · "+MN[(q-1)*3].slice(0,3)+"–"+MN[(q-1)*3+2].slice(0,3),sub(Q[q])),M={};
+    Object.keys(Q).sort(function(a,b){return b-a}).forEach(function(q,qi){
+      var qb=grp(yb,keyp+y+"q"+q,"Q"+q+" · "+MN[(q-1)*3].slice(0,3)+"–"+MN[(q-1)*3+2].slice(0,3),sub(Q[q]),yi===0&&qi===0),M={};
       Q[q].forEach(function(i){(M[i._m]=M[i._m]||[]).push(i)});
-      Object.keys(M).sort(function(a,b){return b-a}).forEach(function(m){
-        var mb=grp(qb,keyp+y+"m"+m,MN[m],sub(M[m]));
-        M[m].sort(function(a,b){return String(b.date||"").localeCompare(String(a.date||""))}).forEach(function(i){mb.appendChild(render(i))});
+      Object.keys(M).sort(function(a,b){return b-a}).forEach(function(m,mi){
+        var f3=yi===0&&qi===0&&mi===0,mb=grp(qb,keyp+y+"m"+m,MN[m],sub(M[m]),f3),W={};
+        M[m].forEach(function(i){(W[i._w]=W[i._w]||[]).push(i)});
+        Object.keys(W).sort(function(a,b){return b.localeCompare(a)}).forEach(function(w,wi){
+          var lab=w?"Week of "+new Date(w+"T12:00:00").toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"}):"No date",
+              wb=grp(mb,keyp+y+"m"+m+"w"+w,lab,sub(W[w]),f3&&wi===0);
+          W[w].sort(function(a,b){return String(b.date||"").localeCompare(String(a.date||""))||((b.ts||0)-(a.ts||0))}).forEach(function(i){wb.appendChild(render(i))});
+        });
       });
     });
   });
@@ -1812,7 +1821,7 @@ function renderExp(){
   if(EF==="all"||EF==="medical")(S.xo||[]).forEach(function(x){if(x.kind==="medbill"&&!x.removed)list.push(Object.assign({_med:1},x))});
   list.sort(function(p,q){return String(q.date||"").localeCompare(String(p.date||""))||(q.ts||0)-(p.ts||0)});
   if(S.exp.length&&!list.length)L.appendChild(h("p","empty","Nothing in this group yet."));
-  list.forEach(function(x){L.appendChild(x._med?medCard(x):expRowEl(x))});
+  ymqFold(L,list.map(function(x){return {date:x.date,amt:x.amount,ts:x.ts,x:x}}),"xall_"+EF+"_",function(i){var x=i.x;if(!x._med)return expRowEl(x);var el=medCard(x);el.className="";el.style.cssText="padding:10px 0;border-bottom:1px solid rgba(128,128,128,.2)";return el},["expense","expenses"]);
 }
 /* one expense, as shown in Expenses and in the Supplies, Clothes and Medical tabs */
 function expRowEl(x){
