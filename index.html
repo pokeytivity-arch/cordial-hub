@@ -981,9 +981,9 @@ main{max-width:100%}
       <label>Paid by<select id="xw"></select></label>
       <label>Date<input id="xt" type="date"></label>
     </div>
-    <label>What are you uploading?<select id="xk"><option value="invoice">🧾 Invoice / receipt from the shop, school or hospital</option><option value="transfer">🏦 Bank transfer slip</option></select></label>
+    <label>What are you uploading?<select id="xk"><option value="invoice">🧾 Invoice / receipt from the shop, school or hospital</option><option value="transfer">🏦 Bank transfer confirmation</option><option value="pos">💳 POS slip</option></select></label>
     <label>Proof (required)<input id="xf" type="file" multiple accept="image/*,application/pdf,.doc,.docx"></label>
-    <p class="meta" style="margin:0 0 8px" id="xkh">Every expense needs proof. After adding, you can add the other proof too (the transfer slip, the invoice, or the reimbursement receipt).</p>
+    <p class="meta" style="margin:0 0 8px" id="xkh">Every expense needs proof. After adding, you can add the other proof too (bank transfer confirmation, POS slip, invoice or reimbursement receipt).</p>
     <label>Photos of the items (optional)<input id="xph" type="file" multiple accept="image/*"></label>
     <label>Photo info (optional)<input id="xpi" maxlength="120" placeholder="e.g. 4 packs of Angel baby wipes"></label>
     <button class="go" id="xadd">Add expense</button>
@@ -1619,16 +1619,16 @@ $("#xadd").onclick=async function(){
     for(var fi=0;fi<fl.length;fi++){
       var ff=fl[fi],blob=ff,name=ff.name,type=ff.type||"application/octet-stream";
       if(/^image\//.test(type)){try{var sh=await shrinkBlob(ff);blob=sh.blob;type="image/jpeg";name=(ff.name||"receipt").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
-      var path=await upload("docs",blob,name);ups.push({path:path,name:name,type:type,size:blob.size||ff.size,pk:xk});
+      var path=await upload("docs",blob,name);ups.push({path:path,name:name,type:type,size:blob.size||ff.size,pk:xk,"for":d});
     }
     for(var pi=0;pi<phl.length;pi++){var pu=await xtUp(phl[pi]);pu.pk="photo";if(phi)pu.info=phi;ups.push(pu)}
-    chk=await aiVerifyMany(fl.concat(phl),{slot:"exp",kind:xk==="transfer"?"bank transfer slip":"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
+    chk=await aiVerifyMany(fl.concat(phl),{slot:"exp",kind:xk==="transfer"?"bank transfer":xk==="pos"?"POS slip":"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
     var rdt=rcDateMs(chk&&chk.read&&chk.read.date),xdate=rdt?key(new Date(rdt)):($("#xt").value||key(new Date()));
     var xrec=withShare({ts:Date.now(),desc:d,amount:a,by:$("#xw").value,date:xdate,proof:ups[0],aicheck:chk},"exp");if(ups.length>1)xrec.proofs=ups;if(chk.status==="review")xrec.review={state:"pending"};
     if(xdate!==($("#xt").value||key(new Date()))){var dq2=moneyDup(a,xdate);if(dq2&&!confirm("The receipt is dated "+xdate+", and "+money(a)+" on that day is already recorded as "+dq2.what+". Add it again anyway?")){btn.disabled=false;btn.textContent="Add expense";return note("Not added: it was already recorded.")}}
     var xcat=(chk&&chk.read&&chk.read.category)||"",rmsg="";if(EXPCAT[xcat])xrec.cat=xcat;
     if((xcat==="medical"||xcat==="school")&&chk.status!=="review"){rmsg=await expRoute(xcat,xrec,fl)}
-    if(!rmsg||(xcat!=="medical"&&xcat!=="school")){var nref=await db.collection("expenses").add(xrec);if(xk==="transfer"&&nref&&nref.id){PRF["x_"+nref.id]={open:true,kind:"invoice",files:[],info:""};rmsg=rmsg||"Expense added ✓ Now add the invoice or receipt from the shop, or the reimbursement receipt, under it."}if(xcat==="supplies")rmsg=(rmsg?rmsg+" ":"")+(await expRoute("supplies",xrec,fl)||"")}
+    if(!rmsg||(xcat!=="medical"&&xcat!=="school")){var nref=await db.collection("expenses").add(xrec);if(pkPay(xk)&&nref&&nref.id){PRF["x_"+nref.id]={open:true,kind:"invoice",files:[],info:"",forv:d};rmsg=rmsg||"Expense added ✓ Now add the invoice or receipt from the shop, or the reimbursement receipt, under it."}if(xcat==="supplies")rmsg=(rmsg?rmsg+" ":"")+(await expRoute("supplies",xrec,fl)||"")}
     $("#xd").value="";$("#xa").value="";$("#xf").value="";if($("#xph"))$("#xph").value="";if($("#xpi"))$("#xpi").value="";note(rmsg||"");if(rmsg)setTimeout(function(){note("")},5000);
   }catch(e){note(attachErr(e))}
   btn.disabled=false;btn.textContent="Add expense";
@@ -1827,7 +1827,7 @@ function renderExp(){
 function expRowEl(x){
     var r=h("div","item"),l=h("div");
     l.appendChild(h("div",null,x.desc));l.appendChild(h("div","meta",x.date+" – paid by "+nm(x.by)));
-    var rcl0=xtRc(x.proofs&&x.proofs.length?x.proofs:(x.proof?[x.proof]:[]),"Receipt",x.aicheck&&x.aicheck.read,x.id?function(nl){return db.doc("expenses/"+x.id).update({proofs:nl,proof:nl[0]||null})}:null,x.id?"x_"+x.id:"");if(rcl0)l.appendChild(rcl0);
+    var rcl0=xtRc(x.proofs&&x.proofs.length?x.proofs:(x.proof?[x.proof]:[]),"Receipt",x.aicheck&&x.aicheck.read,x.id?function(nl){return db.doc("expenses/"+x.id).update({proofs:nl,proof:nl[0]||null})}:null,x.id?"x_"+x.id:"",x.desc||"");if(rcl0)l.appendChild(rcl0);
     var sl=selfieLinks(x,[["selfie","Selfie"]]);if(sl)l.appendChild(sl);
     var bg=aiBadge(x,"expenses");if(bg)l.appendChild(bg);var xsh=shareLine(x,"expenses");if(xsh)l.appendChild(xsh);
     if(x.review&&x.review.state==="rejected")l.style.opacity=".55";
@@ -2768,7 +2768,7 @@ function medCard(rec){
   hd.appendChild(l);var am=h("div",null,money(+rec.amount||0));am.style.cssText="font-weight:800;font-size:1.1rem;white-space:nowrap";hd.appendChild(am);c.appendChild(hd);
   if(rec.items&&rec.items.length){var il=h("div","meta",rec.items.slice(0,12).map(function(it){return (it.qty>1?it.qty+" × ":"")+it.name+(it.total!=null?" "+money(it.total):"")}).join(" · "));il.style.marginTop="4px";c.appendChild(il)}
   if(rec.fromExp)c.appendChild(h("div","meta","Moved here from Expenses by Cordial"));
-  var pr=medProofs(rec);var rl=xtRc(pr,"Bill / receipt",null,function(nl){return save({proofs:nl})},"m_"+rec.id);if(rl)c.appendChild(rl);
+  var pr=medProofs(rec);var rl=xtRc(pr,"Bill / receipt",null,function(nl){return save({proofs:nl})},"m_"+rec.id,rec.title||"");if(rl)c.appendChild(rl);
   var payer=medUid(rec.by),iAmPayer=payer===myId,other=rec.by==="a"?"b":"a";
   if(rec.reimbAt){
     c.appendChild(h("div","meta","↩️ Reimbursed on "+new Date(rec.reimbAt).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+(rec.reimbBy?" by "+xtName(rec.reimbBy):"")+" · "+money(+rec.amount||0)));
@@ -2805,9 +2805,9 @@ function medAddDlg(){
   var c=h("div","card");c.style.cssText="width:min(94vw,460px);max-height:90vh;overflow:auto;box-sizing:border-box";
   c.appendChild(h("h2",null,"Add a medical bill 🩺"));
   c.appendChild(h("p","meta","Add the bill, invoice or receipt (photos, screenshots or PDF). Cordial reads the place, date, items and total."));
-  var mkl=h("label",null,"What are you uploading?"),mks=h("select");[["invoice","🧾 Hospital bill / invoice / receipt"],["transfer","🏦 Bank transfer slip"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];mks.appendChild(op)});mkl.appendChild(mks);c.appendChild(mkl);
+  var mkl=h("label",null,"What are you uploading?"),mks=h("select");[["invoice","🧾 Hospital bill / invoice / receipt"],["transfer","🏦 Bank transfer confirmation"],["pos","💳 POS slip"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];mks.appendChild(op)});mkl.appendChild(mks);c.appendChild(mkl);
   var fi=h("input");fi.type="file";fi.multiple=true;fi.accept="image/*,application/pdf";c.appendChild(fi);
-  c.appendChild(h("div","meta","You can add the other proof (transfer slip, bill or reimbursement receipt) and photos on the bill after saving."));
+  c.appendChild(h("div","meta","You can add the other proof (bank transfer confirmation, POS slip, bill or reimbursement receipt) and photos on the bill after saving."));
   function fld(lbl,el){var w=h("label",null,lbl);w.appendChild(el);c.appendChild(w);return el}
   var ti=fld("What was it for?",h("input"));ti.placeholder="e.g. Doctor’s visit, malaria test, cough syrup";
   var pl=fld("Hospital, clinic or pharmacy",h("input"));
@@ -2835,8 +2835,8 @@ function medAddDlg(){
     if(dup&&!confirm(money(amt)+" on "+dup.day+" is already recorded as "+dup.what+". Add it again anyway?"))return;
     go.disabled=true;go.textContent="Saving…";
     try{
-      var ups=[];for(var i=0;i<fi.files.length;i++){var mu=await xtUp(fi.files[i]);mu.pk=mks.value;ups.push(mu)}
-      var mid="med_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);if(mks.value==="transfer")PRF["m_"+mid]={open:true,kind:"invoice",files:[],info:""};
+      var ups=[];for(var i=0;i<fi.files.length;i++){var mu=await xtUp(fi.files[i]);mu.pk=mks.value;if(ti.value.trim())mu["for"]=ti.value.trim().slice(0,120);ups.push(mu)}
+      var mid="med_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);if(pkPay(mks.value))PRF["m_"+mid]={open:true,kind:"invoice",files:[],info:""};
       await xtDoc(mid,{kind:"medbill",date:di.value||key(new Date()),ts:Date.now(),title:ti.value.trim()||"Medical bill",place:pl.value.trim(),amount:amt,by:ws.value,addedBy:myId,proofs:ups,aicheck:chk,items:items});
       ov.remove();note("Medical bill saved ✓");setTimeout(function(){note("")},2200);
     }catch(e){go.disabled=false;go.textContent="Save";msg.textContent="Couldn’t save. Try again."}
@@ -2902,62 +2902,70 @@ function rcLabel(read,fb){
   return p.length?p.join(" · "):fb;
 }
 /* what each proof file is: a bank transfer slip, the invoice or receipt from the shop, school or hospital, a reimbursement payment, or a photo of the item */
-var PKINDS=[["transfer","🏦","Bank transfer slip"],["invoice","🧾","Invoice / receipt"],["reimb","↩️","Reimbursement payment"],["photo","📷","Photo of item"]];
+var PKINDS=[["transfer","🏦","Bank transfer confirmation"],["pos","💳","POS slip"],["invoice","🧾","Invoice / receipt"],["reimb","↩️","Reimbursement payment"],["photo","📷","Photo of item"]];
+function pkPay(k){return k==="transfer"||k==="pos"}
 function pkOf(k){return PKINDS.filter(function(x){return x[0]===k})[0]||null}
 function pkSelect(def,blank){var s=h("select");if(blank){var o0=h("option",null,"🏷️ What is this file?");o0.value="";s.appendChild(o0)}PKINDS.forEach(function(x){var o=h("option",null,x[1]+" "+x[2]);o.value=x[0];s.appendChild(o)});s.value=def||"";return s}
 /* proof files with their type. With save(newList) the type can be ticked, photo info added, and more files added (transfer slip, invoice, reimbursement or photos) */
 var PRF={};
-function xtRc(list,label,fbRead,save,pkey){
+function xtRc(list,label,fbRead,save,pkey,dfor){
   list=(list||[]).filter(function(rc){return rc&&rc.path});
   var ed=!!(save&&canWrite&&!OBS);
   if(!list.length&&!ed)return null;
   var w=h("div");w.style.cssText="display:flex;flex-direction:column;gap:2px;margin-top:2px";
+  function askFor(nl,i2,cur){var isP=nl[i2].pk==="photo",inf=prompt(isP?"Photo info: what does this photo show?":"What was this payment for?",cur||(isP?"":(dfor||"")));if(inf===null)return;inf=inf.trim().slice(0,120);var pt={};pt[isP?"info":"for"]=inf;save(nl.map(function(q,j){return j===i2?Object.assign({},q,pt):q})).catch(fail)}
   list.forEach(function(rc,i){
-    var k=pkOf(rc.pk),line=h("div");line.style.cssText="display:flex;gap:8px;align-items:center;flex-wrap:wrap";
+    var k=pkOf(rc.pk),line=h("div");line.style.cssText="display:flex;gap:6px;align-items:center;flex-wrap:wrap";
     var rd=(rc.aicheck&&rc.aicheck.read)||(rc.pk==="photo"?null:fbRead)||null,fb=(k?k[2]:(label||"Receipt"))+(list.length>1?" "+(i+1):"");
-    var txt=rc.pk==="photo"?(rc.info||fb):rcLabel(rd,fb);
-    var b=h("button","quiet",(k?k[1]:"🧾")+" "+txt+((rcLabel(rd,"")&&list.length>1&&rc.pk!=="photo")?" ("+(i+1)+" of "+list.length+")":""));b.type="button";b.style.cssText="padding:2px 0;text-decoration:underline;font-size:.9rem;text-align:left";
+    /* once you say what it was for, that name replaces "Bank transfer confirmation 1" and the like */
+    var nm0=rc.pk==="photo"?(rc.info||""):[rc["for"]||"",rcLabel(rd,"")].filter(Boolean).join(" · ");
+    var b=h("button","quiet",(k?k[1]:"🧾")+" "+(nm0||fb));b.type="button";b.style.cssText="padding:2px 0;text-decoration:underline;font-size:.9rem;text-align:left";
     b.onclick=function(){signed(rc.path).then(function(u){preview(Object.assign({},rc,{url:u}))}).catch(function(){note("That file isn’t available.")})};line.appendChild(b);
-    if(ed){
-      var sel=pkSelect(rc.pk||"",!rc.pk);sel.style.cssText="width:auto;padding:2px 6px;font-size:.8rem;margin:0;border-radius:999px"+(rc.pk?"":";border:2px solid #c07a00");
-      sel.onchange=function(){if(!sel.value)return;var nl=list.map(function(q,j){return j===i?Object.assign({},q,{pk:sel.value}):q});save(nl).then(function(){if(sel.value==="photo"&&!rc.info){var inf=prompt("Photo info: what does this photo show? (optional)","");if(inf&&inf.trim()){var nl2=nl.map(function(q,j){return j===i?Object.assign({},q,{info:inf.trim().slice(0,120)}):q});save(nl2)}}}).catch(fail)};line.appendChild(sel);
-      if(rc.pk==="photo"){var ib=h("button","quiet",rc.info?"✏️":"✏️ Add photo info");ib.type="button";ib.style.cssText="padding:0 2px;font-size:.8rem";ib.onclick=function(){var inf=prompt("Photo info: what does this photo show?",rc.info||"");if(inf===null)return;save(list.map(function(q,j){return j===i?Object.assign({},q,{info:inf.trim().slice(0,120)}):q})).catch(fail)};line.appendChild(ib)}
-    }else if(k&&rc.pk!=="photo"){var ch=h("span","meta","· "+k[2]);ch.style.fontSize=".8rem";line.appendChild(ch)}
+    if(ed&&!rc.pk){
+      /* the type is chosen once; after that it is locked */
+      var sel=pkSelect("",true);sel.style.cssText="width:auto;padding:2px 6px;font-size:.8rem;margin:0;border-radius:999px;border:2px solid #c07a00";
+      sel.onchange=function(){if(!sel.value)return;var kk=pkOf(sel.value);if(!confirm("Mark this file as “"+kk[2]+"”? This can’t be changed later.")){sel.value="";return}
+        var nl=list.map(function(q,j){return j===i?Object.assign({},q,{pk:sel.value}):q});save(nl).then(function(){if(!rc["for"]&&!rc.info)askFor(nl,i,"")}).catch(fail)};line.appendChild(sel);
+    }else if(k){var ch=h("span","meta",k[2]+((rc.pk!=="photo"&&rc["for"])||(rc.pk==="photo"&&rc.info)?"":""));ch.style.cssText="font-size:.78rem;background:rgba(128,128,128,.15);border-radius:999px;padding:1px 8px";line.appendChild(ch)}
+    if(ed&&rc.pk){var has0=rc.pk==="photo"?rc.info:rc["for"];var ib=h("button","quiet",has0?"✏️":(rc.pk==="photo"?"✏️ Add photo info":"✏️ Add what it’s for"));ib.type="button";ib.style.cssText="padding:0 2px;font-size:.8rem"+(has0?"":";color:#c07a00;font-weight:600");ib.onclick=function(){askFor(list,i,has0||"")};line.appendChild(ib)}
     w.appendChild(line)});
   if(!ed)return w;
   /* what is still missing */
   var has={};list.forEach(function(q){if(q.pk)has[q.pk]=1});
   var untagged=list.filter(function(q){return !q.pk}).length;
-  if(untagged){var ut=h("div","meta","🏷️ Tick what "+(untagged===1?"this file is":"each file is")+": bank transfer, invoice/receipt, reimbursement or photo.");ut.style.cssText="color:#c07a00;font-size:.85rem";w.appendChild(ut)}
-  else if(has.transfer&&!has.invoice){var mi=h("div","meta","No invoice or receipt from the shop, school or hospital yet.");mi.style.cssText="color:#c07a00;font-size:.85rem";w.appendChild(mi)}
-  else if(has.invoice&&!has.transfer&&!has.reimb){var mt=h("div","meta","You can add the bank transfer slip too.");mt.style.fontSize=".85rem";w.appendChild(mt)}
+  var hasPay=has.transfer||has.pos;
+  if(untagged){var ut=h("div","meta","🏷️ Choose what "+(untagged===1?"this file is":"each file is")+": bank transfer confirmation, POS slip, invoice/receipt, reimbursement or photo. Once chosen it’s locked.");ut.style.cssText="color:#c07a00;font-size:.85rem";w.appendChild(ut)}
+  else if(hasPay&&!has.invoice){var mi=h("div","meta","No invoice or receipt from the shop, school or hospital yet.");mi.style.cssText="color:#c07a00;font-size:.85rem";w.appendChild(mi)}
+  else if(has.invoice&&!hasPay&&!has.reimb){var mt=h("div","meta","You can add the bank transfer confirmation or POS slip too.");mt.style.fontSize=".85rem";w.appendChild(mt)}
   var key0=pkey||"";if(!key0)return w;
   var st=PRF[key0]=PRF[key0]||{open:false,kind:"",files:[],info:""};
-  if(!st.kind)st.kind=has.transfer&&!has.invoice?"invoice":!has.transfer&&has.invoice?"transfer":"invoice";
+  if(!st.kind)st.kind=hasPay&&!has.invoice?"invoice":!hasPay&&has.invoice?"transfer":"invoice";
+  if(st.forv===undefined)st.forv=dfor||"";
   var tg=h("button","quiet",st.open?"✕ Close":"＋ Add proof or photo");tg.type="button";tg.style.cssText="padding:2px 0;font-size:.9rem;text-decoration:underline;text-align:left;align-self:flex-start";
-  tg.onclick=function(){st.open=!st.open;var nw=xtRc(list,label,fbRead,save,pkey);if(nw)w.replaceWith(nw)};w.appendChild(tg);
+  tg.onclick=function(){st.open=!st.open;var nw=xtRc(list,label,fbRead,save,pkey,dfor);if(nw)w.replaceWith(nw)};w.appendChild(tg);
   if(!st.open)return w;
   var f=h("div");f.style.cssText="border:1px solid rgba(127,127,127,.35);border-radius:12px;padding:8px;margin:4px 0;display:flex;flex-direction:column;gap:6px";
   var kl=h("label",null,"What are you uploading?"),ks=pkSelect(st.kind);kl.appendChild(ks);f.appendChild(kl);
   var fi=h("input");fi.type="file";fi.multiple=true;fi.accept="image/*,application/pdf";f.appendChild(fi);
   var lst=h("div");lst.style.cssText="display:flex;flex-wrap:wrap;gap:6px";f.appendChild(lst);
   var il=h("label",null,"Photo info (optional): what’s in the photo?"),ii=h("input");ii.maxLength=120;ii.placeholder="e.g. 2 packs of Softcare diapers, size 4";ii.value=st.info;il.appendChild(ii);f.appendChild(il);
+  var fl2=h("label",null,"What was this payment for?"),fo=h("input");fo.maxLength=120;fo.placeholder="e.g. Angel baby wipes, 4 packs";fo.value=st.forv;fl2.appendChild(fo);f.appendChild(fl2);
   var msg=h("div","meta");f.appendChild(msg);
-  function paint(){lst.textContent="";st.files.forEach(function(ff,j){var c=h("span",null,(pkOf(st.kind)||["","📎"])[1]+" "+(ff.name||"file").slice(0,24)+" ");c.style.cssText="background:rgba(128,128,128,.15);border-radius:999px;padding:3px 10px;font-size:.85rem";var x=h("button",null,"×");x.type="button";x.style.cssText="border:0;background:none;font-weight:700;cursor:pointer;padding:0 2px";x.onclick=function(){st.files.splice(j,1);paint()};c.appendChild(x);lst.appendChild(c)});il.hidden=st.kind!=="photo"}
-  ks.onchange=function(){st.kind=ks.value;paint()};ii.oninput=function(){st.info=ii.value};
+  function paint(){lst.textContent="";st.files.forEach(function(ff,j){var c=h("span",null,(pkOf(st.kind)||["","📎"])[1]+" "+(ff.name||"file").slice(0,24)+" ");c.style.cssText="background:rgba(128,128,128,.15);border-radius:999px;padding:3px 10px;font-size:.85rem";var x=h("button",null,"×");x.type="button";x.style.cssText="border:0;background:none;font-weight:700;cursor:pointer;padding:0 2px";x.onclick=function(){st.files.splice(j,1);paint()};c.appendChild(x);lst.appendChild(c)});il.hidden=st.kind!=="photo";fl2.hidden=st.kind==="photo"}
+  ks.onchange=function(){st.kind=ks.value;paint()};ii.oninput=function(){st.info=ii.value};fo.oninput=function(){st.forv=fo.value};
   fi.onchange=function(){st.files=st.files.concat(Array.prototype.slice.call(fi.files||[]));fi.value="";paint()};paint();
   var go=xtBtn("Save",async function(){
     if(!st.files.length){msg.textContent="Choose the file first.";return}
     go.disabled=true;msg.textContent="Uploading…";
     try{
-      var chk=null;if(st.kind!=="photo"){msg.textContent="Cordial is reading it…";chk=await aiVerifyMany(st.files,{kind:st.kind==="transfer"?"bank transfer slip":st.kind==="reimb"?"reimbursement":"invoice or receipt",title:label||"Proof",amount:null,date:key(new Date())})}
-      var add=[];for(var j=0;j<st.files.length;j++){var u=await xtUp(st.files[j]);u.pk=st.kind;if(st.kind==="photo"&&st.info.trim())u.info=st.info.trim().slice(0,120);if(chk&&chk.read&&(chk.read.amount!=null||chk.read.payee||chk.read.date))u.aicheck={status:"unchecked",reasons:[],read:chk.read,ts:chk.ts||Date.now()};add.push(u)}
+      var chk=null;if(st.kind!=="photo"){msg.textContent="Cordial is reading it…";chk=await aiVerifyMany(st.files,{kind:st.kind==="transfer"?"bank transfer":st.kind==="pos"?"POS slip":st.kind==="reimb"?"reimbursement":"invoice or receipt",title:label||"Proof",amount:null,date:key(new Date())})}
+      var add=[];for(var j=0;j<st.files.length;j++){var u=await xtUp(st.files[j]);u.pk=st.kind;if(st.kind==="photo"&&st.info.trim())u.info=st.info.trim().slice(0,120);if(st.kind!=="photo"&&(st.forv||"").trim())u["for"]=st.forv.trim().slice(0,120);if(chk&&chk.read&&(chk.read.amount!=null||chk.read.payee||chk.read.date))u.aicheck={status:"unchecked",reasons:[],read:chk.read,ts:chk.ts||Date.now()};add.push(u)}
       var kd=st.kind,nl=list.concat(add);
-      if(kd==="transfer"&&!has.invoice)PRF[key0]={open:true,kind:"invoice",files:[],info:""};else delete PRF[key0];
+      if(pkPay(kd)&&!has.invoice)PRF[key0]={open:true,kind:"invoice",files:[],info:"",forv:st.forv};else delete PRF[key0];
       try{await save(nl)}catch(e2){PRF[key0]=st;throw e2}
       var nxt=PRF[key0]?" Now add the invoice or receipt from the shop, school or hospital, or a reimbursement receipt if this was paid back.":"";
       note((pkOf(kd)||["","",""])[2]+" added ✓"+nxt);setTimeout(function(){note("")},nxt?7000:2500);
-      if(w.isConnected){var nw2=xtRc(nl,label,fbRead,save,pkey);if(nw2)w.replaceWith(nw2)}
+      if(w.isConnected){var nw2=xtRc(nl,label,fbRead,save,pkey,dfor);if(nw2)w.replaceWith(nw2)}
     }catch(e){go.disabled=false;msg.textContent="Couldn’t save. Try again."}
   });f.appendChild(go);w.appendChild(f);
   return w;
@@ -3433,7 +3441,7 @@ function xtOtherRow(x){
   var pr=h("div");pr.style.cssText="border-top:1px solid rgba(128,128,128,.25);padding:8px 0;margin-top:6px";
   var tp=h("div",null,"🧾 "+(x.what||"Payment")+" · "+money(x.amount));tp.style.fontWeight="700";pr.appendChild(tp);
   pr.appendChild(h("div","meta","Paid on "+new Date(x.paidOn||x.ts||0).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})+" by "+xtName(x.paidBy)+(x.paidFromReceipt?" (date read from the receipt)":"")));
-  var rc=xtRc(x.receipts,"Receipt",x.aicheck&&x.aicheck.read,function(nl){return xtDoc(x.id,{receipts:nl})},"fx_"+x.id);if(rc)pr.appendChild(rc);
+  var rc=xtRc(x.receipts,"Receipt",x.aicheck&&x.aicheck.read,function(nl){return xtDoc(x.id,{receipts:nl})},"fx_"+x.id,x.what||"");if(rc)pr.appendChild(rc);
   var ck=x.aicheck;
   if(ck&&ck.status==="pass"){var g=h("div","meta","✅ Checked by Cordial");g.style.color="#1f8a4c";pr.appendChild(g)}
   else if(ck&&ck.status==="review"){var wn=h("div","meta","⚠️ Needs a look. "+(ck.reasons||[]).join(" "));wn.style.color="#c07a00";pr.appendChild(wn)}
@@ -3564,7 +3572,7 @@ function xtFee(){
       pays.forEach(function(p){
         var pr=h("div");pr.style.cssText="border-top:1px solid rgba(128,128,128,.25);padding:8px 0;margin-top:6px";
         var tp=h("div",null,(p.what||"Payment")+(p.amount?" · "+money(p.amount):""));tp.style.fontWeight="700";pr.appendChild(tp);
-        var rr0=xtRc(p.receipts,"Receipt",p.aicheck&&p.aicheck.read,function(nl){return xtDoc(id,{payments:pays.map(function(z){return z.id===p.id?Object.assign({},z,{receipts:nl}):z})})},"fp_"+id+"_"+p.id);if(rr0)pr.appendChild(rr0);
+        var rr0=xtRc(p.receipts,"Receipt",p.aicheck&&p.aicheck.read,function(nl){return xtDoc(id,{payments:pays.map(function(z){return z.id===p.id?Object.assign({},z,{receipts:nl}):z})})},"fp_"+id+"_"+p.id,p.what||"");if(rr0)pr.appendChild(rr0);
         var ck=p.aicheck;
         if(ck&&ck.status==="pass"){var g=h("div","meta","✅ Checked by Cordial");g.style.color="#1f8a4c";pr.appendChild(g)}
         else if(ck&&ck.status==="review"){var wn=h("div","meta","⚠️ Needs a look. "+(ck.reasons||[]).join(" "));wn.style.color="#c07a00";pr.appendChild(wn)}
@@ -3578,7 +3586,7 @@ function xtFee(){
         ap.appendChild(h("div","meta","Add a payment"));
         var wi=h("input");wi.type="text";wi.placeholder="What it’s for (e.g. Tuition, Uniform)";wi.maxLength=80;
         var ai=h("input");ai.type="number";ai.min="0";ai.step="0.01";ai.inputMode="decimal";ai.placeholder="Amount (₦)";
-        var rks=h("select");[["invoice","🧾 School invoice / receipt"],["transfer","🏦 Bank transfer slip"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];rks.appendChild(op)});
+        var rks=h("select");[["invoice","🧾 School invoice / receipt"],["transfer","🏦 Bank transfer confirmation"],["pos","💳 POS slip"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];rks.appendChild(op)});
         var rf=h("input");rf.type="file";rf.accept="image/*,application/pdf";rf.multiple=true;
         var rb=xtBtn("Add payment",async function(){
           var what=wi.value.trim(),amt=parseFloat(ai.value);
@@ -3586,10 +3594,10 @@ function xtFee(){
           if(!(amt>0))return note("Enter the amount for this payment.");
           if(!rf.files||!rf.files.length)return note("Choose one or more receipts for this payment.");
           note("");rb.disabled=true;
-          try{var add=[];for(var i=0;i<rf.files.length;i++){var fu=await xtUp(rf.files[i]);fu.pk=rks.value;add.push(fu)}
+          try{var add=[];for(var i=0;i<rf.files.length;i++){var fu=await xtUp(rf.files[i]);fu.pk=rks.value;fu["for"]=what;add.push(fu)}
             var fck=await aiVerifyMany(rf.files,{kind:"fee",title:"School fee "+y+"/"+(y+1)+" term "+(t+1)+" – "+what,amount:amt,date:key(new Date())});
             add.forEach(function(q){q.aicheck=fck});
-            var np={id:"p"+Date.now().toString(36),what:what,amount:amt,ts:Date.now(),by:myId,receipts:add,aicheck:fck};if(rks.value==="transfer")PRF["fp_"+id+"_"+np.id]={open:true,kind:"invoice",files:[],info:""};
+            var np={id:"p"+Date.now().toString(36),what:what,amount:amt,ts:Date.now(),by:myId,receipts:add,aicheck:fck};if(pkPay(rks.value))PRF["fp_"+id+"_"+np.id]={open:true,kind:"invoice",files:[],info:""};
             await xtDoc(id,{kind:"fee",date:yr+"-"+pad(t===0?9:t===1?1:5)+"-01",year:y,term:t+1,payments:pays.concat([np])});
             wi.value="";ai.value="";rf.value=""}catch(e){fail(e)}
           rb.disabled=false});
