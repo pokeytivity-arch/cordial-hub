@@ -883,11 +883,18 @@ main{max-width:100%}
 .xrowl>span{align-self:flex-start}
 .xacts button{text-align:left}
 .xacts{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:4px!important;padding-top:8px;border-top:1px dashed rgba(128,128,128,.3)}
+body.locked.booting #gin,body.locked.booting #gset,body.locked.booting .gcard>p:not(#gmsg){display:none!important}
+body.locked.booting .gcard{background:transparent;box-shadow:none;border:0}
+body.locked.booting .gcard::after{content:"";display:block;width:28px;height:28px;margin:18px auto 0;border-radius:50%;border:3px solid rgba(24,119,242,.25);border-top-color:#1877f2;animation:bootspin .8s linear infinite}
+@keyframes bootspin{to{transform:rotate(360deg)}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 </head>
 <body class="locked">
+<script>/* signed in before? show a quiet loading screen, not the sign-in form, while the hub opens */
+(function(){try{var b=!!localStorage.getItem("hubAuthBak");for(var i=0;!b&&i<localStorage.length;i++){var k=localStorage.key(i)||"";if(/^sb-.*auth-token/.test(k)&&localStorage.getItem(k))b=true}if(b)document.body.classList.add("booting")}catch(e){}})();
+window.hubUnboot=function(){document.body.classList.remove("booting")};</script>
 <script>
 /* Janet's greeting shows first, before the app: uses the name and photo remembered from the last visit */
 (function(){try{
@@ -944,7 +951,7 @@ main{max-width:100%}
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">24 Nov 2026 · 11:20</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 09:35</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -8194,7 +8201,7 @@ syncSnd();buildTones();
 /* sign-in screen */
 function gmsg(t,bad){var e=$("#gmsg");e.textContent=t||"";e.className="meta"+(bad?" bad":"");e.hidden=!t}
 function showSignin(){$("#gin").hidden=false;$("#gset").hidden=true;gmsg("")}
-function showSet(cancelable){$("#gin").hidden=true;$("#gset").hidden=false;$("#gcancel").hidden=!cancelable;document.body.classList.add("locked");gmsg(cancelable?"Choose a new password.":"Welcome. Choose a password to finish setting up your account.")}
+function showSet(cancelable){hubUnboot();$("#gin").hidden=true;$("#gset").hidden=false;$("#gcancel").hidden=!cancelable;document.body.classList.add("locked");gmsg(cancelable?"Choose a new password.":"Welcome. Choose a password to finish setting up your account.")}
 $("#gin").onsubmit=async function(ev){
   ev.preventDefault();gmsg("Signing in…");
   var r=await sb.auth.signInWithPassword({email:$("#gem").value.trim(),password:$("#gpw").value});
@@ -8447,7 +8454,7 @@ async function start(session){
       if(window.__startTry<=20){gmsg("Reconnecting to the hub…");setTimeout(function(){start(session)},3000);return}
       gmsg("Couldn’t reach the hub: "+(lerr.message||lerr.code||"unknown error")+". Check your connection and reopen the app. You are still signed in.",true);return;
     }
-    gmsg("This account isn’t set up in the hub yet.",true);
+    hubUnboot();gmsg("This account isn’t set up in the hub yet.",true);
     sb.auth.signOut({scope:"local"});return;
   }
   STARTED=true;
@@ -8511,10 +8518,13 @@ async function start(session){
       try{r=await sb.auth.getSession();if(!r.data.session){var rf=await sb.auth.refreshSession();if(rf&&rf.data&&rf.data.session)r={data:{session:rf.data.session}}}}catch(e){}
     }
   }
+  if(!r.data.session){
+    /* last try: the spare copy of the login */
+    try{var bk0=JSON.parse(localStorage.getItem("hubAuthBak")||"null");if(bk0&&bk0.r){var rs=await sb.auth.setSession({access_token:bk0.a,refresh_token:bk0.r});if(rs&&rs.data&&rs.data.session)r={data:{session:rs.data.session}}}}catch(e){}
+  }
   if(r.data.session){
     if(setMode)showSet(false);else start(r.data.session);
-  }else if(!$("#gmsg").textContent)showSignin();
-  else{$("#gin").hidden=false}
+  }else{hubUnboot();if(!$("#gmsg").textContent)showSignin();else{$("#gin").hidden=false}}
 })();
 </script>
 <script>
