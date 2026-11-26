@@ -2902,7 +2902,7 @@ function rcLabel(read,fb){
   return p.length?p.join(" · "):fb;
 }
 /* what each proof file is: a bank transfer slip, the invoice or receipt from the shop, school or hospital, a reimbursement payment, or a photo of the item */
-var PKINDS=[["transfer","🏦","Bank transfer confirmation"],["pos","💳","POS slip"],["invoice","🧾","Invoice / receipt"],["reimb","↩️","Reimbursement payment"],["photo","📷","Photo of item"]];
+var PKINDS=[["transfer","🏦","Bank transfer confirmation"],["pos","💳","POS slip"],["invoice","🧾","Invoice / receipt"],["reimb","↩️","Reimbursement payment"],["photo","📷","Photo"]];
 function pkPay(k){return k==="transfer"||k==="pos"}
 function pkOf(k){return PKINDS.filter(function(x){return x[0]===k})[0]||null}
 function pkSelect(def,blank){var s=h("select");if(blank){var o0=h("option",null,"🏷️ What is this file?");o0.value="";s.appendChild(o0)}PKINDS.forEach(function(x){var o=h("option",null,x[1]+" "+x[2]);o.value=x[0];s.appendChild(o)});s.value=def||"";return s}
