@@ -966,7 +966,7 @@ window.hubUnboot=function(){document.body.classList.remove("booting")};</script>
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 21:40</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 21:50</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -8594,19 +8594,19 @@ async function start(session){
     return ord.filter(function(i){return ids.indexOf(i)>=0}).concat(ids.filter(function(i){return ord.indexOf(i)<0}));
   }
   function refreshMenuList(){
-    var list=DS.list;list.textContent="";
-    /* grid of 3 per row; Money Spent, People and Issues and Help always share the last row */
-    var LASTROW=["spend","people","issues"];
-    menuIds().filter(function(i){return LASTROW.indexOf(i)<0}).concat(LASTROW).forEach(function(id){
+    var list=DS.list;list.textContent="";if(DS.acl)DS.acl.textContent="";
+    /* grid of 3 per row (Money Spent last); People and Issues and Help sit at the top of Account and Settings */
+    menuIds().filter(function(i){return i!=="spend"}).concat(["spend"]).forEach(function(id){
       var t=TILES.filter(function(x){return x[0]===id})[0];if(!t||!tabOk(id))return;
       if(id==="feed")return;
+      var inAcc=(id==="people"||id==="issues");
       var r=mk("div","drow");r.dataset.k=id;
       r.appendChild(mk("span","dg","⠿"));
       var ci=mk("span","ci","<svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>"+t[2]+"</svg>");
       ci.style.background="linear-gradient(160deg,"+t[3]+")";if(t[4])ci.style.color=t[4];
       r.appendChild(ci);r.appendChild(mk("span","dl",t[1]));
       r.onclick=function(e){if(e.target.closest&&e.target.closest(".dg"))return;MENUSAVED=openSecKeys();showTab(id);setMenu(false)};
-      list.appendChild(r);
+      if(inAcc&&DS.acl){r.querySelector(".dg").style.visibility="hidden";DS.acl.appendChild(r)}else list.appendChild(r);
     });
     try{updTodoBadge()}catch(e){}
   }
@@ -8614,8 +8614,7 @@ async function start(session){
     if(DS)return;
     var famc=document.getElementById("famcard"),acc=document.getElementById("acctcard");
     var wrap=mk("div");wrap.id="dsecs";
-    var mbody=mk("div","dmgrid"),hm=mk("div","drow");hm.innerHTML="<span class='dg' style='visibility:hidden'>⠿</span><span class='ci' style='background:var(--a)'>"+svg("home",20)+"</span><span class='dl'>Home</span>";
-    hm.onclick=function(){showTab("home");setMenu(false)};mbody.appendChild(hm);
+    var mbody=mk("div","dmgrid");
     var list=mk("div");mbody.appendChild(list);
     DS={wrap:wrap,list:list,secs:{}};
     DS.secs.menu=mkSec("menu","Menu",mbody);
@@ -8629,7 +8628,8 @@ async function start(session){
     });
     var ao=lsGet("hubAcctOrder",[]);
     Array.prototype.slice.call(acc.querySelectorAll(":scope>.aunit")).sort(function(a,b){var x=ao.indexOf(a.dataset.k),y=ao.indexOf(b.dataset.k);return (x<0?99:x)-(y<0?99:y)}).forEach(function(u){acc.appendChild(u)});
-    DS.secs.acct=mkSec("acct","Account and Settings",acc);
+    var acw=mk("div");DS.acl=mk("div","dacl");acw.appendChild(DS.acl);acw.appendChild(acc);
+    DS.secs.acct=mkSec("acct","Account and Settings",acw);
     var so=lsGet("hubDrawerOrder",["menu","fam","acct"]);
     /* Menu and Family Overview can swap places; Account and Settings always stays last and can't be dragged */
     so.concat(["menu","fam"]).filter(function(k,i,a){return a.indexOf(k)===i&&(k==="menu"||k==="fam")}).forEach(function(k){wrap.appendChild(DS.secs[k])});
