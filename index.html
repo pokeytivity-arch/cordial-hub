@@ -902,6 +902,9 @@ body.locked.booting .gcard::after{content:"";display:block;width:28px;height:28p
 .dmgrid .drow .dg{display:none}
 .dmgrid .drow .dl{flex:none;font-size:.8rem;line-height:1.2;font-weight:600}
 .dmgrid .drow .todobdg{position:absolute;top:6px;right:6px;margin:0}
+.dmgrid .drow{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;transition:box-shadow .15s}
+.dmgrid .drow.gdrag{z-index:5;box-shadow:0 10px 26px rgba(0,0,0,.25);background:var(--surface);transition:none;scale:1.06}
+.gsorting>.drow:not(.gdrag){opacity:.75}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -966,7 +969,7 @@ window.hubUnboot=function(){document.body.classList.remove("booting")};</script>
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 21:50</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 22:00</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -4517,6 +4520,31 @@ try{updTodoBadge()}catch(e){}
   order();window.__tileOrder=order;
 })();
 /* sub-page switchers: pages that were merged keep their content, with a switcher on top */
+/* grid tiles: press and hold a tile, then drag it to a new spot (any direction) */
+window.makeGridSortable=function(host,itemSel,onDone){
+  var it=null,tm=null,drag=false,sx=0,sy=0,ox=0,oy=0;
+  function natural(){var tf=it.style.transform;it.style.transform="";var r=it.getBoundingClientRect();it.style.transform=tf;return r}
+  function end(){clearTimeout(tm);if(it&&drag){it.classList.remove("gdrag");it.style.transform="";host.classList.remove("gsorting");host._nc=Date.now();if(onDone)onDone()}it=null;drag=false}
+  host.addEventListener("touchstart",function(e){
+    if(e.touches.length!==1)return;var el=e.target.closest&&e.target.closest(itemSel);if(!el||el.parentNode!==host)return;
+    var p=e.touches[0];sx=p.clientX;sy=p.clientY;it=el;
+    tm=setTimeout(function(){if(!it)return;drag=true;var r=natural();ox=sx-r.left;oy=sy-r.top;it.classList.add("gdrag");host.classList.add("gsorting");try{navigator.vibrate&&navigator.vibrate(15)}catch(x){}},420);
+  },{passive:true});
+  host.addEventListener("touchmove",function(e){
+    if(!it)return;var p=e.touches[0];
+    if(!drag){if(Math.abs(p.clientX-sx)>8||Math.abs(p.clientY-sy)>8){clearTimeout(tm);it=null}return}
+    e.preventDefault();
+    var sibs=Array.prototype.filter.call(host.children,function(c){return c!==it&&c.matches(itemSel)&&!c.hidden});
+    for(var i=0;i<sibs.length;i++){var r=sibs[i].getBoundingClientRect();
+      if(p.clientX>=r.left&&p.clientX<=r.right&&p.clientY>=r.top&&p.clientY<=r.bottom){
+        var all=Array.prototype.slice.call(host.children),a=all.indexOf(it),b=all.indexOf(sibs[i]);
+        if(a<b)host.insertBefore(it,sibs[i].nextSibling);else host.insertBefore(it,sibs[i]);break}}
+    var n=natural();it.style.transform="translate("+(p.clientX-ox-n.left)+"px,"+(p.clientY-oy-n.top)+"px)";
+  },{passive:false});
+  host.addEventListener("touchend",end);host.addEventListener("touchcancel",end);
+  host.addEventListener("click",function(e){if(host._nc&&Date.now()-host._nc<600){e.stopPropagation();e.preventDefault();host._nc=0}},true);
+  host.addEventListener("contextmenu",function(e){if(e.target.closest&&e.target.closest(itemSel))e.preventDefault()});
+};
 window.makeSortable=function(host,itemSel,onDone){
   host.addEventListener("pointerdown",function(e){
     var hd=e.target.closest&&e.target.closest(".dg");if(!hd||!host.contains(hd))return;
@@ -8596,7 +8624,7 @@ async function start(session){
   function refreshMenuList(){
     var list=DS.list;list.textContent="";if(DS.acl)DS.acl.textContent="";
     /* grid of 3 per row (Money Spent last); People and Issues and Help sit at the top of Account and Settings */
-    menuIds().filter(function(i){return i!=="spend"}).concat(["spend"]).forEach(function(id){
+    menuIds().forEach(function(id){
       var t=TILES.filter(function(x){return x[0]===id})[0];if(!t||!tabOk(id))return;
       if(id==="feed")return;
       var inAcc=(id==="people"||id==="issues");
@@ -8637,7 +8665,7 @@ async function start(session){
     /* Account and Settings folds like the others and starts closed; it stays last and can't be dragged */var ag=DS.secs.acct.querySelector(".dh>.dg");if(ag)ag.style.visibility="hidden";
     wrap.appendChild(DS.secs.acct);
     makeSortable(wrap,".dsec",function(){wrap.appendChild(DS.secs.acct);lsSet("hubDrawerOrder",Array.prototype.map.call(wrap.children,function(c){return c.dataset.k}))});
-    makeSortable(list,".drow",function(){
+    makeGridSortable(list,".drow",function(){
       var dom=Array.prototype.map.call(list.children,function(c){return c.dataset.k}),prev=menuIds().filter(function(i){return dom.indexOf(i)<0});
       lsSet("hubTileOrder",dom.concat(prev));if(window.__tileOrder)window.__tileOrder();
     });
