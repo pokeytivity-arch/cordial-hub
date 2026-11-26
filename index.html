@@ -1619,7 +1619,7 @@ $("#xadd").onclick=async function(){
     for(var fi=0;fi<fl.length;fi++){
       var ff=fl[fi],blob=ff,name=ff.name,type=ff.type||"application/octet-stream";
       if(/^image\//.test(type)){try{var sh=await shrinkBlob(ff);blob=sh.blob;type="image/jpeg";name=(ff.name||"receipt").replace(/\.[^.]*$/,"")+".jpg"}catch(e){}}
-      var path=await upload("docs",blob,name);ups.push({path:path,name:name,type:type,size:blob.size||ff.size,pk:xk,"for":d});
+      var path=await upload("docs",blob,name);ups.push({path:path,name:name,type:type,size:blob.size||ff.size,pk:xk,pkLock:true,"for":d});
     }
     for(var pi=0;pi<phl.length;pi++){var pu=await xtUp(phl[pi]);pu.pk="photo";if(phi)pu.info=phi;ups.push(pu)}
     chk=await aiVerifyMany(fl.concat(phl),{slot:"exp",kind:xk==="transfer"?"bank transfer":xk==="pos"?"POS slip":"expense",title:d,amount:a,date:$("#xt").value||key(new Date())});
@@ -2835,7 +2835,7 @@ function medAddDlg(){
     if(dup&&!confirm(money(amt)+" on "+dup.day+" is already recorded as "+dup.what+". Add it again anyway?"))return;
     go.disabled=true;go.textContent="Saving…";
     try{
-      var ups=[];for(var i=0;i<fi.files.length;i++){var mu=await xtUp(fi.files[i]);mu.pk=mks.value;if(ti.value.trim())mu["for"]=ti.value.trim().slice(0,120);ups.push(mu)}
+      var ups=[];for(var i=0;i<fi.files.length;i++){var mu=await xtUp(fi.files[i]);mu.pk=mks.value;mu.pkLock=true;if(ti.value.trim())mu["for"]=ti.value.trim().slice(0,120);ups.push(mu)}
       var mid="med_"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);if(pkPay(mks.value))PRF["m_"+mid]={open:true,kind:"invoice",files:[],info:""};
       await xtDoc(mid,{kind:"medbill",date:di.value||key(new Date()),ts:Date.now(),title:ti.value.trim()||"Medical bill",place:pl.value.trim(),amount:amt,by:ws.value,addedBy:myId,proofs:ups,aicheck:chk,items:items});
       ov.remove();note("Medical bill saved ✓");setTimeout(function(){note("")},2200);
@@ -2925,7 +2925,13 @@ function xtRc(list,label,fbRead,save,pkey,dfor){
       /* the type is chosen once; after that it is locked */
       var sel=pkSelect("",true);sel.style.cssText="width:auto;padding:2px 6px;font-size:.8rem;margin:0;border-radius:999px;border:2px solid #c07a00";
       sel.onchange=function(){if(!sel.value)return;var kk=pkOf(sel.value);if(!confirm("Mark this file as “"+kk[2]+"”? This can’t be changed later.")){sel.value="";return}
-        var nl=list.map(function(q,j){return j===i?Object.assign({},q,{pk:sel.value}):q});save(nl).then(function(){if(!rc["for"]&&!rc.info)askFor(nl,i,"")}).catch(fail)};line.appendChild(sel);
+        var nl=list.map(function(q,j){return j===i?Object.assign({},q,{pk:sel.value,pkLock:true}):q});save(nl).then(function(){if(!rc["for"]&&!rc.info)askFor(nl,i,"")}).catch(fail)};line.appendChild(sel);
+    }else if(ed&&pkPay(rc.pk)&&!rc.pkLock){
+      /* payment files added before POS slips existed: choose once between bank transfer and POS, then it locks */
+      var ps=h("select");[["","🏷️ Bank transfer or POS?"],["transfer","🏦 Bank transfer confirmation"],["pos","💳 POS slip"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];ps.appendChild(op)});
+      ps.style.cssText="width:auto;padding:2px 6px;font-size:.8rem;margin:0;border-radius:999px;border:2px solid #c07a00";
+      ps.onchange=function(){if(!ps.value)return;var kk=pkOf(ps.value);if(!confirm("Mark this file as “"+kk[2]+"”? This can’t be changed later.")){ps.value="";return}
+        save(list.map(function(q,j){return j===i?Object.assign({},q,{pk:ps.value,pkLock:true}):q})).catch(fail)};line.appendChild(ps);
     }else if(k){var ch=h("span","meta",k[2]+((rc.pk!=="photo"&&rc["for"])||(rc.pk==="photo"&&rc.info)?"":""));ch.style.cssText="font-size:.78rem;background:rgba(128,128,128,.15);border-radius:999px;padding:1px 8px";line.appendChild(ch)}
     if(ed&&rc.pk){var has0=rc.pk==="photo"?rc.info:rc["for"];var ib=h("button","quiet",has0?"✏️":(rc.pk==="photo"?"✏️ Add photo info":"✏️ Add what it’s for"));ib.type="button";ib.style.cssText="padding:0 2px;font-size:.8rem"+(has0?"":";color:#c07a00;font-weight:600");ib.onclick=function(){askFor(list,i,has0||"")};line.appendChild(ib)}
     w.appendChild(line)});
@@ -2933,7 +2939,8 @@ function xtRc(list,label,fbRead,save,pkey,dfor){
   /* what is still missing */
   var has={};list.forEach(function(q){if(q.pk)has[q.pk]=1});
   var untagged=list.filter(function(q){return !q.pk}).length;
-  var hasPay=has.transfer||has.pos;
+  var hasPay=has.transfer||has.pos,unsure=list.filter(function(q){return pkPay(q.pk)&&!q.pkLock}).length;
+  if(unsure){var us=h("div","meta","🏷️ Choose whether "+(unsure===1?"this payment was":"each payment was")+" a bank transfer or POS. Once chosen it’s locked.");us.style.cssText="color:#c07a00;font-size:.85rem";w.appendChild(us)}
   if(untagged){var ut=h("div","meta","🏷️ Choose what "+(untagged===1?"this file is":"each file is")+": bank transfer confirmation, POS slip, invoice/receipt, reimbursement or photo. Once chosen it’s locked.");ut.style.cssText="color:#c07a00;font-size:.85rem";w.appendChild(ut)}
   else if(hasPay&&!has.invoice){var mi=h("div","meta","No invoice or receipt from the shop, school or hospital yet.");mi.style.cssText="color:#c07a00;font-size:.85rem";w.appendChild(mi)}
   else if(has.invoice&&!hasPay&&!has.reimb){var mt=h("div","meta","You can add the bank transfer confirmation or POS slip too.");mt.style.fontSize=".85rem";w.appendChild(mt)}
@@ -2959,7 +2966,7 @@ function xtRc(list,label,fbRead,save,pkey,dfor){
     go.disabled=true;msg.textContent="Uploading…";
     try{
       var chk=null;if(st.kind!=="photo"){msg.textContent="Cordial is reading it…";chk=await aiVerifyMany(st.files,{kind:st.kind==="transfer"?"bank transfer":st.kind==="pos"?"POS slip":st.kind==="reimb"?"reimbursement":"invoice or receipt",title:label||"Proof",amount:null,date:key(new Date())})}
-      var add=[];for(var j=0;j<st.files.length;j++){var u=await xtUp(st.files[j]);u.pk=st.kind;if(st.kind==="photo"&&st.info.trim())u.info=st.info.trim().slice(0,120);if(st.kind!=="photo"&&(st.forv||"").trim())u["for"]=st.forv.trim().slice(0,120);if(chk&&chk.read&&(chk.read.amount!=null||chk.read.payee||chk.read.date))u.aicheck={status:"unchecked",reasons:[],read:chk.read,ts:chk.ts||Date.now()};add.push(u)}
+      var add=[];for(var j=0;j<st.files.length;j++){var u=await xtUp(st.files[j]);u.pk=st.kind;u.pkLock=true;if(st.kind==="photo"&&st.info.trim())u.info=st.info.trim().slice(0,120);if(st.kind!=="photo"&&(st.forv||"").trim())u["for"]=st.forv.trim().slice(0,120);if(chk&&chk.read&&(chk.read.amount!=null||chk.read.payee||chk.read.date))u.aicheck={status:"unchecked",reasons:[],read:chk.read,ts:chk.ts||Date.now()};add.push(u)}
       var kd=st.kind,nl=list.concat(add);
       if(pkPay(kd)&&!has.invoice)PRF[key0]={open:true,kind:"invoice",files:[],info:"",forv:st.forv};else delete PRF[key0];
       try{await save(nl)}catch(e2){PRF[key0]=st;throw e2}
@@ -3594,7 +3601,7 @@ function xtFee(){
           if(!(amt>0))return note("Enter the amount for this payment.");
           if(!rf.files||!rf.files.length)return note("Choose one or more receipts for this payment.");
           note("");rb.disabled=true;
-          try{var add=[];for(var i=0;i<rf.files.length;i++){var fu=await xtUp(rf.files[i]);fu.pk=rks.value;fu["for"]=what;add.push(fu)}
+          try{var add=[];for(var i=0;i<rf.files.length;i++){var fu=await xtUp(rf.files[i]);fu.pk=rks.value;fu.pkLock=true;fu["for"]=what;add.push(fu)}
             var fck=await aiVerifyMany(rf.files,{kind:"fee",title:"School fee "+y+"/"+(y+1)+" term "+(t+1)+" – "+what,amount:amt,date:key(new Date())});
             add.forEach(function(q){q.aicheck=fck});
             var np={id:"p"+Date.now().toString(36),what:what,amount:amt,ts:Date.now(),by:myId,receipts:add,aicheck:fck};if(pkPay(rks.value))PRF["fp_"+id+"_"+np.id]={open:true,kind:"invoice",files:[],info:""};
