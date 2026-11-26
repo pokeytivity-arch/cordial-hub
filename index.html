@@ -874,6 +874,15 @@ main{max-width:100%}
 #wpeek .pkmenu{align-self:flex-start;min-width:62%;background:rgba(242,242,247,.92);border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.18)}
 #wpeek .pkmenu button{display:flex;align-items:center;gap:14px;width:100%;background:none;border:0;padding:13px 18px;font:inherit;font-size:1.02rem;color:#111b21;text-align:left;border-bottom:1px solid rgba(0,0,0,.07)}#wpeek .pkmenu button:last-child{border-bottom:0}#wpeek .pkmenu button:active{background:rgba(0,0,0,.08)}
 .wrow{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+/* Expenses rows, tidied */
+.xrow{gap:12px;padding:14px 0}
+.xrowl{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
+.xrowl>*{margin-top:0!important}
+.xrow .meta{line-height:1.35}
+.xrow button.quiet{padding:0!important;margin:0!important;font-size:.88rem!important}
+.xrowl>span{align-self:flex-start}
+.xacts button{text-align:left}
+.xacts{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:4px!important;padding-top:8px;border-top:1px dashed rgba(128,128,128,.3)}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -1866,8 +1875,8 @@ function expPeriodBar(L,list){
 }
 /* one expense, as shown in Expenses and in the Supplies, Clothes and Medical tabs */
 function expRowEl(x){
-    var r=h("div","item"),l=h("div");
-    l.appendChild(h("div",null,x.desc));l.appendChild(h("div","meta",x.date+" – paid by "+nm(x.by)));
+    var r=h("div","item xrow"),l=h("div");l.className="xrowl";
+    var tt=h("div",null,x.desc);tt.style.fontWeight="600";l.appendChild(tt);l.appendChild(h("div","meta",x.date+" – paid by "+nm(x.by)));
     var rcl0=xtRc(x.proofs&&x.proofs.length?x.proofs:(x.proof?[x.proof]:[]),"Receipt",x.aicheck&&x.aicheck.read,x.id?function(nl){return db.doc("expenses/"+x.id).update({proofs:nl,proof:nl[0]||null})}:null,x.id?"x_"+x.id:"",x.desc||"");if(rcl0)l.appendChild(rcl0);
     var sl=selfieLinks(x,[["selfie","Selfie"]]);if(sl)l.appendChild(sl);
     var bg=aiBadge(x,"expenses");if(bg)l.appendChild(bg);var xsh=shareLine(x,"expenses");if(xsh)l.appendChild(xsh);
@@ -1875,15 +1884,17 @@ function expRowEl(x){
     var xpid=(x.by==="b"?(mumM()||{}).user_id:(ownerM()||{}).user_id);l.appendChild(xtConfirmBox(x,xpid,"expenses"));
     try{var hasIt=(x.rcItems&&x.rcItems.length)||(x.aicheck&&x.aicheck.read&&(x.aicheck.read.items||[]).length)||(x.proofs||[]).some(function(q){return q&&q.aicheck&&q.aicheck.read&&(q.aicheck.read.items||[]).length}),pl=(x.proofs&&x.proofs.length?x.proofs:(x.proof?[x.proof]:[])).filter(function(q){return q&&q.path});
       if(hasIt)l.appendChild(h("div","meta","🧾 Prices read from this receipt for the Shopping List."));
-      else if(pl.length&&canWrite&&!OBS){var rb2=h("button","quiet","🧾 Read item prices from the receipt");rb2.type="button";rb2.style.cssText="padding:2px 0;text-decoration:underline;font-size:.9rem";
+      else if(pl.length&&canWrite&&!OBS){var rb2=h("button","quiet","🧾 Read item prices");rb2.type="button";rb2.style.cssText="padding:2px 0;text-decoration:underline;font-size:.9rem";
         rb2.onclick=async function(){rb2.disabled=true;rb2.textContent="Cordial is reading the receipt…";
           try{var fs=[];for(var qi=0;qi<pl.length&&qi<3;qi++){var u=await signed(pl[qi].path),bl=await (await fetch(u)).blob();fs.push(new File([bl],"receipt"+qi+(bl.type==="application/pdf"?".pdf":".jpg"),{type:bl.type}))}
             var ck=await aiVerifyMany(fs,{kind:"expense",title:x.desc||"Receipt",amount:x.amount,date:x.date}),its=(ck&&ck.read&&ck.read.items)||[];
-            if(!its.length){var rdA=ck&&ck.read&&typeof ck.read.amount==="number";if(rdA){rb2.replaceWith(h("div","meta","🧾 This receipt shows only a total ("+money(ck.read.amount)+"), with no list of items."));return}rb2.disabled=false;rb2.textContent="🧾 Read item prices from the receipt";return note("Cordial couldn’t read items on that receipt. A flat, well-lit photo works best.")}
+            if(!its.length){var rdA=ck&&ck.read&&typeof ck.read.amount==="number";if(rdA){rb2.replaceWith(h("div","meta","🧾 This receipt shows only a total ("+money(ck.read.amount)+"), with no list of items."));return}rb2.disabled=false;rb2.textContent="🧾 Read item prices";return note("Cordial couldn’t read items on that receipt. A flat, well-lit photo works best.")}
             await db.doc("expenses/"+x.id).update({rcItems:its,rcShop:(ck.read.payee||"")});note("Read "+its.length+" items ✓")}
-          catch(e){rb2.disabled=false;rb2.textContent="🧾 Read item prices from the receipt";fail(e)}};
+          catch(e){rb2.disabled=false;rb2.textContent="🧾 Read item prices";fail(e)}};
         l.appendChild(rb2)}}catch(e){}
     l.appendChild(reimbBox(x,xpid,function(pt){return db.doc("expenses/"+x.id).update(pt)},"expense"));if(x.reimbAt)l.style.opacity=".7";
+    /* the small action links sit together on one line at the bottom */
+    try{var acts=h("div","xacts");Array.prototype.slice.call(l.querySelectorAll("button.quiet")).forEach(function(b){if(/Read item prices|Request reimbursement|Cancel request/.test(b.textContent))acts.appendChild(b)});if(acts.children.length)l.appendChild(acts)}catch(e){}
     var rt=h("div");rt.style.textAlign="right";if(x.origCur&&x.origAmount){rt.appendChild(h("div","amt",cloMoney(x.origAmount,x.origCur)));rt.appendChild(h("div","meta","(≈ "+money(x.amount)+")"))}else rt.appendChild(h("div","amt",money(x.amount)));
     var rm=h("button","quiet","Remove");rm.onclick=function(){db.doc("expenses/"+x.id).delete().catch(fail)};
     if(canWrite&&canRemoveRec(x))rt.appendChild(rm);r.appendChild(l);r.appendChild(rt);var cc=expCat(x);if(cc!=="other"){var cp=xtChip(EXPCAT[cc]||cc,cc==="medical"?"#c2185b":cc==="clothes"?"#7b1fa2":cc==="school"?"#ef6c00":"#1a7f45");cp.style.marginTop="4px";l.insertBefore(cp,l.children[2]||null)}
@@ -2967,12 +2978,6 @@ function xtRc(list,label,fbRead,save,pkey,dfor){
       var sel=pkSelect("",true);sel.style.cssText="width:auto;padding:2px 6px;font-size:.8rem;margin:0;border-radius:999px;border:2px solid #c07a00";
       sel.onchange=function(){if(!sel.value)return;var kk=pkOf(sel.value);if(!confirm("Mark this file as “"+kk[2]+"”? This can’t be changed later.")){sel.value="";return}
         var nl=list.map(function(q,j){return j===i?Object.assign({},q,{pk:sel.value,pkLock:true}):q});save(nl).then(function(){if(!rc["for"]&&!rc.info)askFor(nl,i,"")}).catch(fail)};line.appendChild(sel);
-    }else if(ed&&pkPay(rc.pk)&&!rc.pkLock){
-      /* payment files added before POS slips existed: choose once between bank transfer and POS, then it locks */
-      var ps=h("select");[["","🏷️ Bank transfer or POS?"],["transfer","🏦 Bank transfer confirmation"],["pos","💳 POS slip"]].forEach(function(o){var op=h("option",null,o[1]);op.value=o[0];ps.appendChild(op)});
-      ps.style.cssText="width:auto;padding:2px 6px;font-size:.8rem;margin:0;border-radius:999px;border:2px solid #c07a00";
-      ps.onchange=function(){if(!ps.value)return;var kk=pkOf(ps.value);if(!confirm("Mark this file as “"+kk[2]+"”? This can’t be changed later.")){ps.value="";return}
-        save(list.map(function(q,j){return j===i?Object.assign({},q,{pk:ps.value,pkLock:true}):q})).catch(fail)};line.appendChild(ps);
     }else if(k){var ch=h("span","meta",k[2]+((rc.pk!=="photo"&&rc["for"])||(rc.pk==="photo"&&rc.info)?"":""));ch.style.cssText="font-size:.78rem;background:rgba(128,128,128,.15);border-radius:999px;padding:1px 8px";line.appendChild(ch)}
     if(ed&&rc.pk){var has0=rc.pk==="photo"?rc.info:rc["for"];var ib=h("button","quiet",has0?"✏️":(rc.pk==="photo"?"✏️ Add photo info":"✏️ Add what it’s for"));ib.type="button";ib.style.cssText="padding:0 2px;font-size:.8rem"+(has0?"":";color:#c07a00;font-weight:600");ib.onclick=function(){askFor(list,i,has0||"")};line.appendChild(ib)}
     w.appendChild(line)});
@@ -2980,11 +2985,10 @@ function xtRc(list,label,fbRead,save,pkey,dfor){
   /* what is still missing */
   var has={};list.forEach(function(q){if(q.pk)has[q.pk]=1});
   var untagged=list.filter(function(q){return !q.pk}).length;
-  var hasPay=has.transfer||has.pos,unsure=list.filter(function(q){return pkPay(q.pk)&&!q.pkLock}).length;
-  if(unsure){var us=h("div","meta","🏷️ Choose whether "+(unsure===1?"this payment was":"each payment was")+" a bank transfer or POS. Once chosen it’s locked.");us.style.cssText="color:#c07a00;font-size:.85rem";w.appendChild(us)}
+  var hasPay=has.transfer||has.pos;
   if(untagged){var ut=h("div","meta","🏷️ Choose what "+(untagged===1?"this file is":"each file is")+": bank transfer confirmation, POS slip, invoice/receipt, reimbursement or photo. Once chosen it’s locked.");ut.style.cssText="color:#c07a00;font-size:.85rem";w.appendChild(ut)}
-  else if(hasPay&&!has.invoice){var mi=h("div","meta","No invoice or receipt from the shop, school or hospital yet.");mi.style.cssText="color:#c07a00;font-size:.85rem";w.appendChild(mi)}
-  else if(has.invoice&&!hasPay&&!has.reimb){var mt=h("div","meta","You can add the bank transfer confirmation or POS slip too.");mt.style.fontSize=".85rem";w.appendChild(mt)}
+  else if(hasPay&&!has.invoice){var mi=h("div","meta","⚠️ Invoice / receipt not added yet");mi.style.cssText="color:#c07a00;font-size:.85rem";w.appendChild(mi)}
+  else if(has.invoice&&!hasPay&&!has.reimb){var mt=h("div","meta","Payment proof (transfer or POS) not added yet");mt.style.fontSize=".85rem";w.appendChild(mt)}
   var key0=pkey||"";if(!key0)return w;
   var st=PRF[key0]=PRF[key0]||{open:false,kind:"",files:[],info:""};
   if(!st.kind)st.kind=hasPay&&!has.invoice?"invoice":!hasPay&&has.invoice?"transfer":"invoice";
