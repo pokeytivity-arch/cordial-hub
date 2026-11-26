@@ -958,7 +958,7 @@ window.hubUnboot=function(){document.body.classList.remove("booting")};</script>
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 17:00</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 21:25</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -8586,17 +8586,18 @@ async function start(session){
     return ord.filter(function(i){return ids.indexOf(i)>=0}).concat(ids.filter(function(i){return ord.indexOf(i)<0}));
   }
   function refreshMenuList(){
-    var list=DS.list;list.textContent="";
+    var list=DS.list;list.textContent="";if(DS.acl)DS.acl.textContent="";
     menuIds().forEach(function(id){
       var t=TILES.filter(function(x){return x[0]===id})[0];if(!t||!tabOk(id))return;
       if(id==="feed")return;
+      var inAcc=(id==="people"||id==="issues");
       var r=mk("div","drow");r.dataset.k=id;
       r.appendChild(mk("span","dg","⠿"));
       var ci=mk("span","ci","<svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>"+t[2]+"</svg>");
       ci.style.background="linear-gradient(160deg,"+t[3]+")";if(t[4])ci.style.color=t[4];
       r.appendChild(ci);r.appendChild(mk("span","dl",t[1]));
       r.onclick=function(e){if(e.target.closest&&e.target.closest(".dg"))return;MENUSAVED=openSecKeys();showTab(id);setMenu(false)};
-      list.appendChild(r);
+      if(inAcc){r.querySelector(".dg").style.visibility="hidden";DS.acl.appendChild(r)}else list.appendChild(r);
     });
     try{updTodoBadge()}catch(e){}
   }
@@ -8619,13 +8620,14 @@ async function start(session){
     });
     var ao=lsGet("hubAcctOrder",[]);
     Array.prototype.slice.call(acc.querySelectorAll(":scope>.aunit")).sort(function(a,b){var x=ao.indexOf(a.dataset.k),y=ao.indexOf(b.dataset.k);return (x<0?99:x)-(y<0?99:y)}).forEach(function(u){acc.appendChild(u)});
-    DS.secs.acct=mkSec("acct","Account and Settings",acc);
+    /* People and Issues and Help live at the top of Account and Settings */
+    var acw=mk("div");DS.acl=mk("div","dacl");acw.appendChild(DS.acl);acw.appendChild(acc);
+    DS.secs.acct=mkSec("acct","Account and Settings",acw);
     var so=lsGet("hubDrawerOrder",["menu","fam","acct"]);
     /* Menu and Family Overview can swap places; Account and Settings always stays last and can't be dragged */
     so.concat(["menu","fam"]).filter(function(k,i,a){return a.indexOf(k)===i&&(k==="menu"||k==="fam")}).forEach(function(k){wrap.appendChild(DS.secs[k])});
     DS.secs.acct.dataset.fixed="1";
-    /* Account and Settings is always open and can't be folded; only Menu and Family Overview fold */
-    (function(a){var b=a.querySelector(".db"),t=a.querySelector(".dt"),c=a.querySelector(".dc");if(b)b.hidden=false;a.classList.add("open");if(t){t.onclick=null;t.style.cursor="default"}if(c)c.style.display="none"})(DS.secs.acct);var ag=DS.secs.acct.querySelector(".dh>.dg");if(ag)ag.style.visibility="hidden";
+    /* Account and Settings folds like the others and starts closed; it stays last and can't be dragged */var ag=DS.secs.acct.querySelector(".dh>.dg");if(ag)ag.style.visibility="hidden";
     wrap.appendChild(DS.secs.acct);
     makeSortable(wrap,".dsec",function(){wrap.appendChild(DS.secs.acct);lsSet("hubDrawerOrder",Array.prototype.map.call(wrap.children,function(c){return c.dataset.k}))});
     makeSortable(list,".drow",function(){
@@ -8639,7 +8641,7 @@ async function start(session){
   var MENUSAVED=[],RESTORE=null,WAMENU=[];
   function openSecKeys(){var o=[];if(DS)Array.prototype.forEach.call(DS.wrap.children,function(sec){var b=sec.querySelector(".db");if(!sec.dataset.fixed&&b&&!b.hidden)o.push(sec.dataset.k)});return o}
   function restoreSecs(){if(!RESTORE||!DS)return;var keys=RESTORE;RESTORE=null;Array.prototype.forEach.call(DS.wrap.children,function(sec){if(keys.indexOf(sec.dataset.k)>=0){var b=sec.querySelector(".db");if(b)b.hidden=false;sec.classList.add("open")}})}
-  function collapseAll(){if(!DS)return;Array.prototype.forEach.call(DS.wrap.children,function(sec){if(sec.dataset.fixed)return;var b=sec.querySelector(".db");if(b)b.hidden=true;sec.classList.remove("open")})}
+  function collapseAll(){if(!DS)return;Array.prototype.forEach.call(DS.wrap.children,function(sec){var b=sec.querySelector(".db");if(b)b.hidden=true;sec.classList.remove("open")})}
   function placeAcct(){
     var home=document.getElementById("home");if(!home)return;
     buildDrawer();refreshMenuList();
@@ -8652,14 +8654,14 @@ async function start(session){
   }
   function setMenu(on){
     if(look==="classic"){
-      if(on){buildC();collapseAll();restoreSecs();root.style.setProperty("--abh","0px");cdr.classList.add("open")}else cdr.classList.remove("open");
+      if(on){buildC();collapseAll();RESTORE=null;root.style.setProperty("--abh","0px");cdr.classList.add("open")}else cdr.classList.remove("open");
       scrim.hidden=!on;if(on)root.setAttribute("data-menu","open");else root.removeAttribute("data-menu");
       menuBtn.innerHTML=svg(on?"close":"menu",24);menuBtn.setAttribute("aria-label",on?"Close menu":"Menu");
       if(on)try{updLeft()}catch(e){}
       return;
     }
     if(cdr.classList.contains("open"))cdr.classList.remove("open");
-    if(on){collapseAll();restoreSecs();refreshMenuList();root.style.setProperty("--abh",Math.max(0,Math.round(appbar.getBoundingClientRect().bottom))+"px");root.setAttribute("data-menu","open")}
+    if(on){collapseAll();RESTORE=null;refreshMenuList();root.style.setProperty("--abh",Math.max(0,Math.round(appbar.getBoundingClientRect().bottom))+"px");root.setAttribute("data-menu","open")}
     else root.removeAttribute("data-menu");
     scrim.hidden=!on;
     menuBtn.innerHTML=svg(on?"close":"menu",24);menuBtn.setAttribute("aria-label",on?"Close menu":"Menu");
