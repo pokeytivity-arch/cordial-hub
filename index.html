@@ -887,6 +887,13 @@ body.locked.booting #gin,body.locked.booting #gset,body.locked.booting .gcard>p:
 body.locked.booting .gcard{background:transparent;box-shadow:none;border:0}
 body.locked.booting .gcard::after{content:"";display:block;width:28px;height:28px;margin:18px auto 0;border-radius:50%;border:3px solid rgba(24,119,242,.25);border-top-color:#1877f2;animation:bootspin .8s linear infinite}
 @keyframes bootspin{to{transform:rotate(360deg)}}
+/* seen vs unseen, made obvious: unseen = blue band, blue bar, bold text, blue dot; seen = plain and softer */
+#nfl .nrow.un{background:#d6e4fc!important;box-shadow:inset 4px 0 0 #1877f2}
+#nfl .nrow.un .nbd{font-weight:600}#nfl .nrow.un .nbd b{font-weight:800}
+#nfl .nrow.un::after{content:"";position:absolute;right:16px;bottom:16px;width:12px;height:12px;border-radius:50%;background:#1877f2}
+#nfl .nrow:not(.un) .nbd{color:#65676b}#nfl .nrow:not(.un) .nbd b{color:#3a3b3c;font-weight:600}#nfl .nrow:not(.un) .nav{opacity:.8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #nfl .nrow.un{background:#1f3d6b!important}:root:not([data-theme="light"]) #nfl .nrow:not(.un) .nbd,:root:not([data-theme="light"]) #nfl .nrow:not(.un) .nbd b{color:#9a9da2}}
+:root[data-theme="dark"] #nfl .nrow.un{background:#1f3d6b!important}:root[data-theme="dark"] #nfl .nrow:not(.un) .nbd,:root[data-theme="dark"] #nfl .nrow:not(.un) .nbd b{color:#9a9da2}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -951,7 +958,7 @@ window.hubUnboot=function(){document.body.classList.remove("booting")};</script>
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 09:35</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 14:40</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
