@@ -894,6 +894,14 @@ body.locked.booting .gcard::after{content:"";display:block;width:28px;height:28p
 #nfl .nrow:not(.un) .nbd{color:#65676b}#nfl .nrow:not(.un) .nbd b{color:#3a3b3c;font-weight:600}#nfl .nrow:not(.un) .nav{opacity:.8}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #nfl .nrow.un{background:#1f3d6b!important}:root:not([data-theme="light"]) #nfl .nrow:not(.un) .nbd,:root:not([data-theme="light"]) #nfl .nrow:not(.un) .nbd b{color:#9a9da2}}
 :root[data-theme="dark"] #nfl .nrow.un{background:#1f3d6b!important}:root[data-theme="dark"] #nfl .nrow:not(.un) .nbd,:root[data-theme="dark"] #nfl .nrow:not(.un) .nbd b{color:#9a9da2}
+/* Menu as a grid: three tiles per row, icon above the name */
+.dmgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:10px}
+.dmgrid>div:not(.drow){display:contents}
+.dmgrid .drow{position:relative;flex-direction:column;justify-content:flex-start;gap:6px;padding:12px 4px 10px;border:1px solid var(--line);border-radius:14px;text-align:center;min-height:96px}
+.dmgrid .drow:last-child{border-bottom:1px solid var(--line)}
+.dmgrid .drow .dg{display:none}
+.dmgrid .drow .dl{flex:none;font-size:.8rem;line-height:1.2;font-weight:600}
+.dmgrid .drow .todobdg{position:absolute;top:6px;right:6px;margin:0}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -958,7 +966,7 @@ window.hubUnboot=function(){document.body.classList.remove("booting")};</script>
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 21:25</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">26 Nov 2026 · 21:40</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -8586,18 +8594,19 @@ async function start(session){
     return ord.filter(function(i){return ids.indexOf(i)>=0}).concat(ids.filter(function(i){return ord.indexOf(i)<0}));
   }
   function refreshMenuList(){
-    var list=DS.list;list.textContent="";if(DS.acl)DS.acl.textContent="";
-    menuIds().forEach(function(id){
+    var list=DS.list;list.textContent="";
+    /* grid of 3 per row; Money Spent, People and Issues and Help always share the last row */
+    var LASTROW=["spend","people","issues"];
+    menuIds().filter(function(i){return LASTROW.indexOf(i)<0}).concat(LASTROW).forEach(function(id){
       var t=TILES.filter(function(x){return x[0]===id})[0];if(!t||!tabOk(id))return;
       if(id==="feed")return;
-      var inAcc=(id==="people"||id==="issues");
       var r=mk("div","drow");r.dataset.k=id;
       r.appendChild(mk("span","dg","⠿"));
       var ci=mk("span","ci","<svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>"+t[2]+"</svg>");
       ci.style.background="linear-gradient(160deg,"+t[3]+")";if(t[4])ci.style.color=t[4];
       r.appendChild(ci);r.appendChild(mk("span","dl",t[1]));
       r.onclick=function(e){if(e.target.closest&&e.target.closest(".dg"))return;MENUSAVED=openSecKeys();showTab(id);setMenu(false)};
-      if(inAcc){r.querySelector(".dg").style.visibility="hidden";DS.acl.appendChild(r)}else list.appendChild(r);
+      list.appendChild(r);
     });
     try{updTodoBadge()}catch(e){}
   }
@@ -8605,7 +8614,7 @@ async function start(session){
     if(DS)return;
     var famc=document.getElementById("famcard"),acc=document.getElementById("acctcard");
     var wrap=mk("div");wrap.id="dsecs";
-    var mbody=mk("div"),hm=mk("div","drow");hm.innerHTML="<span class='dg' style='visibility:hidden'>⠿</span><span class='ci' style='background:var(--a)'>"+svg("home",20)+"</span><span class='dl'>Home</span>";
+    var mbody=mk("div","dmgrid"),hm=mk("div","drow");hm.innerHTML="<span class='dg' style='visibility:hidden'>⠿</span><span class='ci' style='background:var(--a)'>"+svg("home",20)+"</span><span class='dl'>Home</span>";
     hm.onclick=function(){showTab("home");setMenu(false)};mbody.appendChild(hm);
     var list=mk("div");mbody.appendChild(list);
     DS={wrap:wrap,list:list,secs:{}};
@@ -8620,9 +8629,7 @@ async function start(session){
     });
     var ao=lsGet("hubAcctOrder",[]);
     Array.prototype.slice.call(acc.querySelectorAll(":scope>.aunit")).sort(function(a,b){var x=ao.indexOf(a.dataset.k),y=ao.indexOf(b.dataset.k);return (x<0?99:x)-(y<0?99:y)}).forEach(function(u){acc.appendChild(u)});
-    /* People and Issues and Help live at the top of Account and Settings */
-    var acw=mk("div");DS.acl=mk("div","dacl");acw.appendChild(DS.acl);acw.appendChild(acc);
-    DS.secs.acct=mkSec("acct","Account and Settings",acw);
+    DS.secs.acct=mkSec("acct","Account and Settings",acc);
     var so=lsGet("hubDrawerOrder",["menu","fam","acct"]);
     /* Menu and Family Overview can swap places; Account and Settings always stays last and can't be dragged */
     so.concat(["menu","fam"]).filter(function(k,i,a){return a.indexOf(k)===i&&(k==="menu"||k==="fam")}).forEach(function(k){wrap.appendChild(DS.secs[k])});
