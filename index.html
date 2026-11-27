@@ -969,7 +969,7 @@ window.hubUnboot=function(){document.body.classList.remove("booting")};</script>
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">27 Nov 2026 · 01:25</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">27 Nov 2026 · 02:30</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -8576,7 +8576,9 @@ async function start(session){
   var KEY="hubLook",SEEN_N="hubSeenN",SEEN_C="hubSeenC";
   var root=document.documentElement,sel=document.getElementById("lookbtn"),appbar=document.querySelector(".appbar");
   var cur="home",backTo=null,menuReq=false,SIG={},seenOpen=0,mediaTab="photos",nfTab="all";
-  var look="classic";try{look=localStorage.getItem(KEY)||"classic"}catch(e){}
+  /* no choice saved yet: Social when opened from the Home Screen, Classic in a browser tab */
+  var isApp=false;try{isApp=!!(navigator.standalone||(window.matchMedia&&matchMedia("(display-mode: standalone)").matches))}catch(e){}
+  var look=isApp?"fb":"classic";try{look=localStorage.getItem(KEY)||look}catch(e){}
   if(look==="wa")look="fb";
   if(look!=="fb")look="classic";
   function lget(k){try{return Number(localStorage.getItem(k))||0}catch(e){return 0}}
