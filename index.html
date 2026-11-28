@@ -905,6 +905,8 @@ body.locked.booting .gcard::after{content:"";display:block;width:28px;height:28p
 .dmgrid .drow{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;transition:box-shadow .15s}
 .dmgrid .drow.gdrag{z-index:5;box-shadow:0 10px 26px rgba(0,0,0,.25);background:var(--surface);transition:none;scale:1.06}
 .gsorting>.drow:not(.gdrag){opacity:.75}
+/* reaction buttons: a long press opens the emoji picker, never iPhone's Copy / Look Up bar */
+.nosel,.nosel *,.rbtn,.rpick,.rpick *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -969,7 +971,7 @@ window.hubUnboot=function(){document.body.classList.remove("booting")};</script>
     <div class="arow" id="selfrow" hidden><span>Selfie check<br><small class="meta">Photo saved with every request, document, expense and check-in</small></span><button id="selfbtn" class="go sm" type="button">On</button></div>
     <div class="arow"><span>Call ringtone</span><span style="display:flex;gap:6px;align-items:center"><select id="ringsel" aria-label="Call ringtone"></select><button class="go sm" id="ringpv" type="button" aria-label="Play ringtone">▶</button></span></div>
     <div class="arow"><span>Camera and microphone for calls</span><button class="go sm" id="camguidebtn" type="button">How to allow</button></div>
-    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">27 Nov 2026 · 02:30</span></div>
+    <div class="arow"><span>Hub version</span><span class="meta" id="hubver">28 Nov 2026 · 13:45</span></div>
     <input id="ringfile" type="file" accept="audio/*" hidden>
     <div class="arow"><span>Reaction skin tone</span><span id="tonebar"></span></div>
     <div class="arow" id="swrow" hidden><span>Switch account<br><small class="meta">Only for you: Cordial Coparent and your Parent account</small></span><button class="go sm" id="swbtn2" type="button"></button></div>
@@ -7018,10 +7020,10 @@ function commentRow(x,ps){
   function sbtn(label,fn,color){var bt=h("button","quiet",label);bt.type="button";bt.style.cssText="font-size:.75rem;font-weight:700;padding:0;text-decoration:none;color:"+(color||"inherit");bt.onclick=function(e){e.stopPropagation();fn(bt)};return bt}
   if(canWrite){
     var mr=cmMine(x.id),def=mr?rdef(mr.type||"like"):null;
-    var lk=sbtn(def?def[2]:"Like",function(){if(lk._lp){lk._lp=false;return}cmReact(x.id,mr?(mr.type||"like"):"like")},def?def[3]:"");
+    var lk=sbtn(def?def[2]:"Like",function(){if(lk._lp){lk._lp=false;return}cmReact(x.id,mr?(mr.type||"like"):"like")},def?def[3]:"");lk.classList.add("nosel");m2.classList.add("nosel");
     var tm=null;
-    lk.addEventListener("pointerdown",function(){lk._lp=false;clearTimeout(tm);tm=setTimeout(function(){lk._lp=true;
-      var pk=h("div");pk.style.cssText="display:flex;gap:6px;margin:4px 0 0 8px;padding:6px 8px;border-radius:999px;background:var(--surface,#fff);box-shadow:0 2px 12px rgba(0,0,0,.25);width:max-content;max-width:100%;overflow-x:auto";
+    lk.addEventListener("pointerdown",function(){lk._lp=false;clearTimeout(tm);tm=setTimeout(function(){lk._lp=true;try{window.getSelection().removeAllRanges()}catch(e){}
+      var pk=h("div");pk.className="nosel";pk.style.cssText="display:flex;gap:6px;margin:4px 0 0 8px;padding:6px 8px;border-radius:999px;background:var(--surface,#fff);box-shadow:0 2px 12px rgba(0,0,0,.25);width:max-content;max-width:100%;overflow-x:auto";
       REACTS.forEach(function(rc){var eb=h("button",null,rdef(rc[0])[1]);eb.type="button";eb.setAttribute("aria-label",rc[2]);eb.style.cssText="border:0;background:none;font-size:1.5rem;padding:0 3px;cursor:pointer";eb.onclick=function(e){e.stopPropagation();pk.remove();cmReact(x.id,rc[0])};pk.appendChild(eb)});
       col.appendChild(pk);setTimeout(function(){document.addEventListener("pointerdown",function once(ev){if(!pk.contains(ev.target)){pk.remove()}document.removeEventListener("pointerdown",once,true)},true)},50)},380)});
     ["pointerup","pointerleave","pointercancel"].forEach(function(ev){lk.addEventListener(ev,function(){clearTimeout(tm)})});
